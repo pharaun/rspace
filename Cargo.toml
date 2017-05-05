@@ -1,0 +1,6 @@
+[package]
+name = "rspace"
+version = "0.1.0"
+authors = ["Anja Berens <pharaun666@gmail.com>"]
+
+[dependencies]
