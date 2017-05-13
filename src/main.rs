@@ -22,13 +22,17 @@ fn main() {
 	let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
 	let indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
 
+    let mut t: f32 = -0.5;
+
 	let vertex_shader_src = r#"
 		#version 140
 
 		in vec2 position;
 
+        uniform mat4 matrix;
+
 		void main() {
-			gl_Position = vec4(position, 0.0, 1.0);
+            gl_Position = matrix * vec4(position, 0.0, 1.0);
 		}
 	"#;
 
@@ -45,9 +49,26 @@ fn main() {
 	let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
 
     loop {
+        // we update `t`
+        t += 0.0002;
+        if t > 0.5 {
+            t = -0.5;
+        }
+
+        let uniforms = uniform! {
+            matrix: [
+                [ t.cos(), t.sin(), 0.0, 0.0],
+                [-t.sin(), t.cos(), 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [ t , 0.0, 0.0, 1.0f32],
+            ]
+        };
+
         let mut target = display.draw();
         target.clear_color(0.0, 0.0, 1.0, 1.0);
-		target.draw(&vertex_buffer, &indices, &program, &glium::uniforms::EmptyUniforms, &Default::default()).unwrap();
+		//target.draw(&vertex_buffer, &indices, &program, &glium::uniforms::EmptyUniforms, &Default::default()).unwrap();
+        //target.draw(&vertex_buffer, &indices, &program, &uniform! { t: t }, &Default::default()).unwrap();
+        target.draw(&vertex_buffer, &indices, &program, &uniforms, &Default::default()).unwrap();
         target.finish().unwrap();
 
         for ev in display.poll_events() {
