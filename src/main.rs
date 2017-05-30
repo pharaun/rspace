@@ -322,18 +322,32 @@ impl Default for InputState {
 
 #[derive(Copy, Clone)]
 pub struct Vertex {
-    position: [f32; 3],
-    normal: [f32; 3],
+    position: [f32; 3]
 }
 
-implement_vertex!(Vertex, position, normal);
+implement_vertex!(Vertex, position);
 
-pub const VERTICES: [Vertex; 4] = [
-    Vertex { position: [-1.0,  1.0, 0.0], normal: [0.0, 0.0, -1.0] },
-    Vertex { position: [ 1.0,  1.0, 0.0], normal: [0.0, 0.0, -1.0] },
-    Vertex { position: [-1.0, -1.0, 0.0], normal: [0.0, 0.0, -1.0] },
-    Vertex { position: [ 1.0, -1.0, 0.0], normal: [0.0, 0.0, -1.0] },
+pub const SHIP: [Vertex; 9] = [
+    Vertex { position: [-0.3, -0.3,   0.0] },
+    Vertex { position: [ 0.0,  0.5,   0.0] },
+    Vertex { position: [ 0.3, -0.3,   0.0] },
+    Vertex { position: [-0.3, -0.3,   0.0] },
+    Vertex { position: [ 0.0,  0.25,  0.0] },
+    Vertex { position: [ 0.3, -0.3,   0.0] },
+    Vertex { position: [-0.3, -0.3,   0.0] },
+    Vertex { position: [ 0.0,  0.0,   0.0] },
+    Vertex { position: [ 0.3, -0.3,   0.0] },
 ];
+
+pub const THRUST: [Vertex; 6] = [
+    Vertex { position: [-0.3,  -0.3,   0.0] },
+    Vertex { position: [-0.15, -0.45,  0.0] },
+    Vertex { position: [ 0.0,  -0.3,   0.0] },
+    Vertex { position: [-0.0,  -0.3,   0.0] },
+    Vertex { position: [ 0.15, -0.45,  0.0] },
+    Vertex { position: [ 0.3,  -0.3,   0.0] },
+];
+
 
 
 /// Main
@@ -341,16 +355,12 @@ fn main() {
     use glium::{DisplayBuild, Surface};
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).build_glium().unwrap();
 
-    let shape = glium::vertex::VertexBuffer::new(&display, &VERTICES).unwrap();
+    let shape = glium::vertex::VertexBuffer::new(&display, &SHIP).unwrap();
 
     let vertex_shader_src = r#"
         #version 140
 
         in vec3 position;
-        out vec3 v_position;
-
-        in vec3 normal;
-        out vec3 v_normal;
 
         uniform mat4 perspective;
         uniform mat4 view;
@@ -358,34 +368,17 @@ fn main() {
 
         void main() {
             mat4 modelview = view * model;
-            v_normal = transpose(inverse(mat3(modelview))) * normal;
             gl_Position = perspective * modelview * vec4(position, 1.0);
-            v_position = gl_Position.xyz / gl_Position.w;
         }
     "#;
 
     let fragment_shader_src = r#"
         #version 140
 
-        in vec3 v_normal;
-        in vec3 v_position;
-
         out vec4 color;
 
-        uniform vec3 u_light;
-
-        const vec3 ambient_color = vec3(0.2, 0.0, 0.0);
-        const vec3 diffuse_color = vec3(0.6, 0.0, 0.0);
-        const vec3 specular_color = vec3(1.0, 1.0, 1.0);
-
         void main() {
-            float diffuse = max(dot(normalize(v_normal), normalize(u_light)), 0.0);
-
-            vec3 camera_dir = normalize(-v_position);
-            vec3 half_direction = normalize(normalize(u_light) + camera_dir);
-            float specular = pow(max(dot(half_direction, normalize(v_normal)), 0.0), 16.0);
-
-            color = vec4(ambient_color + diffuse * diffuse_color + specular * specular_color, 1.0);
+            color = vec4(0.0, 1.0, 0.0, 1.0);
         }
     "#;
 
@@ -394,13 +387,11 @@ fn main() {
 
 
     loop {
-        let light = [-1.0, 0.4, 0.9f32];
-
         let model = [
             [1.0, 0.0, 0.0, 0.0],
             [0.0, 1.0, 0.0, 0.0],
             [0.0, 0.0, 1.0, 0.0],
-            [1.0, 0.0, 0.0, 1.0f32]
+            [0.0, 0.0, 0.0, 1.0f32]
         ];
 
         let params = glium::DrawParameters {
@@ -417,28 +408,15 @@ fn main() {
         //target.clear_color(0.0, 0.0, 1.0, 1.0);
         target.clear_color_and_depth((0.0, 0.0, 1.0, 1.0), 1.0);
 
-        let view = view_matrix(&[0.5, 0.2, -3.0], &[-0.5, -0.2, 3.0], &[0.0, 1.0, 0.0]);
+        let view = view_matrix(&[0.0, 0.0, -3.0], &[0.0, 0.0, 3.0], &[0.0, 1.0, 0.0]);
 
-        let perspective = {
-            let (width, height) = target.get_dimensions();
-            let aspect_ratio = height as f32 / width as f32;
+        let (width, height) = target.get_dimensions();
+        let perspective = prespective(width, height);
 
-            let fov: f32 = 3.141592 / 3.0;
-            let zfar = 1024.0;
-            let znear = 0.1;
 
-            let f = 1.0 / (fov / 2.0).tan();
 
-            [
-                [f *   aspect_ratio   ,    0.0,              0.0              ,   0.0],
-                [         0.0         ,     f ,              0.0              ,   0.0],
-                [         0.0         ,    0.0,  (zfar+znear)/(zfar-znear)    ,   1.0],
-                [         0.0         ,    0.0, -(2.0*zfar*znear)/(zfar-znear),   0.0],
-            ]
-        };
-
-        // Wall
-        target.draw(&shape, glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip), &program, &uniform! { model: model, view: view, perspective: perspective, u_light: light }, &params).unwrap();
+        // SHIP
+        target.draw(&shape, glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip), &program, &uniform! { model: model, view: view, perspective: perspective }, &params).unwrap();
 
 
         target.finish().unwrap();
@@ -799,5 +777,39 @@ fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> [[f3
         [s[1], u[1], f[1], 0.0],
         [s[2], u[2], f[2], 0.0],
         [p[0], p[1], p[2], 1.0],
+    ]
+}
+
+fn prespective(width: u32, height: u32) -> [[f32; 4]; 4] {
+    let aspect_ratio = height as f32 / width as f32;
+
+    let fov: f32 = 3.141592 / 3.0;
+    let zfar = 1024.0;
+    let znear = 0.1;
+
+    let f = 1.0 / (fov / 2.0).tan();
+
+    [
+        [f *   aspect_ratio   ,    0.0,              0.0              ,   0.0],
+        [         0.0         ,     f ,              0.0              ,   0.0],
+        [         0.0         ,    0.0,  (zfar+znear)/(zfar-znear)    ,   1.0],
+        [         0.0         ,    0.0, -(2.0*zfar*znear)/(zfar-znear),   0.0],
+    ]
+}
+
+fn othographic(left: i32, right: i32, top: i32, bottom: i32) -> [[f32; 4]; 4] {
+    let l = left as f32;
+    let r = right as f32;
+    let t = top as f32;
+    let b = bottom as f32;
+
+    let zfar  = 1024.0;
+    let znear = 0.1;
+
+    [
+        [ 2.0 / (r - l) , 0.0           ,  0.0                  , -((r + l) / (r - l))               ],
+        [ 0.0           , 2.0 / (t - b) ,  0.0                  , -((t + b) / (t - b))               ],
+        [ 0.0           , 0.0           , -2.0 / (zfar - znear) , -((zfar + znear) / (zfar - znear)) ],
+        [ 0.0           , 0.0           ,  0.0                  ,  1.0                               ],
     ]
 }
