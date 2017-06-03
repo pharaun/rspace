@@ -1,11 +1,15 @@
 #[macro_use]
 extern crate glium;
+extern crate glutin;
 extern crate rand;
 
 // Asteroidish game (based off the ggez example)
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::ops::{Add, AddAssign, Sub};
+use std::thread;
 
+pub use glium::backend::glutin_backend::GlutinFacade as Display;
+use glium::Surface;
 
 /// *********************************************************************
 /// Basic stuff.
@@ -350,30 +354,98 @@ pub const THRUST: [Vertex; 6] = [
 
 
 
+/// **********************************************************************
+/// Now we're getting into the actual game loop.  The `MainState` is our
+/// game's "global" state, it keeps track of everything we need for
+/// actually running the game.
+///
+/// Our game objects are simply a vector for each actor type, and we
+/// probably mingle gameplay-state (like score) and hardware-state
+/// (like gui_`dirty`) a little more than we should, but for something
+/// this small it hardly matters.
+/// **********************************************************************
+
+struct MainState {
+    player: Actor,
+    shots: Vec<Actor>,
+    rocks: Vec<Actor>,
+    input: InputState,
+    player_shot_timeout: f64,
+}
+
+impl MainState {
+    fn new() -> MainState {
+        let player = create_player();
+        let rocks = create_rocks(5, &player.pos, 100.0, 250.0);
+
+        MainState {
+            player: player,
+            shots: Vec::new(),
+            rocks: rocks,
+            input: InputState::default(),
+            player_shot_timeout: 0.0,
+        }
+    }
+
+    fn fire_player_shot(&mut self) {
+        self.player_shot_timeout = PLAYER_SHOT_TIME;
+
+        let player = &self.player;
+        let mut shot = create_shot();
+        shot.pos = player.pos;
+        shot.facing = player.facing;
+        let direction = Vec2::from_angle(shot.facing);
+        shot.velocity.x = SHOT_SPEED * direction.x;
+        shot.velocity.y = SHOT_SPEED * direction.y;
+
+        self.shots.push(shot);
+    }
+
+    fn clear_dead_stuff(&mut self) {
+        self.shots.retain(|s| s.life > 0.0);
+        self.rocks.retain(|r| r.life > 0.0);
+    }
+
+    fn handle_collisions(&mut self) {
+        for rock in &mut self.rocks {
+            let pdistance = rock.pos - self.player.pos;
+            if pdistance.magnitude() < (self.player.bbox_size + rock.bbox_size) {
+                self.player.life = 0.0;
+            }
+            for shot in &mut self.shots {
+                let distance = shot.pos - rock.pos;
+                if distance.magnitude() < (shot.bbox_size + rock.bbox_size) {
+                    shot.life = 0.0;
+                    rock.life = 0.0;
+                }
+            }
+        }
+    }
+
+    fn check_for_level_respawn(&mut self) {
+        if self.rocks.is_empty() {
+            let r = create_rocks(5, &self.player.pos, 100.0, 250.0);
+            self.rocks.extend(r);
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Main stuff
 fn main() {
     use glium::{DisplayBuild, Surface};
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).build_glium().unwrap();
-
-    // Parameters
-    let params = glium::DrawParameters {
-        depth: glium::Depth {
-            test: glium::draw_parameters::DepthTest::IfLess,
-            write: true,
-            .. Default::default()
-        },
-        //backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
-        .. Default::default()
-    };
-
-    // Fixed for now (view matrix) - identity
-    let view = [
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0f32],
-    ];
 
 
     // Shaders
@@ -405,364 +477,197 @@ fn main() {
     // Fucking &display
     let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
 
-
     // Ship
-    let shape = glium::vertex::VertexBuffer::new(&display, &SHIP).unwrap();
+    let ship_shape = glium::vertex::VertexBuffer::new(&display, &SHIP).unwrap();
+
+
+    // Main state
+    let mut state = MainState::new();
+
+    // Game loop bits
+    let mut accumulator = Duration::new(0, 0);
+    let mut previous_clock = Instant::now();
+    let speed = 1;
 
     loop {
-        // Model matrix
-        let model = [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0f32],
-        ];
-
         let mut target = display.draw();
+        //let (width, height) = target.get_dimensions();
+        let width = 640;
+        let height = 480;
+
+        const DESIRED_FPS: u64 = 60;
+        let seconds = 1.0 / (DESIRED_FPS as f64);
+
+        // Update the player state based on the user input.
+        player_handle_input(&mut state.player, &state.input, seconds);
+        state.player_shot_timeout -= seconds;
+        if state.input.fire && state.player_shot_timeout < 0.0 {
+            state.fire_player_shot();
+        }
+
+        // Update the physics for all actors.
+        // First the player...
+        update_actor_position(&mut state.player, seconds);
+        wrap_actor_position(&mut state.player, width as f64, height as f64);
+
+        // Then the shots...
+        for act in &mut state.shots {
+            update_actor_position(act, seconds);
+            wrap_actor_position(act, width as f64, height as f64);
+            handle_timed_life(act, seconds);
+        }
+
+        // And finally the rocks.
+        for act in &mut state.rocks {
+            update_actor_position(act, seconds);
+            wrap_actor_position(act, width as f64, height as f64);
+        }
+
+        // Handle the results of things moving:
+        // collision detection, object death, and if
+        // we have killed all the rocks in the level,
+        // spawn more of them.
+        state.handle_collisions();
+
+        state.clear_dead_stuff();
+
+        state.check_for_level_respawn();
+
+        // Finally we check for our end state.
+        // I want to have a nice death screen eventually,
+        // but for now we just quit.
+        if state.player.life <= 0.0 {
+            target.finish().unwrap();
+            return;
+        }
+
+
+        // Our drawing is quite simple.
+        // Just clear the screen...
         target.clear_color_and_depth((0.0, 0.0, 1.0, 1.0), 1.0);
 
+        // Loop over all objects drawing them...
+        {
+            let coords = (width, height);
 
-        // Otho projection (set to -5 to 5 for now, may want to do screen coord eventually
-        // TODO: implement zoom (not sure where, maybe the view matrix, tho most code has it
-        //       changing the otho projection sizing by a consistent factor)
-        let (width, height) = target.get_dimensions();
-        let projection = othographic(-5, 5, -5, 5);
+            let p = &state.player;
+            draw_actor(&mut target, &program, &ship_shape, p, coords);
 
+            for s in &state.shots {
+                draw_actor(&mut target, &program, &ship_shape, s, coords);
+            }
 
-        // SHIP
-        target.draw(
-            &shape,
-            glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip),
-            &program,
-            &uniform! { model: model, view: view, projection: projection },
-            &params
-        ).unwrap();
+            for r in &state.rocks {
+                draw_actor(&mut target, &program, &ship_shape, r, coords);
+            }
+        }
 
         target.finish().unwrap();
-
 
         for ev in display.poll_events() {
             match ev {
                 glium::glutin::Event::Closed => return,
+
+                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Space)) => {
+                    state.input.fire = true;
+                },
+                glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Space)) => {
+                    state.input.fire = false;
+                },
+
+                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Up)) => {
+                    state.input.yaxis = 1.0;
+                },
+                glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Up)) => {
+                    state.input.yaxis = 0.0;
+                },
+
+                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Left)) => {
+                    state.input.xaxis = -1.0;
+                },
+                glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Left)) => {
+                    state.input.xaxis = 0.0;
+                },
+
+                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Right)) => {
+                    state.input.xaxis = 1.0;
+                },
+                glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Right)) => {
+                    state.input.xaxis = 0.0;
+                },
+
                 _ => ()
             }
         }
+
+        let now = Instant::now();
+        accumulator += now - previous_clock;
+        previous_clock = now;
+
+        let fixed_time_stamp = Duration::new(0, 16666667 / speed);
+        while accumulator >= fixed_time_stamp {
+            accumulator -= fixed_time_stamp;
+        }
+
+        thread::sleep(fixed_time_stamp - accumulator);
     }
 }
 
+fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &glium::VertexBuffer<R>, actor: &Actor, world_coords: (u32, u32)) -> () where R: std::marker::Copy {
+    // Parameters
+    let params = glium::DrawParameters {
+        depth: glium::Depth {
+            test: glium::draw_parameters::DepthTest::IfLess,
+            write: true,
+            .. Default::default()
+        },
+        //backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+        .. Default::default()
+    };
+
+    // Fixed for now (view matrix) - identity
+    // TODO: not sure why we needed the offset, but that fixed the othographic projection tho
+    let view = [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [-320.0, -240.0, 0.0, 1.0f32],
+    ];
+
+    let (screen_w, screen_h) = world_coords;
+    // Otho projection (set to -5 to 5 for now, may want to do screen coord eventually
+    // TODO: implement zoom (not sure where, maybe the view matrix, tho most code has it
+    //       changing the otho projection sizing by a consistent factor)
+    let projection = othographic(-320, 320, -240, 240);
+
+
+    let pos = world_to_screen_coords(screen_w, screen_h, &actor.pos);
+    // let pos = Vec2::new(1.0, 1.0);
+    let px = pos.x as f32;
+    let py = pos.y as f32;
 
 
 
+    // Model matrix
+    // TODO: rotation + scale somehow
+    let model = [
+        [20.0, 0.0, 0.0, 0.0],
+        [0.0, 20.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [px, py, 0.0, 1.0f32],
+    ];
+
+    // SHIP
+    target.draw(
+        shape,
+        glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip),
+        program,
+        &uniform! { model: model, view: view, projection: projection },
+        &params
+    ).unwrap();
+}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-///// **********************************************************************
-///// Now we're getting into the actual game loop.  The `MainState` is our
-///// game's "global" state, it keeps track of everything we need for
-///// actually running the game.
-/////
-///// Our game objects are simply a vector for each actor type, and we
-///// probably mingle gameplay-state (like score) and hardware-state
-///// (like gui_`dirty`) a little more than we should, but for something
-///// this small it hardly matters.
-///// **********************************************************************
-//
-//struct MainState {
-//    player: Actor,
-//    shots: Vec<Actor>,
-//    rocks: Vec<Actor>,
-//    level: i32,
-//    score: i32,
-//    screen_width: u32,
-//    screen_height: u32,
-//    input: InputState,
-//    player_shot_timeout: f64,
-//}
-//
-//
-//impl MainState {
-//    fn new(ctx: &mut Context) -> GameResult<MainState> {
-//        ctx.print_resource_stats();
-//        graphics::set_background_color(ctx, (0, 0, 0, 255).into());
-//
-//        println!("Game resource path: {:?}", ctx.filesystem);
-//
-//        print_instructions();
-//
-//        let assets = Assets::new(ctx)?;
-//        //let score_disp = graphics::Text::new(ctx, "score", &assets.font)?;
-//        //let level_disp = graphics::Text::new(ctx, "level", &assets.font)?;
-//
-//        let player = create_player();
-//        let rocks = create_rocks(5, &player.pos, 100.0, 250.0);
-//
-//        let s = MainState {
-//            player: player,
-//            shots: Vec::new(),
-//            rocks: rocks,
-//            level: 0,
-//            score: 0,
-//            assets: assets,
-//            screen_width: ctx.conf.window_width,
-//            screen_height: ctx.conf.window_height,
-//            input: InputState::default(),
-//            player_shot_timeout: 0.0,
-//        };
-//
-//        Ok(s)
-//    }
-//
-//    fn fire_player_shot(&mut self) {
-//        self.player_shot_timeout = PLAYER_SHOT_TIME;
-//
-//        let player = &self.player;
-//        let mut shot = create_shot();
-//        shot.pos = player.pos;
-//        shot.facing = player.facing;
-//        let direction = Vec2::from_angle(shot.facing);
-//        shot.velocity.x = SHOT_SPEED * direction.x;
-//        shot.velocity.y = SHOT_SPEED * direction.y;
-//
-//        self.shots.push(shot);
-//    }
-//
-//
-//
-//    fn clear_dead_stuff(&mut self) {
-//        self.shots.retain(|s| s.life > 0.0);
-//        self.rocks.retain(|r| r.life > 0.0);
-//    }
-//
-//    fn handle_collisions(&mut self) {
-//        for rock in &mut self.rocks {
-//            let pdistance = rock.pos - self.player.pos;
-//            if pdistance.magnitude() < (self.player.bbox_size + rock.bbox_size) {
-//                self.player.life = 0.0;
-//            }
-//            for shot in &mut self.shots {
-//                let distance = shot.pos - rock.pos;
-//                if distance.magnitude() < (shot.bbox_size + rock.bbox_size) {
-//                    shot.life = 0.0;
-//                    rock.life = 0.0;
-//                    self.score += 1;
-//                }
-//            }
-//        }
-//    }
-//
-//    fn check_for_level_respawn(&mut self) {
-//        if self.rocks.is_empty() {
-//            self.level += 1;
-//            let r = create_rocks(self.level + 5, &self.player.pos, 100.0, 250.0);
-//            self.rocks.extend(r);
-//        }
-//    }
-//}
-//
-//
-//
-//
-///// **********************************************************************
-///// A couple of utility functions.
-///// **********************************************************************
-//
-//fn print_instructions() {
-//    println!();
-//    println!("Welcome to ASTROBLASTO!");
-//    println!();
-//    println!("How to play:");
-//    println!("L/R arrow keys rotate your ship, up thrusts, space bar fires");
-//    println!();
-//}
-//
-//
-//fn draw_actor(assets: &mut Assets,
-//              ctx: &mut Context,
-//              actor: &Actor,
-//              world_coords: (u32, u32))
-//              -> GameResult<()> {
-//    let (screen_w, screen_h) = world_coords;
-//    let pos = world_to_screen_coords(screen_w, screen_h, &actor.pos);
-//    // let pos = Vec2::new(1.0, 1.0);
-//    let px = pos.x as f32;
-//    let py = pos.y as f32;
-//    let dest_point = graphics::Point::new(px, py);
-//    let image = assets.actor_image(actor);
-//    graphics::draw(ctx, image, dest_point, actor.facing as f32)
-//
-//}
-//
-//
-//
-///// **********************************************************************
-///// Now we implement the `EventHandler` trait from `ggez::event`, which provides
-///// ggez with callbacks for updating and drawing our game, as well as
-///// handling input events.
-///// **********************************************************************
-//impl EventHandler for MainState {
-//    fn update(&mut self, ctx: &mut Context, _dt: Duration) -> GameResult<()> {
-//        const DESIRED_FPS: u64 = 60;
-//        if !timer::check_update_time(ctx, DESIRED_FPS) {
-//            return Ok(());
-//        }
-//        let seconds = 1.0 / (DESIRED_FPS as f64);
-//
-//        // Update the player state based on the user input.
-//        player_handle_input(&mut self.player, &self.input, seconds);
-//        self.player_shot_timeout -= seconds;
-//        if self.input.fire && self.player_shot_timeout < 0.0 {
-//            self.fire_player_shot();
-//        }
-//
-//        // Update the physics for all actors.
-//        // First the player...
-//        update_actor_position(&mut self.player, seconds);
-//        wrap_actor_position(&mut self.player,
-//                            self.screen_width as f64,
-//                            self.screen_height as f64);
-//
-//        // Then the shots...
-//        for act in &mut self.shots {
-//            update_actor_position(act, seconds);
-//            wrap_actor_position(act, self.screen_width as f64, self.screen_height as f64);
-//            handle_timed_life(act, seconds);
-//        }
-//
-//        // And finally the rocks.
-//        for act in &mut self.rocks {
-//            update_actor_position(act, seconds);
-//            wrap_actor_position(act, self.screen_width as f64, self.screen_height as f64);
-//        }
-//
-//        // Handle the results of things moving:
-//        // collision detection, object death, and if
-//        // we have killed all the rocks in the level,
-//        // spawn more of them.
-//        self.handle_collisions();
-//
-//        self.clear_dead_stuff();
-//
-//        self.check_for_level_respawn();
-//
-//        // Finally we check for our end state.
-//        // I want to have a nice death screen eventually,
-//        // but for now we just quit.
-//        if self.player.life <= 0.0 {
-//            println!("Game over!");
-//            let _ = ctx.quit();
-//        }
-//        Ok(())
-//    }
-//
-//    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-//        // Our drawing is quite simple.
-//        // Just clear the screen...
-//        graphics::clear(ctx);
-//
-//        // Loop over all objects drawing them...
-//        {
-//            let assets = &mut self.assets;
-//            let coords = (self.screen_width, self.screen_height);
-//
-//            let p = &self.player;
-//            draw_actor(assets, ctx, p, coords)?;
-//
-//            for s in &self.shots {
-//                draw_actor(assets, ctx, s, coords)?;
-//            }
-//
-//            for r in &self.rocks {
-//                draw_actor(assets, ctx, r, coords)?;
-//            }
-//        }
-//
-//
-//        // Then we flip the screen...
-//        graphics::present(ctx);
-//        timer::sleep(Duration::from_secs(0));
-//        Ok(())
-//    }
-//
-//    // Handle key events.  These just map keyboard events
-//    // and alter our input state appropriately.
-//    fn key_down_event(&mut self, keycode: Keycode, _keymod: Mod, _repeat: bool) {
-//        match keycode {
-//            Keycode::Up => {
-//                self.input.yaxis = 1.0;
-//            }
-//            Keycode::Left => {
-//                self.input.xaxis = -1.0;
-//            }
-//            Keycode::Right => {
-//                self.input.xaxis = 1.0;
-//            }
-//            Keycode::Space => {
-//                self.input.fire = true;
-//            }
-//            _ => (), // Do nothing
-//        }
-//    }
-//
-//
-//    fn key_up_event(&mut self, keycode: Keycode, _keymod: Mod, _repeat: bool) {
-//        match keycode {
-//            Keycode::Up => {
-//                self.input.yaxis = 0.0;
-//            }
-//            Keycode::Left | Keycode::Right => {
-//                self.input.xaxis = 0.0;
-//            }
-//            Keycode::Space => {
-//                self.input.fire = false;
-//            }
-//            _ => (), // Do nothing
-//        }
-//    }
-//}
-//
-//
-//
-///// **********************************************************************
-///// Finally our main function!  Which merely sets up a config and calls
-///// `ggez::event::run()` with our `EventHandler` type.
-///// **********************************************************************
-//
-//pub fn main_asdf() {
-//    let mut c = conf::Conf::new();
-//    c.window_title = "Astroblasto!".to_string();
-//    c.window_width = 640;
-//    c.window_height = 480;
-//    c.window_icon = "/player.png".to_string();
-//
-//    let ctx = &mut Context::load_from_conf("astroblasto", "ggez", c).unwrap();
-//
-//    match MainState::new(ctx) {
-//        Err(e) => {
-//            println!("Could not load game!");
-//            println!("Error: {}", e);
-//        }
-//        Ok(ref mut game) => {
-//            let result = run(ctx, game);
-//            if let Err(e) = result {
-//                println!("Error encountered running game: {}", e);
-//            } else {
-//                println!("Game exited cleanly.");
-//            }
-//        }
-//    }
-//}
 
 
 fn othographic(left: i32, right: i32, top: i32, bottom: i32) -> [[f32; 4]; 4] {

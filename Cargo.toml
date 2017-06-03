@@ -5,5 +5,5 @@ authors = ["Anja Berens <pharaun666@gmail.com>"]
 
 [dependencies]
 glium = "*"
-image = "*"
+glutin = "*"
 rand = "*"
