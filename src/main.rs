@@ -2,6 +2,7 @@
 extern crate glium;
 extern crate glutin;
 extern crate rand;
+extern crate cgmath;
 
 // Asteroidish game (based off the ggez example)
 use std::time::{Duration, Instant};
@@ -10,6 +11,8 @@ use std::thread;
 
 pub use glium::backend::glutin_backend::GlutinFacade as Display;
 use glium::Surface;
+
+use cgmath::prelude::*;
 
 /// *********************************************************************
 /// Basic stuff.
@@ -647,22 +650,20 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
     let py = pos.y as f32;
 
 
-
     // Model matrix
     // TODO: rotation + scale somehow
-    let model = [
-        [20.0, 0.0, 0.0, 0.0],
-        [0.0, 20.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [px, py, 0.0, 1.0f32],
-    ];
+    let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
+    let r = cgmath::Matrix4::from_angle_z(cgmath::Rad(*&actor.facing as f32));
+    let s = cgmath::Matrix4::from_scale(20.0);
+
+    let model: cgmath::Matrix4<f32> = t * r * s;
 
     // SHIP
     target.draw(
         shape,
         glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip),
         program,
-        &uniform! { model: model, view: view, projection: projection },
+        &uniform! { model: Into::<[[f32; 4]; 4]>::into(model), view: view, projection: projection },
         &params
     ).unwrap();
 }

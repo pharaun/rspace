@@ -7,3 +7,4 @@ authors = ["Anja Berens <pharaun666@gmail.com>"]
 glium = "*"
 glutin = "*"
 rand = "*"
+cgmath = "*"
