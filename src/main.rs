@@ -463,7 +463,8 @@ fn main() {
 
         void main() {
             mat4 modelview = view * model;
-            gl_Position = projection * modelview * vec4(position, 1.0);
+            //gl_Position = projection * modelview * vec4(position, 1.0);
+            gl_Position = modelview * vec4(position, 1.0) * projection;
         }
     "#;
 
@@ -637,21 +638,15 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
         [-320.0, -240.0, 0.0, 1.0f32],
     ];
 
+    // Projection
+    let projection: cgmath::Matrix4<f32> = cgmath::ortho(-320.0, 320.0, 240.0, -240.0, 0.1, 1024.0);
+
     let (screen_w, screen_h) = world_coords;
-    // Otho projection (set to -5 to 5 for now, may want to do screen coord eventually
-    // TODO: implement zoom (not sure where, maybe the view matrix, tho most code has it
-    //       changing the otho projection sizing by a consistent factor)
-    let projection = othographic(-320, 320, -240, 240);
-
-
     let pos = world_to_screen_coords(screen_w, screen_h, &actor.pos);
-    // let pos = Vec2::new(1.0, 1.0);
     let px = pos.x as f32;
     let py = pos.y as f32;
 
-
     // Model matrix
-    // TODO: rotation + scale somehow
     let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
     let r = cgmath::Matrix4::from_angle_z(cgmath::Rad(*&actor.facing as f32));
     let s = cgmath::Matrix4::from_scale(20.0);
@@ -663,7 +658,7 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
         shape,
         glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip),
         program,
-        &uniform! { model: Into::<[[f32; 4]; 4]>::into(model), view: view, projection: projection },
+        &uniform! { model: Into::<[[f32; 4]; 4]>::into(model), view: view, projection: Into::<[[f32; 4]; 4]>::into(projection) },
         &params
     ).unwrap();
 }
