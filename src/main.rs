@@ -631,12 +631,7 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
 
     // Fixed for now (view matrix) - identity
     // TODO: not sure why we needed the offset, but that fixed the othographic projection tho
-    let view = [
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [-320.0, -240.0, 0.0, 1.0f32],
-    ];
+    let view = cgmath::Matrix4::from_translation(cgmath::Vector3::new(-320.0, -240.0, 0.0));
 
     // Projection
     let projection: cgmath::Matrix4<f32> = cgmath::ortho(-320.0, 320.0, 240.0, -240.0, 0.1, 1024.0);
@@ -658,27 +653,11 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
         shape,
         glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip),
         program,
-        &uniform! { model: Into::<[[f32; 4]; 4]>::into(model), view: view, projection: Into::<[[f32; 4]; 4]>::into(projection) },
+        &uniform! {
+            model: Into::<[[f32; 4]; 4]>::into(model),
+            view: Into::<[[f32; 4]; 4]>::into(view),
+            projection: Into::<[[f32; 4]; 4]>::into(projection)
+        },
         &params
     ).unwrap();
-}
-
-
-
-
-fn othographic(left: i32, right: i32, top: i32, bottom: i32) -> [[f32; 4]; 4] {
-    let l = left as f32;
-    let r = right as f32;
-    let t = top as f32;
-    let b = bottom as f32;
-
-    let zfar  = 1024.0;
-    let znear = 0.1;
-
-    [
-        [ 2.0 / (r - l) , 0.0           ,  0.0                  , -((r + l) / (r - l))               ],
-        [ 0.0           , 2.0 / (t - b) ,  0.0                  , -((t + b) / (t - b))               ],
-        [ 0.0           , 0.0           , -2.0 / (zfar - znear) , -((zfar + znear) / (zfar - znear)) ],
-        [ 0.0           , 0.0           ,  0.0                  ,  1.0                               ],
-    ]
 }
