@@ -33,14 +33,13 @@ impl Vec2 {
 
     /// Create a unit vector representing the
     /// given angle (in radians)
-    fn from_angle(angle: f64) -> Self {
-        let vx = angle.sin();
-        let vy = angle.cos();
+    fn from_angle(angle: cgmath::Rad<f64>) -> Self {
+        let (vx, vy) = angle.sin_cos();
         Vec2 { x: vx, y: vy }
     }
 
     fn random(max_magnitude: f64) -> Self {
-        let angle = rand::random::<f64>() * 2.0 * std::f64::consts::PI;
+        let angle = cgmath::Rad(rand::random::<f64>() * 2.0 * std::f64::consts::PI);
         let mag = rand::random::<f64>() * max_magnitude;
         Vec2::from_angle(angle).scaled(mag)
     }
@@ -129,7 +128,7 @@ enum ActorType {
 struct Actor {
     tag: ActorType,
     pos: Vec2,
-    facing: f64,
+    facing: cgmath::Rad<f64>,
     velocity: Vec2,
     rvel: f64,
     bbox_size: f64,
@@ -158,7 +157,7 @@ fn create_player() -> Actor {
     Actor {
         tag: ActorType::Player,
         pos: Vec2::default(),
-        facing: 0.,
+        facing: cgmath::Rad(0.),
         velocity: Vec2::default(),
         rvel: 0.,
         bbox_size: PLAYER_BBOX,
@@ -170,7 +169,7 @@ fn create_rock() -> Actor {
     Actor {
         tag: ActorType::Rock,
         pos: Vec2::default(),
-        facing: 0.,
+        facing: cgmath::Rad(0.),
         velocity: Vec2::default(),
         rvel: 0.,
         bbox_size: ROCK_BBOX,
@@ -182,7 +181,7 @@ fn create_shot() -> Actor {
     Actor {
         tag: ActorType::Shot,
         pos: Vec2::default(),
-        facing: 0.,
+        facing: cgmath::Rad(0.),
         velocity: Vec2::default(),
         rvel: SHOT_RVEL,
         bbox_size: SHOT_BBOX,
@@ -202,7 +201,7 @@ fn create_rocks(num: i32, exclusion: &Vec2, min_radius: f64, max_radius: f64) ->
     assert!(max_radius > min_radius);
     let new_rock = |_| {
         let mut rock = create_rock();
-        let r_angle = rand::random::<f64>() * 2.0 * std::f64::consts::PI;
+        let r_angle = cgmath::Rad(rand::random::<f64>() * 2.0 * std::f64::consts::PI);
         let r_distance = rand::random::<f64>() * (max_radius - min_radius) + min_radius;
         rock.pos = Vec2::from_angle(r_angle).scaled(r_distance) + *exclusion;
         rock.velocity = Vec2::random(MAX_ROCK_VEL);
@@ -236,7 +235,7 @@ const PLAYER_SHOT_TIME: f64 = 0.5;
 
 
 fn player_handle_input(actor: &mut Actor, input: &InputState, dt: f64) {
-    actor.facing += dt * PLAYER_TURN_RATE * input.xaxis;
+    actor.facing += cgmath::Rad(dt * PLAYER_TURN_RATE * input.xaxis);
 
     if input.yaxis > 0.0 {
         player_thrust(actor, dt);
@@ -255,7 +254,7 @@ fn update_actor_position(actor: &mut Actor, dt: f64) {
     actor.velocity = actor.velocity.clamped(MAX_PHYSICS_VEL);
     let dv = actor.velocity.scaled(dt);
     actor.pos += dv;
-    actor.facing += actor.rvel;
+    actor.facing += cgmath::Rad(actor.rvel);
 }
 
 /// Takes an actor and wraps its position to the bounds of the
@@ -552,7 +551,7 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
 
     // Model matrix
     let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
-    let r = cgmath::Matrix4::from_angle_z(cgmath::Rad(*&actor.facing as f32));
+    let r = cgmath::Matrix4::from_angle_z(cgmath::Rad((*&actor.facing).0 as f32));
     let s = cgmath::Matrix4::from_scale(20.0);
 
     let model: cgmath::Matrix4<f32> = t * r * s;
