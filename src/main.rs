@@ -22,20 +22,19 @@ use cgmath::prelude::*;
 /// **********************************************************************
 #[derive(Debug, Copy, Clone)]
 struct Vec2 {
-    x: f64,
-    y: f64,
+    v: cgmath::Vector2<f64>,
 }
 
 impl Vec2 {
     fn new(x: f64, y: f64) -> Self {
-        Vec2 { x: x, y: y }
+        Vec2 { v: cgmath::Vector2{x, y} }
     }
 
     /// Create a unit vector representing the
     /// given angle (in radians)
     fn from_angle(angle: cgmath::Rad<f64>) -> Self {
         let (vx, vy) = angle.sin_cos();
-        Vec2 { x: vx, y: vy }
+        Vec2 { v: cgmath::Vector2{ x: vx, y: vy}}
     }
 
     fn random(max_magnitude: f64) -> Self {
@@ -45,7 +44,7 @@ impl Vec2 {
     }
 
     fn magnitude(&self) -> f64 {
-        ((self.x * self.x) + (self.y * self.y)).sqrt()
+        ((self.v.x * self.v.x) + (self.v.y * self.v.y)).sqrt()
     }
 
     fn normalized(&self) -> Self {
@@ -54,10 +53,10 @@ impl Vec2 {
     }
 
     fn scaled(&self, rhs: f64) -> Self {
-        Vec2 {
-            x: self.x * rhs,
-            y: self.y * rhs,
-        }
+        let vx = self.v.x * rhs;
+        let vy = self.v.y * rhs;
+
+        Vec2 { v: cgmath::Vector2{ x: vx, y: vy }}
     }
 
     /// Returns a vector whose magnitude is between
@@ -75,18 +74,17 @@ impl Vec2 {
 impl Add for Vec2 {
     type Output = Self;
     fn add(self, rhs: Vec2) -> Self {
-        Vec2 {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
+        let vx = self.v.x + rhs.v.x;
+        let vy = self.v.y + rhs.v.y;
+
+        Vec2 { v: cgmath::Vector2{ x: vx, y: vy }}
     }
 }
 
 
 impl AddAssign for Vec2 {
     fn add_assign(&mut self, rhs: Vec2) {
-        self.x += rhs.x;
-        self.y += rhs.y;
+        self.v += rhs.v;
     }
 }
 
@@ -94,10 +92,10 @@ impl AddAssign for Vec2 {
 impl Sub for Vec2 {
     type Output = Self;
     fn sub(self, rhs: Vec2) -> Self {
-        Vec2 {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-        }
+        let vx = self.v.x - rhs.v.x;
+        let vy = self.v.y - rhs.v.y;
+
+        Vec2 { v: cgmath::Vector2{ x: vx, y: vy }}
     }
 }
 
@@ -266,15 +264,15 @@ fn wrap_actor_position(actor: &mut Actor, sx: f64, sy: f64) {
     let screen_y_bounds = sy / 2.0;
     let sprite_half_size = (SPRITE_SIZE / 2) as f64;
     let actor_center = actor.pos - Vec2::new(-sprite_half_size, sprite_half_size);
-    if actor_center.x > screen_x_bounds {
-        actor.pos.x -= sx;
-    } else if actor_center.x < -screen_x_bounds {
-        actor.pos.x += sx;
+    if actor_center.v.x > screen_x_bounds {
+        actor.pos.v.x -= sx;
+    } else if actor_center.v.x < -screen_x_bounds {
+        actor.pos.v.x += sx;
     };
-    if actor_center.y > screen_y_bounds {
-        actor.pos.y -= sy;
-    } else if actor_center.y < -screen_y_bounds {
-        actor.pos.y += sy;
+    if actor_center.v.y > screen_y_bounds {
+        actor.pos.v.y -= sy;
+    } else if actor_center.v.y < -screen_y_bounds {
+        actor.pos.v.y += sy;
     }
 }
 
@@ -290,9 +288,9 @@ fn handle_timed_life(actor: &mut Actor, dt: f64) {
 fn world_to_screen_coords(screen_width: u32, screen_height: u32, point: &Vec2) -> Vec2 {
     let width = screen_width as f64;
     let height = screen_height as f64;
-    let x = point.x + width / 2.0;
-    let y = height - (point.y + height / 2.0);
-    Vec2 { x: x, y: y }
+    let x = point.v.x + width / 2.0;
+    let y = height - (point.v.y + height / 2.0);
+    Vec2 { v: cgmath::Vector2{x, y}}
 }
 
 
@@ -367,8 +365,8 @@ impl MainState {
         shot.pos = player.pos;
         shot.facing = player.facing;
         let direction = Vec2::from_angle(shot.facing);
-        shot.velocity.x = SHOT_SPEED * direction.x;
-        shot.velocity.y = SHOT_SPEED * direction.y;
+        shot.velocity.v.x = SHOT_SPEED * direction.v.x;
+        shot.velocity.v.y = SHOT_SPEED * direction.v.y;
 
         self.shots.push(shot);
     }
@@ -546,8 +544,8 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
 
     let (screen_w, screen_h) = world_coords;
     let pos = world_to_screen_coords(screen_w, screen_h, &actor.pos);
-    let px = pos.x as f32;
-    let py = pos.y as f32;
+    let px = pos.v.x as f32;
+    let py = pos.v.y as f32;
 
     // Model matrix
     let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
