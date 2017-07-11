@@ -325,36 +325,6 @@ impl Default for InputState {
 
 
 
-#[derive(Copy, Clone)]
-pub struct Vertex {
-    position: [f32; 3]
-}
-
-implement_vertex!(Vertex, position);
-
-pub const SHIP: [Vertex; 9] = [
-    Vertex { position: [-0.3, -0.3,   0.0] },
-    Vertex { position: [ 0.0,  0.5,   0.0] },
-    Vertex { position: [ 0.3, -0.3,   0.0] },
-    Vertex { position: [-0.3, -0.3,   0.0] },
-    Vertex { position: [ 0.0,  0.25,  0.0] },
-    Vertex { position: [ 0.3, -0.3,   0.0] },
-    Vertex { position: [-0.3, -0.3,   0.0] },
-    Vertex { position: [ 0.0,  0.0,   0.0] },
-    Vertex { position: [ 0.3, -0.3,   0.0] },
-];
-
-pub const THRUST: [Vertex; 6] = [
-    Vertex { position: [-0.3,  -0.3,   0.0] },
-    Vertex { position: [-0.15, -0.45,  0.0] },
-    Vertex { position: [ 0.0,  -0.3,   0.0] },
-    Vertex { position: [-0.0,  -0.3,   0.0] },
-    Vertex { position: [ 0.15, -0.45,  0.0] },
-    Vertex { position: [ 0.3,  -0.3,   0.0] },
-];
-
-
-
 
 
 /// **********************************************************************
@@ -442,48 +412,16 @@ impl MainState {
 
 
 
-
-
-
 // Main stuff
 fn main() {
     use glium::{DisplayBuild, Surface};
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).build_glium().unwrap();
 
-
     // Shaders
-    let vertex_shader_src = r#"
-        #version 140
-
-        in vec3 position;
-
-        uniform mat4 projection;
-        uniform mat4 view;
-        uniform mat4 model;
-
-        void main() {
-            mat4 modelview = view * model;
-            //gl_Position = projection * modelview * vec4(position, 1.0);
-            gl_Position = modelview * vec4(position, 1.0) * projection;
-        }
-    "#;
-
-    let fragment_shader_src = r#"
-        #version 140
-
-        out vec4 color;
-
-        void main() {
-            color = vec4(0.0, 1.0, 0.0, 1.0);
-        }
-    "#;
-
-    // Fucking &display
-    let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
+    let program = shaders(display.clone());
 
     // Ship
     let ship_shape = glium::vertex::VertexBuffer::new(&display, &SHIP).unwrap();
-
 
     // Main state
     let mut state = MainState::new();
@@ -545,7 +483,6 @@ fn main() {
             return;
         }
 
-
         // Our drawing is quite simple.
         // Just clear the screen...
         target.clear_color_and_depth((0.0, 0.0, 1.0, 1.0), 1.0);
@@ -568,40 +505,9 @@ fn main() {
 
         target.finish().unwrap();
 
-        for ev in display.poll_events() {
-            match ev {
-                glium::glutin::Event::Closed => return,
-
-                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Space)) => {
-                    state.input.fire = true;
-                },
-                glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Space)) => {
-                    state.input.fire = false;
-                },
-
-                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Up)) => {
-                    state.input.yaxis = 1.0;
-                },
-                glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Up)) => {
-                    state.input.yaxis = 0.0;
-                },
-
-                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Left)) => {
-                    state.input.xaxis = -1.0;
-                },
-                glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Left)) => {
-                    state.input.xaxis = 0.0;
-                },
-
-                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Right)) => {
-                    state.input.xaxis = 1.0;
-                },
-                glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Right)) => {
-                    state.input.xaxis = 0.0;
-                },
-
-                _ => ()
-            }
+        match handle_events(display.clone(), state.input) {
+            Some(x) => state.input = x,
+            None    => return,
         }
 
         let now = Instant::now();
@@ -629,12 +535,15 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
         .. Default::default()
     };
 
+    // Projection,
+    // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
+    // So that's where that is coming from. Still unclear on why the view needs a translation (i
+    // think its due to the world_to_screen_coords)
+    let projection: cgmath::Matrix4<f32> = cgmath::ortho(-320.0, 320.0, 240.0, -240.0, 0.1, 1024.0);
+
     // Fixed for now (view matrix) - identity
     // TODO: not sure why we needed the offset, but that fixed the othographic projection tho
     let view = cgmath::Matrix4::from_translation(cgmath::Vector3::new(-320.0, -240.0, 0.0));
-
-    // Projection
-    let projection: cgmath::Matrix4<f32> = cgmath::ortho(-320.0, 320.0, 240.0, -240.0, 0.1, 1024.0);
 
     let (screen_w, screen_h) = world_coords;
     let pos = world_to_screen_coords(screen_w, screen_h, &actor.pos);
@@ -661,3 +570,93 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
         &params
     ).unwrap();
 }
+
+fn shaders<F: glium::backend::Facade>(display: F) -> glium::Program {
+    // Shaders
+    let vertex_shader_src = r#"
+        #version 140
+
+        in vec3 position;
+
+        uniform mat4 projection;
+        uniform mat4 view;
+        uniform mat4 model;
+
+        void main() {
+            mat4 modelview = view * model;
+            //gl_Position = projection * modelview * vec4(position, 1.0);
+            gl_Position = modelview * vec4(position, 1.0) * projection;
+        }
+    "#;
+
+    let fragment_shader_src = r#"
+        #version 140
+
+        out vec4 color;
+
+        void main() {
+            color = vec4(0.0, 1.0, 0.0, 1.0);
+        }
+    "#;
+
+    glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap()
+}
+
+fn handle_events(display: glium::backend::glutin_backend::GlutinFacade, mut input: InputState) -> Option<InputState> {
+    for ev in display.poll_events() {
+        match ev {
+            glium::glutin::Event::Closed => return None,
+
+            glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Space)) => {
+                input.fire = true;
+            },
+            glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Space)) => {
+                input.fire = false;
+            },
+
+            glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Up)) => {
+                input.yaxis = 1.0;
+            },
+            glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Up)) => {
+                input.yaxis = 0.0;
+            },
+
+            glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Left)) => {
+                input.xaxis = -1.0;
+            },
+            glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Left)) => {
+                input.xaxis = 0.0;
+            },
+
+            glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Right)) => {
+                input.xaxis = 1.0;
+            },
+            glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::Right)) => {
+                input.xaxis = 0.0;
+            },
+
+            _ => ()
+        }
+    }
+
+    Some(input)
+}
+
+#[derive(Copy, Clone)]
+pub struct Vertex {
+    position: [f32; 3]
+}
+
+implement_vertex!(Vertex, position);
+
+pub const SHIP: [Vertex; 9] = [
+    Vertex { position: [-0.3, -0.3,   0.0] },
+    Vertex { position: [ 0.0,  0.5,   0.0] },
+    Vertex { position: [ 0.3, -0.3,   0.0] },
+    Vertex { position: [-0.3, -0.3,   0.0] },
+    Vertex { position: [ 0.0,  0.25,  0.0] },
+    Vertex { position: [ 0.3, -0.3,   0.0] },
+    Vertex { position: [-0.3, -0.3,   0.0] },
+    Vertex { position: [ 0.0,  0.0,   0.0] },
+    Vertex { position: [ 0.3, -0.3,   0.0] },
+];
