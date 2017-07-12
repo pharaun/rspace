@@ -12,6 +12,8 @@ pub use glium::backend::glutin_backend::GlutinFacade as Display;
 use glium::Surface;
 
 use cgmath::prelude::*;
+use cgmath::Vector2;
+use cgmath::Rad;
 
 /// *********************************************************************
 /// Basic stuff.
@@ -20,31 +22,30 @@ use cgmath::prelude::*;
 /// didn't want to add more dependencies and such.
 /// **********************************************************************
 trait Vec2Ext {
-    fn from_angle(angle: cgmath::Rad<f64>) -> Self;
+    fn from_angle(angle: Rad<f64>) -> Self;
     fn random(max_magnitude: f64) -> Self;
     fn scaled(&self, rhs: f64) -> Self;
     fn clamped(&self, max: f64) -> Self;
 }
 
-impl Vec2Ext for cgmath::Vector2<f64> {
+impl Vec2Ext for Vector2<f64> {
     /// Create a unit vector representing the
     /// given angle (in radians)
-    fn from_angle(angle: cgmath::Rad<f64>) -> Self {
+    fn from_angle(angle: Rad<f64>) -> Self {
         let (vx, vy) = angle.sin_cos();
-        cgmath::Vector2{ x: vx, y: vy}
+        Vector2::new(vx, vy)
     }
 
     fn random(max_magnitude: f64) -> Self {
-        let angle = cgmath::Rad(rand::random::<f64>() * 2.0 * std::f64::consts::PI);
+        let angle = Rad(rand::random::<f64>() * 2.0 * std::f64::consts::PI);
         let mag = rand::random::<f64>() * max_magnitude;
-        cgmath::Vector2::from_angle(angle).scaled(mag)
+        Vector2::from_angle(angle).scaled(mag)
     }
 
     fn scaled(&self, rhs: f64) -> Self {
         let vx = self.x * rhs;
         let vy = self.y * rhs;
-
-        cgmath::Vector2{ x: vx, y: vy }
+        Vector2::new(vx, vy)
     }
 
     /// Returns a vector whose magnitude is between
@@ -79,9 +80,9 @@ enum ActorType {
 #[derive(Debug)]
 struct Actor {
     tag: ActorType,
-    pos: cgmath::Vector2<f64>,
-    facing: cgmath::Rad<f64>,
-    velocity: cgmath::Vector2<f64>,
+    pos: Vector2<f64>,
+    facing: Rad<f64>,
+    velocity: Vector2<f64>,
     rvel: f64,
     bbox_size: f64,
 
@@ -108,9 +109,9 @@ const SHOT_BBOX: f64 = 6.0;
 fn create_player() -> Actor {
     Actor {
         tag: ActorType::Player,
-        pos: cgmath::Vector2{x: 0., y: 0.},
-        facing: cgmath::Rad(0.),
-        velocity: cgmath::Vector2{x: 0., y: 0.},
+        pos: Vector2::new(0., 0.),
+        facing: Rad(0.),
+        velocity: Vector2::new(0., 0.),
         rvel: 0.,
         bbox_size: PLAYER_BBOX,
         life: PLAYER_LIFE,
@@ -120,9 +121,9 @@ fn create_player() -> Actor {
 fn create_rock() -> Actor {
     Actor {
         tag: ActorType::Rock,
-        pos: cgmath::Vector2{x: 0., y: 0.},
-        facing: cgmath::Rad(0.),
-        velocity: cgmath::Vector2{x: 0., y: 0.},
+        pos: Vector2::new(0., 0.),
+        facing: Rad(0.),
+        velocity: Vector2::new(0., 0.),
         rvel: 0.,
         bbox_size: ROCK_BBOX,
         life: ROCK_LIFE,
@@ -132,9 +133,9 @@ fn create_rock() -> Actor {
 fn create_shot() -> Actor {
     Actor {
         tag: ActorType::Shot,
-        pos: cgmath::Vector2{x: 0., y: 0.},
-        facing: cgmath::Rad(0.),
-        velocity: cgmath::Vector2{x: 0., y: 0.},
+        pos: Vector2::new(0., 0.),
+        facing: Rad(0.),
+        velocity: Vector2::new(0., 0.),
         rvel: SHOT_RVEL,
         bbox_size: SHOT_BBOX,
         life: SHOT_LIFE,
@@ -149,14 +150,14 @@ const MAX_ROCK_VEL: f64 = 50.0;
 /// Note that this *could* create rocks outside the
 /// bounds of the playing field, so it should be
 /// called before `wrap_actor_position()` happens.
-fn create_rocks(num: i32, exclusion: &cgmath::Vector2<f64>, min_radius: f64, max_radius: f64) -> Vec<Actor> {
+fn create_rocks(num: i32, exclusion: &Vector2<f64>, min_radius: f64, max_radius: f64) -> Vec<Actor> {
     assert!(max_radius > min_radius);
     let new_rock = |_| {
         let mut rock = create_rock();
-        let r_angle = cgmath::Rad(rand::random::<f64>() * 2.0 * std::f64::consts::PI);
+        let r_angle = Rad(rand::random::<f64>() * 2.0 * std::f64::consts::PI);
         let r_distance = rand::random::<f64>() * (max_radius - min_radius) + min_radius;
-        rock.pos = cgmath::Vector2::from_angle(r_angle).scaled(r_distance) + *exclusion;
-        rock.velocity = cgmath::Vector2::random(MAX_ROCK_VEL);
+        rock.pos = Vector2::from_angle(r_angle).scaled(r_distance) + *exclusion;
+        rock.velocity = Vector2::random(MAX_ROCK_VEL);
         rock
     };
     (0..num).map(new_rock).collect()
@@ -187,7 +188,7 @@ const PLAYER_SHOT_TIME: f64 = 0.5;
 
 
 fn player_handle_input(actor: &mut Actor, input: &InputState, dt: f64) {
-    actor.facing += cgmath::Rad(dt * PLAYER_TURN_RATE * input.xaxis);
+    actor.facing += Rad(dt * PLAYER_TURN_RATE * input.xaxis);
 
     if input.yaxis > 0.0 {
         player_thrust(actor, dt);
@@ -195,7 +196,7 @@ fn player_handle_input(actor: &mut Actor, input: &InputState, dt: f64) {
 }
 
 fn player_thrust(actor: &mut Actor, dt: f64) {
-    let direction_vector = cgmath::Vector2::from_angle(actor.facing);
+    let direction_vector = Vector2::from_angle(actor.facing);
     let thrust_vector = direction_vector.scaled(PLAYER_THRUST);
     actor.velocity += thrust_vector.scaled(dt);
 }
@@ -206,7 +207,7 @@ fn update_actor_position(actor: &mut Actor, dt: f64) {
     actor.velocity = actor.velocity.clamped(MAX_PHYSICS_VEL);
     let dv = actor.velocity.scaled(dt);
     actor.pos += dv;
-    actor.facing += cgmath::Rad(actor.rvel);
+    actor.facing += Rad(actor.rvel);
 }
 
 /// Takes an actor and wraps its position to the bounds of the
@@ -217,7 +218,7 @@ fn wrap_actor_position(actor: &mut Actor, sx: f64, sy: f64) {
     let screen_x_bounds = sx / 2.0;
     let screen_y_bounds = sy / 2.0;
     let sprite_half_size = (SPRITE_SIZE / 2) as f64;
-    let actor_center = actor.pos - cgmath::Vector2{x: -sprite_half_size, y: sprite_half_size};
+    let actor_center = actor.pos - Vector2::new(-sprite_half_size, sprite_half_size);
     if actor_center.x > screen_x_bounds {
         actor.pos.x -= sx;
     } else if actor_center.x < -screen_x_bounds {
@@ -239,12 +240,12 @@ fn handle_timed_life(actor: &mut Actor, dt: f64) {
 /// has Y pointing up and the origin at the center,
 /// to the screen coordinate system, which has Y
 /// pointing downward and the origin at the top-left,
-fn world_to_screen_coords(screen_width: u32, screen_height: u32, point: &cgmath::Vector2<f64>) -> cgmath::Vector2<f64> {
+fn world_to_screen_coords(screen_width: u32, screen_height: u32, point: &Vector2<f64>) -> Vector2<f64> {
     let width = screen_width as f64;
     let height = screen_height as f64;
     let x = point.x + width / 2.0;
     let y = height - (point.y + height / 2.0);
-    cgmath::Vector2{x, y}
+    Vector2::new(x, y)
 }
 
 
@@ -318,7 +319,7 @@ impl MainState {
         let mut shot = create_shot();
         shot.pos = player.pos;
         shot.facing = player.facing;
-        let direction = cgmath::Vector2::from_angle(shot.facing);
+        let direction = Vector2::from_angle(shot.facing);
         shot.velocity.x = SHOT_SPEED * direction.x;
         shot.velocity.y = SHOT_SPEED * direction.y;
 
@@ -503,7 +504,7 @@ fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &gl
 
     // Model matrix
     let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
-    let r = cgmath::Matrix4::from_angle_z(cgmath::Rad((*&actor.facing).0 as f32));
+    let r = cgmath::Matrix4::from_angle_z(Rad((*&actor.facing).0 as f32));
     let s = cgmath::Matrix4::from_scale(20.0);
 
     let model: cgmath::Matrix4<f32> = t * r * s;
