@@ -22,8 +22,6 @@ use cgmath::prelude::*;
 trait Vec2Ext {
     fn from_angle(angle: cgmath::Rad<f64>) -> Self;
     fn random(max_magnitude: f64) -> Self;
-    fn magnitude(&self) -> f64;
-    fn normalized(&self) -> Self;
     fn scaled(&self, rhs: f64) -> Self;
     fn clamped(&self, max: f64) -> Self;
 }
@@ -42,15 +40,6 @@ impl Vec2Ext for cgmath::Vector2<f64> {
         cgmath::Vector2::from_angle(angle).scaled(mag)
     }
 
-    fn magnitude(&self) -> f64 {
-        ((self.x * self.x) + (self.y * self.y)).sqrt()
-    }
-
-    fn normalized(&self) -> Self {
-        let mag = self.magnitude();
-        self.scaled(1.0 / mag)
-    }
-
     fn scaled(&self, rhs: f64) -> Self {
         let vx = self.x * rhs;
         let vy = self.y * rhs;
@@ -63,7 +52,7 @@ impl Vec2Ext for cgmath::Vector2<f64> {
     fn clamped(&self, max: f64) -> Self {
         let mag = self.magnitude();
         if mag > max {
-            self.normalized().scaled(max)
+            self.normalize().scaled(max)
         } else {
             *self
         }
