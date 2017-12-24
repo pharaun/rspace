@@ -7,7 +7,7 @@ extern crate cgmath;
 use std::time::{Duration, Instant};
 use std::thread;
 
-pub use glium::backend::glutin_backend::GlutinFacade as Display;
+pub use glium::backend::glutin::Display as Display;
 use glium::Surface;
 
 use cgmath::prelude::*;
@@ -365,8 +365,12 @@ impl MainState {
 
 // Main stuff
 fn main() {
-    use glium::{DisplayBuild, Surface};
-    let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).build_glium().unwrap();
+    use glium::{glutin, Surface};
+
+    let mut events_loop = glutin::EventsLoop::new();
+    let window = glutin::WindowBuilder::new();
+    let context = glutin::ContextBuilder::new().with_depth_buffer(24);
+    let display = glium::Display::new(window, context, &events_loop).unwrap();
 
     // Shaders
     let program = shaders(display.clone());
@@ -456,7 +460,7 @@ fn main() {
 
         target.finish().unwrap();
 
-        match handle_events(display.clone(), state.input) {
+        match handle_events(&mut events_loop, state.input) {
             Some(x) => state.input = x,
             None    => return,
         }
@@ -553,44 +557,85 @@ fn shaders<F: glium::backend::Facade>(display: F) -> glium::Program {
     glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap()
 }
 
-fn handle_events(display: glium::backend::glutin_backend::GlutinFacade, mut input: InputState) -> Option<InputState> {
-    for ev in display.poll_events() {
-        match ev {
-            glium::glutin::Event::Closed => return None,
+fn handle_events(events_loop: &mut glium::glutin::EventsLoop, mut input: InputState) -> Option<InputState> {
+    use glium::glutin::{Event, WindowEvent, KeyboardInput, ElementState, VirtualKeyCode};
 
-            glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::Space)) => {
-                input.fire = true;
-            },
-            glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Released, _, Some(glium::glutin::VirtualKeyCode::Space)) => {
-                input.fire = false;
-            },
+    let mut closed = false;
 
-            glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::Up)) => {
-                input.yaxis = 1.0;
-            },
-            glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Released, _, Some(glium::glutin::VirtualKeyCode::Up)) => {
-                input.yaxis = 0.0;
-            },
+    events_loop.poll_events(|event| {
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::Closed, ..
+            } => closed = true,
 
-            glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::Left)) => {
-                input.xaxis = -1.0;
-            },
-            glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Released, _, Some(glium::glutin::VirtualKeyCode::Left)) => {
-                input.xaxis = 0.0;
-            },
+            Event::WindowEvent {
+                event: WindowEvent::KeyboardInput {
+                    input: KeyboardInput {
+                        state: element_state,
+                        virtual_keycode: Some(key), ..
+                    }, ..
+                }, ..
+            } => {
+                match key {
+                    // Fire
+                    VirtualKeyCode::Space => {
+                        match element_state {
+                            ElementState::Pressed => {
+                                input.fire = true;
+                            },
+                            ElementState::Released => {
+                                input.fire = false;
+                            },
+                        }
+                    },
 
-            glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::Right)) => {
-                input.xaxis = 1.0;
-            },
-            glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Released, _, Some(glium::glutin::VirtualKeyCode::Right)) => {
-                input.xaxis = 0.0;
-            },
+                    //  Up
+                    VirtualKeyCode::Up => {
+                        match element_state {
+                            ElementState::Pressed => {
+                                input.yaxis = 1.0;
+                            },
+                            ElementState::Released => {
+                                input.yaxis = 0.0;
+                            },
+                        }
+                    },
 
-            _ => ()
+                    //  Left
+                    VirtualKeyCode::Left => {
+                        match element_state {
+                            ElementState::Pressed => {
+                                input.xaxis = -1.0;
+                            },
+                            ElementState::Released => {
+                                input.xaxis = 0.0;
+                            },
+                        }
+                    },
+
+                    //  Right
+                    VirtualKeyCode::Right => {
+                        match element_state {
+                            ElementState::Pressed => {
+                                input.xaxis = 1.0;
+                            },
+                            ElementState::Released => {
+                                input.xaxis = 0.0;
+                            },
+                        }
+                    },
+                    _ => (),
+                }
+            },
+            _ => (),
         }
-    }
+    });
 
-    Some(input)
+    if closed {
+        return None;
+    } else {
+        return Some(input);
+    }
 }
 
 #[derive(Copy, Clone)]
