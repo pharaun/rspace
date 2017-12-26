@@ -3,7 +3,20 @@ name = "rspace"
 version = "0.1.0"
 authors = ["Anja Berens <pharaun666@gmail.com>"]
 
+build = "build.rs" # LALRPOP preprocessing
+
+[build-dependencies]
+lalrpop = "0.13.1"
+
 [dependencies]
 glium = "*"
 rand = "*"
 cgmath = "*"
+
+# Add a dependency on the regex crate; this is not
+# needed if you are writing your own tokenizer by
+# hand (or if you are already using the regex crate)
+regex = "0.2.0"
+
+# Add a dependency on the LALRPOP runtime library:
+lalrpop-util = "0.13.1"
