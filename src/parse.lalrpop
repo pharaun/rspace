@@ -1,0 +1,20 @@
+use std::str::FromStr;
+
+grammar;
+
+// Register == letter + digits
+// Instruction == letter + .
+// number == digits + Ox{digits} (does not handle negative number) unsigned int32/64) (later can
+//                              handle negative by converting it to 2's compat and  storing it as unsigned)
+// csr == ?
+//
+// Asm Line = Instruction [0-4] args
+// args = register | number | csr
+
+pub Number: u32 = {
+    <n:Dec> => n,
+    "(" <t:Number> ")" => t,
+};
+
+Dec: u32 = <s:r"[0-9]+"> => u32::from_str(s).unwrap();
+Hex: u32 = <s:r"0x[0-9A-F]+"> => u32::from_str_radix(s, 16).unwrap();
