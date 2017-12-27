@@ -1,20 +1,37 @@
 use std::str::FromStr;
+use types;
 
 grammar;
 
-// Register == letter + digits
-// Instruction == letter + .
 // number == digits + Ox{digits} (does not handle negative number) unsigned int32/64) (later can
 //                              handle negative by converting it to 2's compat and  storing it as unsigned)
-// csr == ?
-//
-// Asm Line = Instruction [0-4] args
-// args = register | number | csr
-
-pub Number: u32 = {
-    <n:Dec> => n,
-    "(" <t:Number> ")" => t,
-};
+pub Number = { Dec, Hex };
 
 Dec: u32 = <s:r"[0-9]+"> => u32::from_str(s).unwrap();
-Hex: u32 = <s:r"0x[0-9A-F]+"> => u32::from_str_radix(s, 16).unwrap();
+Hex: u32 = <s:r"0x[0-9A-F]+"> => u32::from_str_radix(&s[2..], 16).unwrap();
+
+// Register == letter + digits
+// For now only support x{0-31] styled registers
+pub Register = { Reg };
+
+Reg: &'input str = <s:r"x[0-9]+"> => s;
+
+// args = register | number | csr
+// csr == ?
+pub Arguments: types::Args <'input> = {
+    <n:Register> => types::Args::Reg(n),
+    <n:Number> => types::Args::Num(n),
+};
+
+// [0-4] args
+pub VecArgs: Vec<types::Args <'input>> = {
+    <Arguments*>
+};
+
+// Asm Line = Instruction [0-4] args
+pub AsmLine: (&'input str, Vec<types::Args <'input>>) = {
+    Instruction VecArgs
+};
+
+// Instruction == letter + .
+Instruction: &'input str = <s:r"[A-Z.]+"> => s;
