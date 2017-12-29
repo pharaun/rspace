@@ -37,6 +37,11 @@ fn main() {
     println!("{:?}", rspace::parse::parse_AsmLine("LUI x0 0xFF"));
     println!("{:?}", rspace::parse::parse_AsmLine("FCVT.W.H x0 x1"));
     println!("{:?}", rspace::parse::parse_AsmLine("FMADD.S x0 x1 x2 x3"));
+
+    // Test lookups
+    println!("{:?}", rspace::opcode::lookup("ADDI"));
+    println!("{:?}", rspace::opcode::lookup("SRA"));
+    println!("{:?}", rspace::opcode::lookup("NOP"));
 }
 
 #[test]

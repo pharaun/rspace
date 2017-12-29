@@ -49,6 +49,6 @@ pub struct InstEnc {
 // Codegen from pf_codegen
 include!("../codegen/opcode.rs");
 
-pub fn parse_keyword(keyword: &str) -> Option<InstEnc> {
+pub fn lookup(keyword: &str) -> Option<InstEnc> {
     OPCODE.get(keyword).cloned()
 }
