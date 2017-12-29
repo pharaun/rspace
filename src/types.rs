@@ -17,90 +17,130 @@ pub enum Args <'input> {
 //      Caches & Write buffers are not simulated.
 //          All load/fetches/stores completes immediately and in order and fully synchronously
 #[derive(Debug)]
-pub enum InstBase {
-    R { opcode: u32, rd: u32, func3: u32, rs1: u32, rs2: u32, func7: u32},
-    I { opcode: u32, rd: u32, func3: u32, rs1: u32,           imm: u32},
-    S { opcode: u32,          func3: u32, rs1: u32, rs2: u32, imm: u32},
-    B { opcode: u32,          func3: u32, rs1: u32, rs2: u32, imm: u32}, // Subtype of S
-    U { opcode: u32, rd: u32,                                 imm: u32},
-    J { opcode: u32, rd: u32,                                 imm: u32}, // Subtype of U
+pub enum InstType {
+    R,
+    I,
+    S,
+    B, // Subtype of S
+    U,
+    J, // Subtype of U
 }
 
 // Opcode
-pub const OP_IMM:   u32 = 0x0; // I - (OP-IMM in docs)
-pub const LUI:      u32 = 0x0; // U
-pub const AUIPC:    u32 = 0x0; // U
-pub const OP_REG:   u32 = 0x0; // R - (OP in docs)
-pub const JAL:      u32 = 0x0; // J - imm -> signed offset, in multiples of 2 bytes
-pub const JALR:     u32 = 0x0; // I - complicated
-pub const BRANCH:   u32 = 0x0; // B - signed offset in multiples of 2 + pc
-pub const LOAD:     u32 = 0x0; // I - LB, LH, LW, LBU, LHU
-pub const STORE:    u32 = 0x0; // S - SB, SH, SW
-pub const MISC_MEM: u32 = 0x0; // I
-pub const SYSTEM:   u32 = 0x0; // I - CSR (control and status registers) + other priviledged instructions
+pub const OP_IMM:   u32 = 0b0010011; // I - (OP-IMM in docs)
+pub const LUI:      u32 = 0b0110111; // U
+pub const AUIPC:    u32 = 0b0010111; // U
+pub const OP_REG:   u32 = 0b0110011; // R - (OP in docs)
+pub const JAL:      u32 = 0b1101111; // J - imm -> signed offset, in multiples of 2 bytes
+pub const JALR:     u32 = 0b1100111; // I - complicated
+pub const BRANCH:   u32 = 0b1100011; // B - signed offset in multiples of 2 + pc
+pub const LOAD:     u32 = 0b0000011; // I
+pub const STORE:    u32 = 0b0100011; // S
+pub const MISC_MEM: u32 = 0b0001111; // I
+pub const SYSTEM:   u32 = 0b1110011; // I - CSR (control and status registers) + other priviledged instructions
 
-// Func3
+// Inst Encoding
+#[derive(Debug)]
+pub struct InstEnc {
+    encoding:   InstType,
+    opcode:     u32,
+    func3:      Option<u32>,
+    func7:      Option<u32>,
+}
+
 // OP_IMM
-pub const ADDI:  u32 = 0x0; // I
-pub const SLTI:  u32 = 0x0; // I
-pub const SLTIU: u32 = 0x0; // I
+pub const ADDI:  InstEnc = InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b000), func7: None};
+pub const SLTI:  InstEnc = InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b010), func7: None};
+pub const SLTIU: InstEnc = InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b011), func7: None};
 
-pub const ANDI: u32 = 0x0; // I
-pub const ORI:  u32 = 0x0; // I
-pub const XORI: u32 = 0x0; // I
+pub const ANDI:  InstEnc = InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b111), func7: None};
+pub const ORI:   InstEnc = InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b110), func7: None};
+pub const XORI:  InstEnc = InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b100), func7: None};
 
-pub const SLLI:  u32 = 0x0; // I - shamt - 0x00
-pub const SRLI:  u32 = 0x0; // I - shamt - 0x00
-pub const SRAI:  u32 = 0x0; // I - shamt - 0x20
+// TODO: shamt
+// shamt - 0b0000000
+pub const SLLI:  InstEnc = InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b001), func7: None};
+// shamt - 0b0000000
+pub const SRLI:  InstEnc = InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b101), func7: None};
+// shamt - 0b0100000
+pub const SRAI:  InstEnc = InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b101), func7: None};
+
+// LUI
+//pub const LUI:   InstEnc = InstEnc{encoding: InstType::U, opcode: LUI, func3: None, func7: None};
+
+// AUIPC
+//pub const AUIPC: InstEnc = InstEnc{encoding: InstType::U, opcode: AUIPC, func3: None, func7: None};
 
 // OP_REG
-pub const ADD:  u32 = 0x0; // R - func7 - 0x00
-pub const SLT:  u32 = 0x0; // R - func7 - 0x00
-pub const SLTU: u32 = 0x0; // R - func7 - 0x00
+pub const ADD:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b000), func7: Some(0b0000000)};
+pub const SLT:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b010), func7: Some(0b0000000)};
+pub const SLTU:  InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b011), func7: Some(0b0000000)};
 
-pub const AND: u32 = 0x0; // R - func7 - 0x00
-pub const OR:  u32 = 0x0; // R - func7 - 0x00
-pub const XOR: u32 = 0x0; // R - func7 - 0x00
+pub const AND:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b111), func7: Some(0b0000000)};
+pub const OR:    InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b110), func7: Some(0b0000000)};
+pub const XOR:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b100), func7: Some(0b0000000)};
 
-pub const SLL: u32 = 0x0; // R - func7 - 0x00
-pub const SRL: u32 = 0x0; // R - func7 - 0x00
+pub const SLL:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b001), func7: Some(0b0000000)};
+pub const SRL:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b101), func7: Some(0b0000000)};
 
-pub const SUB: u32 = 0x0; // R - func7 - 0x20
-pub const SRA: u32 = 0x0; // R - func7 - 0x20
+pub const SUB:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b000), func7: Some(0b0100000)};
+pub const SRA:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b101), func7: Some(0b0100000)};
+
+// JAL
+//pub const JAL:   InstEnc = InstEnc{encoding: InstType::U, opcode: JAL, func3: None, func7: None};
+
+// JALR
+//pub const JALR:  InstEnc = InstEnc{encoding: InstType::I, opcode: JALR, func3: Some(0b000), func7: None};
 
 // BRANCH
-pub const BEQ:  u32 = 0x0; // B
-pub const BNE:  u32 = 0x0; // B
+pub const BEQ:   InstEnc = InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b000), func7: None};
+pub const BNE:   InstEnc = InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b001), func7: None};
 
-pub const BLT:  u32 = 0x0; // B
-pub const BLTU: u32 = 0x0; // B
+pub const BLT:   InstEnc = InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b100), func7: None};
+pub const BLTU:  InstEnc = InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b110), func7: None};
 
-pub const BGE:  u32 = 0x0; // B
-pub const BGEU: u32 = 0x0; // B
+pub const BGE:   InstEnc = InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b101), func7: None};
+pub const BGEU:  InstEnc = InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b111), func7: None};
+
+// LOAD
+pub const LW:    InstEnc = InstEnc{encoding: InstType::I, opcode: LOAD, func3: Some(0b010), func7: None};
+pub const LH:    InstEnc = InstEnc{encoding: InstType::I, opcode: LOAD, func3: Some(0b001), func7: None};
+pub const LHU:   InstEnc = InstEnc{encoding: InstType::I, opcode: LOAD, func3: Some(0b101), func7: None};
+pub const LB:    InstEnc = InstEnc{encoding: InstType::I, opcode: LOAD, func3: Some(0b000), func7: None};
+pub const LBU:   InstEnc = InstEnc{encoding: InstType::I, opcode: LOAD, func3: Some(0b100), func7: None};
+
+// STORE
+pub const SW:    InstEnc = InstEnc{encoding: InstType::S, opcode: STORE, func3: Some(0b010), func7: None};
+pub const SH:    InstEnc = InstEnc{encoding: InstType::S, opcode: STORE, func3: Some(0b001), func7: None};
+pub const SB:    InstEnc = InstEnc{encoding: InstType::S, opcode: STORE, func3: Some(0b000), func7: None};
 
 // MISC_MEM
-pub const FENCE:    u32 = 0x0; // I - imm - custom bitfield
-pub const FENCE_I:  u32 = 0x0; // I
+// TODO: custom bitfield (but its nop in the vm tho)
+// imm - custom bitfield
+pub const FENCE:   InstEnc = InstEnc{encoding: InstType::I, opcode: MISC_MEM, func3: Some(0b000), func7: None};
+pub const FENCE_I: InstEnc = InstEnc{encoding: InstType::I, opcode: MISC_MEM, func3: Some(0b001), func7: None};
 
 // SYSTEM
 // CSR - RDCYCLE[H], RDTIME[H], RDINSTRET[H]
-pub const CSRRW:    u32 = 0x0; // I
-pub const CSRRS:    u32 = 0x0; // I
-pub const CSRRC:    u32 = 0x0; // I
-pub const CSRRWI:   u32 = 0x0; // I
-pub const CSRRSI:   u32 = 0x0; // I
-pub const CSRRCI:   u32 = 0x0; // I
+// TODO: custom layout (imm/registers/etc)
+pub const CSRRW:   InstEnc = InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b001), func7: None};
+pub const CSRRS:   InstEnc = InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b010), func7: None};
+pub const CSRRC:   InstEnc = InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b011), func7: None};
+pub const CSRRWI:  InstEnc = InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b101), func7: None};
+pub const CSRRSI:  InstEnc = InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b110), func7: None};
+pub const CSRRCI:  InstEnc = InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b111), func7: None};
 
-pub const PRIV:     u32 = 0x0; // I - func12 - ECALL, EBREAK
+// func12 - ECALL- 0b000000000000, EBREAK - 0b000000000001
+pub const PRIV:    InstEnc = InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b000), func7: None};
 
 // Extension - M type
 // OP_REG
-pub const MUL:      u32 = 0x0; // R - func7 - MULDIV
-pub const MULH:     u32 = 0x0; // R - func7 - MULDIV
-pub const MULHU:    u32 = 0x0; // R - func7 - MULDIV
-pub const MULHSU:   u32 = 0x0; // R - func7 - MULDIV
+pub const MUL:    InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b000), func7: Some(0b0000001)};
+pub const MULH:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b001), func7: Some(0b0000001)};
+pub const MULHU:  InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b011), func7: Some(0b0000001)};
+pub const MULHSU: InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b010), func7: Some(0b0000001)};
 
-pub const DIV:  u32 = 0x0; // R - func7 - MULDIV
-pub const DIVU: u32 = 0x0; // R - func7 - MULDIV
-pub const REM:  u32 = 0x0; // R - func7 - MULDIV
-pub const REMU: u32 = 0x0; // R - func7 - MULDIV
+pub const DIV:    InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b100), func7: Some(0b0000001)};
+pub const DIVU:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b101), func7: Some(0b0000001)};
+pub const REM:    InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b110), func7: Some(0b0000001)};
+pub const REMU:   InstEnc = InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b111), func7: Some(0b0000001)};
