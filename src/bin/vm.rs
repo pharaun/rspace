@@ -3,6 +3,7 @@ extern crate rspace;
 use std::str;
 use rspace::parse;
 use rspace::types;
+use rspace::opcode;
 
 fn main() {
     let test_asm: &'static str = include_str!("test.asm");
