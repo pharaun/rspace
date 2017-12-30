@@ -34,4 +34,4 @@ pub AsmLine: (&'input str, Vec<types::Args <'input>>) = {
 };
 
 // Instruction == letter + .
-Instruction: &'input str = <s:r"[A-Z.]+"> => s;
+Instruction: &'input str = <s:r"[A-Za-z.]+"> => s;

@@ -40,10 +40,10 @@ pub const SYSTEM:   u32 = 0b1110011; // I - CSR (control and status registers) +
 #[derive(Debug)]
 #[derive(Clone)]
 pub struct InstEnc {
-    encoding:   InstType,
-    opcode:     u32,
-    func3:      Option<u32>,
-    func7:      Option<u32>,
+    pub encoding:   InstType,
+    pub opcode:     u32,
+    pub func3:      Option<u32>,
+    pub func7:      Option<u32>,
 }
 
 // Codegen from pf_codegen
