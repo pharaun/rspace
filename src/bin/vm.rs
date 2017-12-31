@@ -111,9 +111,11 @@ fn main() {
                         // 5. if so proceed below
                         Some(x) => {
                             let binary_line = lut_to_binary(upper_inst, args, x);
+                            let byte_line = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_line.to_le()) };
 
                             println!("{:?}", line);
-                            println!("{:?}", binary_line);
+                            //println!("{:032b}", binary_line);
+                            println!("{:08b} {:08b} {:08b} {:08b}", byte_line[3], byte_line[2], byte_line[1], byte_line[0]);
                         },
                     }
                 },
@@ -123,18 +125,38 @@ fn main() {
 }
 
 fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace::opcode::InstEnc) -> u32 {
+    let mut ret: u32 = 0x0;
+
+    // Opcode
+    ret |= inst_encode.opcode;
+
+    // Func3
+    ret |= match_and_shift(inst_encode.func3, 12);
+
+    // Func7
+    ret |= match_and_shift(inst_encode.func7, 25);
+
     // 6. i think a good step will be to use the data in the LUT to construct a binary line (u32)
     match inst_encode.encoding {
         rspace::opcode::InstType::R => {
+            // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
+            // func7,   rs2,   rs1, func3,   rd, opcode
+            println!("{:?}", args);
         },
         rspace::opcode::InstType::I => {
+            // 31-20, 19-15, 14-12, 11-7, 6-0
+            //   imm,   rs1, func3,   rd, opcode
         },
         rspace::opcode::InstType::S => {
+            // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
+            //   imm,   rs2,   rs1, func3,  imm, opcode
         },
         // Subtype of S
         rspace::opcode::InstType::B => {
         },
         rspace::opcode::InstType::U => {
+            // 31-12, 11-7, 6-0
+            //   imm,   rd, opcode
         },
         // Subtype of U
         rspace::opcode::InstType::J => {
@@ -150,11 +172,16 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
     // ("bgeu", [Reg("x6"), Reg("x1"), Num(6)]))
     // Some(InstEnc { encoding: I, opcode: 19, func3: Some(0), func7: None })
 
-
-    0 as u32
+    ret
 }
 
 
+fn match_and_shift(byte: Option<u32>, shift: u32) -> u32 {
+    match byte {
+        Some(x) => x << shift,
+        _ => 0x0,
+    }
+}
 
 #[test]
 fn comment_test() {
