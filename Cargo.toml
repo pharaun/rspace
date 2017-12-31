@@ -14,6 +14,9 @@ glium = "*"
 rand = "*"
 cgmath = "*"
 
+# Bit twiddling
+twiddle = "0.3.0"
+
 # Add a dependency on the regex crate; this is not
 # needed if you are writing your own tokenizer by
 # hand (or if you are already using the regex crate)

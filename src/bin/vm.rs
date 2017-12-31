@@ -189,7 +189,7 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
                 },
             }
         },
-        rspace::opcode::InstType::S => {
+        rspace::opcode::InstType::S | rspace::opcode::InstType::B => {
             // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
             //   imm,   rs2,   rs1, func3,  imm, opcode
             if args.len() != 3 {
@@ -202,35 +202,28 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
 
             // TODO: deal with imm
             let imm  = extract_and_shift(&args[2], 0, false);
-            // imm[4:0]
-            ret |= (imm & 0x00_00_00_1F) << 7;
-            // imm[11:5]
-            ret |= ((imm & 0x00_00_0F_E0) >> 5) << 25;
-        },
-        // Subtype of S
-        rspace::opcode::InstType::B => {
-            // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
-            //   imm,   rs2,   rs1, func3,  imm, opcode
-            if args.len() != 3 {
-                println!("{:?}", inst);
-                panic!("S - Not 3 args");
-            }
-            // Args rs1 rs2 imm
-            ret |= extract_and_shift(&args[0], 15, true);
-            ret |= extract_and_shift(&args[1], 20, true);
 
-            // TODO: deal with imm
-            let imm  = extract_and_shift(&args[2], 0, false);
-            // imm[11]
-            ret |= ((imm & 0x00_00_04_00) >> 11) << 7;
-            // imm[4:1]
-            ret |= ((imm & 0x00_00_00_1E) >> 1) << 8;
-            // imm[10:5]
-            ret |= ((imm & 0x00_00_03_E0) >> 5) << 25;
-            // imm[12]
-            ret |= ((imm & 0x00_00_08_00) >> 12) << 31;
+            match inst_encode.encoding {
+                rspace::opcode::InstType::S => {
+                    // imm[4:0]
+                    ret |= (imm & 0x00_00_00_1F) << 7;
+                    // imm[11:5]
+                    ret |= ((imm & 0x00_00_0F_E0) >> 5) << 25;
+                },
+                rspace::opcode::InstType::B => {
+                    // imm[11]
+                    ret |= ((imm & 0x00_00_04_00) >> 11) << 7;
+                    // imm[4:1]
+                    ret |= ((imm & 0x00_00_00_1E) >> 1) << 8;
+                    // imm[10:5]
+                    ret |= ((imm & 0x00_00_03_E0) >> 5) << 25;
+                    // imm[12]
+                    ret |= ((imm & 0x00_00_08_00) >> 12) << 31;
+                },
+                _ => (),
+            }
         },
-        rspace::opcode::InstType::U => {
+        rspace::opcode::InstType::U | rspace::opcode::InstType::J => {
             // 31-12, 11-7, 6-0
             //   imm,   rd, opcode
             if args.len() != 2 {
@@ -242,30 +235,24 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
 
             // TODO: deal with imm
             let imm = extract_and_shift(&args[1], 0, false);
-            // imm[31:12]
-            ret |= (imm & 0xFF_FF_F0_00);
-        },
-        // Subtype of U
-        rspace::opcode::InstType::J => {
-            // 31-12, 11-7, 6-0
-            //   imm,   rd, opcode
-            if args.len() != 2 {
-                println!("{:?}", inst);
-                panic!("U - Not 2 args");
-            }
-            // args rd imm
-            ret |= extract_and_shift(&args[0], 7, true);
 
-            // TODO: deal with imm
-            let imm = extract_and_shift(&args[1], 0, false);
-            // imm[19:12]
-            ret |= (imm & 0x00_07_F8_00);
-            // imm[11]
-            ret |= ((imm & 0x00_00_04_00) >> 11) << 20;
-            // imm[10:1]
-            ret |= ((imm & 0x00_00_03_FE) >> 1) << 21;
-            // imm[20]
-            ret |= ((imm & 0x00_08_00_00) >> 20) << 31;
+            match inst_encode.encoding {
+                rspace::opcode::InstType::U => {
+                    // imm[31:12]
+                    ret |= (imm & 0xFF_FF_F0_00);
+                },
+                rspace::opcode::InstType::J => {
+                    // imm[19:12]
+                    ret |= (imm & 0x00_07_F8_00);
+                    // imm[11]
+                    ret |= ((imm & 0x00_00_04_00) >> 11) << 20;
+                    // imm[10:1]
+                    ret |= ((imm & 0x00_00_03_FE) >> 1) << 21;
+                    // imm[20]
+                    ret |= ((imm & 0x00_08_00_00) >> 20) << 31;
+                },
+                _ => (),
+            }
         },
     }
 
