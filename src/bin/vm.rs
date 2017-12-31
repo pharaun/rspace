@@ -141,25 +141,131 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
         rspace::opcode::InstType::R => {
             // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
             // func7,   rs2,   rs1, func3,   rd, opcode
-            println!("{:?}", args);
+            if args.len() != 3 {
+                println!("{:?}", inst);
+                panic!("R - Not 3 args");
+            }
+            // args rd, rs, r2
+            ret |= extract_and_shift(&args[0],  7, true);
+            ret |= extract_and_shift(&args[1], 15, true);
+            ret |= extract_and_shift(&args[2], 20, true);
         },
         rspace::opcode::InstType::I => {
             // 31-20, 19-15, 14-12, 11-7, 6-0
             //   imm,   rs1, func3,   rd, opcode
+            match inst {
+                "FENCE" | "FENCE.I" => (),
+                "SLLI" | "SRLI" | "SRAI" => {
+                    if args.len() != 3 {
+                        println!("{:?}", inst);
+                        panic!("I - Not 3 args");
+                    }
+                    // args rd, rs, imm
+                    ret |= extract_and_shift(&args[0],  7, true);
+                    ret |= extract_and_shift(&args[1], 15, true);
+
+                    // TODO: deal with imm
+                    let imm  = extract_and_shift(&args[2], 0, false);
+                    // shamt[4:0]
+                    ret |= (imm & 0x00_00_00_1F) << 20;
+                    // imm[11:5] - taken care by func7
+                },
+                _ => {
+                    if args.len() != 3 {
+                        println!("{:?}", inst);
+                        panic!("I - Not 3 args");
+                    }
+                    // args rd, rs, imm
+                    ret |= extract_and_shift(&args[0],  7, true);
+                    ret |= extract_and_shift(&args[1], 15, true);
+
+                    // TODO: deal with imm
+                    // TODO: design a function for dealing with imm (takes a list of range + shift)
+                    // for extracting bytes and shifting em to relevant spot plus dealing with sign
+                    // extend as needed
+                    let imm  = extract_and_shift(&args[2], 0, false);
+                    // imm[11:0]
+                    ret |= (imm & 0x00_00_0F_FF) << 20;
+                },
+            }
         },
         rspace::opcode::InstType::S => {
             // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
             //   imm,   rs2,   rs1, func3,  imm, opcode
+            if args.len() != 3 {
+                println!("{:?}", inst);
+                panic!("S - Not 3 args");
+            }
+            // Args rs1 rs2 imm
+            ret |= extract_and_shift(&args[0], 15, true);
+            ret |= extract_and_shift(&args[1], 20, true);
+
+            // TODO: deal with imm
+            let imm  = extract_and_shift(&args[2], 0, false);
+            // imm[4:0]
+            ret |= (imm & 0x00_00_00_1F) << 7;
+            // imm[11:5]
+            ret |= ((imm & 0x00_00_0F_E0) >> 5) << 25;
         },
         // Subtype of S
         rspace::opcode::InstType::B => {
+            // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
+            //   imm,   rs2,   rs1, func3,  imm, opcode
+            if args.len() != 3 {
+                println!("{:?}", inst);
+                panic!("S - Not 3 args");
+            }
+            // Args rs1 rs2 imm
+            ret |= extract_and_shift(&args[0], 15, true);
+            ret |= extract_and_shift(&args[1], 20, true);
+
+            // TODO: deal with imm
+            let imm  = extract_and_shift(&args[2], 0, false);
+            // imm[11]
+            ret |= ((imm & 0x00_00_04_00) >> 11) << 7;
+            // imm[4:1]
+            ret |= ((imm & 0x00_00_00_1E) >> 1) << 8;
+            // imm[10:5]
+            ret |= ((imm & 0x00_00_03_E0) >> 5) << 25;
+            // imm[12]
+            ret |= ((imm & 0x00_00_08_00) >> 12) << 31;
         },
         rspace::opcode::InstType::U => {
             // 31-12, 11-7, 6-0
             //   imm,   rd, opcode
+            if args.len() != 2 {
+                println!("{:?}", inst);
+                panic!("U - Not 2 args");
+            }
+            // args rd imm
+            ret |= extract_and_shift(&args[0], 7, true);
+
+            // TODO: deal with imm
+            let imm = extract_and_shift(&args[1], 0, false);
+            // imm[31:12]
+            ret |= (imm & 0xFF_FF_F0_00);
         },
         // Subtype of U
         rspace::opcode::InstType::J => {
+            // 31-12, 11-7, 6-0
+            //   imm,   rd, opcode
+            if args.len() != 2 {
+                println!("{:?}", inst);
+                panic!("U - Not 2 args");
+            }
+            // args rd imm
+            ret |= extract_and_shift(&args[0], 7, true);
+
+            // TODO: deal with imm
+            let imm = extract_and_shift(&args[1], 0, false);
+            // imm[19:12]
+            ret |= (imm & 0x00_07_F8_00);
+            // imm[11]
+            ret |= ((imm & 0x00_00_04_00) >> 11) << 20;
+            // imm[10:1]
+            ret |= ((imm & 0x00_00_03_FE) >> 1) << 21;
+            // imm[20]
+            ret |= ((imm & 0x00_08_00_00) >> 20) << 31;
         },
     }
 
@@ -168,18 +274,34 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
     //    all instruction and features in gcc, then use that to get the binarycode for that, and then
     //    compare the two to make sure our result is the same)
     // 9. proceed to start work on the virtual machine
-
-    // ("bgeu", [Reg("x6"), Reg("x1"), Num(6)]))
-    // Some(InstEnc { encoding: I, opcode: 19, func3: Some(0), func7: None })
-
     ret
 }
-
 
 fn match_and_shift(byte: Option<u32>, shift: u32) -> u32 {
     match byte {
         Some(x) => x << shift,
         _ => 0x0,
+    }
+}
+
+fn extract_and_shift(arg: &rspace::types::Args, shift: u32, reg_only: bool) -> u32 {
+    match *arg {
+        rspace::types::Args::Reg(r) => {
+            if reg_only {
+                // Map x0..x31 -> 0..31
+                // TODO: for now just drop the x from the registers
+                r[1..].parse::<u32>().unwrap() << shift
+            } else {
+                panic!("Was a register, expected Num");
+            }
+        },
+        rspace::types::Args::Num(n) => {
+            if reg_only {
+                panic!("Was a Number, expected register");
+            } else {
+                n << shift
+            }
+        },
     }
 }
 
