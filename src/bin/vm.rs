@@ -1,8 +1,13 @@
 extern crate rspace;
+extern crate core;
+extern crate twiddle;
 
 use rspace::parse;
 use rspace::types;
 use rspace::opcode;
+
+use core::ops::Range;
+use twiddle::Twiddle;
 
 fn main() {
     // Test asm code
@@ -146,9 +151,9 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
                 panic!("R - Not 3 args");
             }
             // args rd, rs, r2
-            ret |= extract_and_shift(&args[0],  7, true);
-            ret |= extract_and_shift(&args[1], 15, true);
-            ret |= extract_and_shift(&args[2], 20, true);
+            ret |= extract_and_shift_register(&args[0],  7);
+            ret |= extract_and_shift_register(&args[1], 15);
+            ret |= extract_and_shift_register(&args[2], 20);
         },
         rspace::opcode::InstType::I => {
             // 31-20, 19-15, 14-12, 11-7, 6-0
@@ -161,13 +166,13 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
                         panic!("I - Not 3 args");
                     }
                     // args rd, rs, imm
-                    ret |= extract_and_shift(&args[0],  7, true);
-                    ret |= extract_and_shift(&args[1], 15, true);
+                    ret |= extract_and_shift_register(&args[0],  7);
+                    ret |= extract_and_shift_register(&args[1], 15);
 
                     // TODO: deal with imm
-                    let imm  = extract_and_shift(&args[2], 0, false);
+                    let imm  = extract_imm(&args[2]);
                     // shamt[4:0]
-                    ret |= (imm & 0x00_00_00_1F) << 20;
+                    ret |= select_and_shift(imm, 4, 0, 20);
                     // imm[11:5] - taken care by func7
                 },
                 _ => {
@@ -176,16 +181,16 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
                         panic!("I - Not 3 args");
                     }
                     // args rd, rs, imm
-                    ret |= extract_and_shift(&args[0],  7, true);
-                    ret |= extract_and_shift(&args[1], 15, true);
+                    ret |= extract_and_shift_register(&args[0],  7);
+                    ret |= extract_and_shift_register(&args[1], 15);
 
                     // TODO: deal with imm
                     // TODO: design a function for dealing with imm (takes a list of range + shift)
                     // for extracting bytes and shifting em to relevant spot plus dealing with sign
                     // extend as needed
-                    let imm  = extract_and_shift(&args[2], 0, false);
+                    let imm  = extract_imm(&args[2]);
                     // imm[11:0]
-                    ret |= (imm & 0x00_00_0F_FF) << 20;
+                    ret |= select_and_shift(imm, 11, 0, 20);
                 },
             }
         },
@@ -197,28 +202,28 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
                 panic!("S - Not 3 args");
             }
             // Args rs1 rs2 imm
-            ret |= extract_and_shift(&args[0], 15, true);
-            ret |= extract_and_shift(&args[1], 20, true);
+            ret |= extract_and_shift_register(&args[0], 15);
+            ret |= extract_and_shift_register(&args[1], 20);
 
             // TODO: deal with imm
-            let imm  = extract_and_shift(&args[2], 0, false);
+            let imm  = extract_imm(&args[2]);
 
             match inst_encode.encoding {
                 rspace::opcode::InstType::S => {
                     // imm[4:0]
-                    ret |= (imm & 0x00_00_00_1F) << 7;
+                    ret |= select_and_shift(imm, 4, 0, 7);
                     // imm[11:5]
-                    ret |= ((imm & 0x00_00_0F_E0) >> 5) << 25;
+                    ret |= select_and_shift(imm, 11, 5, 25);
                 },
                 rspace::opcode::InstType::B => {
                     // imm[11]
-                    ret |= ((imm & 0x00_00_04_00) >> 11) << 7;
+                    ret |= select_and_shift(imm, 11, 11, 7);
                     // imm[4:1]
-                    ret |= ((imm & 0x00_00_00_1E) >> 1) << 8;
+                    ret |= select_and_shift(imm, 4, 1, 8);
                     // imm[10:5]
-                    ret |= ((imm & 0x00_00_03_E0) >> 5) << 25;
+                    ret |= select_and_shift(imm, 10, 5, 25);
                     // imm[12]
-                    ret |= ((imm & 0x00_00_08_00) >> 12) << 31;
+                    ret |= select_and_shift(imm, 12, 12, 31);
                 },
                 _ => (),
             }
@@ -231,25 +236,25 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
                 panic!("U - Not 2 args");
             }
             // args rd imm
-            ret |= extract_and_shift(&args[0], 7, true);
+            ret |= extract_and_shift_register(&args[0], 7);
 
             // TODO: deal with imm
-            let imm = extract_and_shift(&args[1], 0, false);
+            let imm = extract_imm(&args[1]);
 
             match inst_encode.encoding {
                 rspace::opcode::InstType::U => {
                     // imm[31:12]
-                    ret |= (imm & 0xFF_FF_F0_00);
+                    ret |= select_and_shift(imm, 31, 12, 12);
                 },
                 rspace::opcode::InstType::J => {
                     // imm[19:12]
-                    ret |= (imm & 0x00_07_F8_00);
+                    ret |= select_and_shift(imm, 19, 12, 0);
                     // imm[11]
-                    ret |= ((imm & 0x00_00_04_00) >> 11) << 20;
+                    ret |= select_and_shift(imm, 11, 11, 20);
                     // imm[10:1]
-                    ret |= ((imm & 0x00_00_03_FE) >> 1) << 21;
+                    ret |= select_and_shift(imm, 10, 1, 21);
                     // imm[20]
-                    ret |= ((imm & 0x00_08_00_00) >> 20) << 31;
+                    ret |= select_and_shift(imm, 20, 20, 31);
                 },
                 _ => (),
             }
@@ -271,24 +276,27 @@ fn match_and_shift(byte: Option<u32>, shift: u32) -> u32 {
     }
 }
 
-fn extract_and_shift(arg: &rspace::types::Args, shift: u32, reg_only: bool) -> u32 {
+fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
+    ((imm & u32::mask(hi..lo)) >> lo) << shift
+}
+
+fn extract_imm(arg: &rspace::types::Args) -> u32 {
+    match *arg {
+        rspace::types::Args::Num(n) => {
+            n
+        },
+        _ => panic!("Was a register, expected Num"),
+    }
+}
+
+fn extract_and_shift_register(arg: &rspace::types::Args, shift: u32) -> u32 {
     match *arg {
         rspace::types::Args::Reg(r) => {
-            if reg_only {
-                // Map x0..x31 -> 0..31
-                // TODO: for now just drop the x from the registers
-                r[1..].parse::<u32>().unwrap() << shift
-            } else {
-                panic!("Was a register, expected Num");
-            }
+            // Map x0..x31 -> 0..31
+            // TODO: for now just drop the x from the registers
+            r[1..].parse::<u32>().unwrap() << shift
         },
-        rspace::types::Args::Num(n) => {
-            if reg_only {
-                panic!("Was a Number, expected register");
-            } else {
-                n << shift
-            }
-        },
+        _ => panic!("Was a num, expected register"),
     }
 }
 
