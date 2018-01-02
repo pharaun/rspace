@@ -160,21 +160,6 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
             //   imm,   rs1, func3,   rd, opcode
             match inst {
                 "FENCE" | "FENCE.I" => (),
-                "SLLI" | "SRLI" | "SRAI" => {
-                    if args.len() != 3 {
-                        println!("{:?}", inst);
-                        panic!("I - Not 3 args");
-                    }
-                    // args rd, rs, imm
-                    ret |= extract_and_shift_register(&args[0],  7);
-                    ret |= extract_and_shift_register(&args[1], 15);
-
-                    // TODO: deal with imm
-                    let imm  = extract_imm(&args[2]);
-                    // shamt[4:0]
-                    ret |= select_and_shift(imm, 4, 0, 20);
-                    // imm[11:5] - taken care by func7
-                },
                 _ => {
                     if args.len() != 3 {
                         println!("{:?}", inst);
@@ -184,13 +169,24 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
                     ret |= extract_and_shift_register(&args[0],  7);
                     ret |= extract_and_shift_register(&args[1], 15);
 
-                    // TODO: deal with imm
-                    // TODO: design a function for dealing with imm (takes a list of range + shift)
-                    // for extracting bytes and shifting em to relevant spot plus dealing with sign
-                    // extend as needed
-                    let imm  = extract_imm(&args[2]);
-                    // imm[11:0]
-                    ret |= select_and_shift(imm, 11, 0, 20);
+                    match inst {
+                        "SLLI" | "SRLI" | "SRAI" => {
+                            // TODO: deal with imm
+                            let imm  = extract_imm(&args[2]);
+                            // shamt[4:0]
+                            ret |= select_and_shift(imm, 4, 0, 20);
+                            // imm[11:5] - taken care by func7
+                        },
+                        _ => {
+                            // TODO: deal with imm
+                            // TODO: design a function for dealing with imm (takes a list of range + shift)
+                            // for extracting bytes and shifting em to relevant spot plus dealing with sign
+                            // extend as needed
+                            let imm  = extract_imm(&args[2]);
+                            // imm[11:0]
+                            ret |= select_and_shift(imm, 11, 0, 20);
+                        },
+                    }
                 },
             }
         },
