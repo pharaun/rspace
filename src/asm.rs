@@ -39,8 +39,12 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
 
                             //println!("{:?}", line);
                             //println!("{:032b}", binary_line);
+                            //println!("{:08x}", binary_line);
                             //println!("{:08b} {:08b} {:08b} {:08b}", byte_line[3], byte_line[2], byte_line[1], byte_line[0]);
 
+
+                            // TODO: the elf dump shows it in different order, need to compare +
+                            // figure out if i need to rearrange the bytes in the output?
                             asm_out.push(binary_line);
                         },
                     }
@@ -83,10 +87,8 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
             //   imm,   rs1, func3,   rd, opcode
             match inst {
                 "FENCE" | "FENCE.I" => (),
-                "ECALL" => {
-                    // func12 - ECALL- 0b000000000000
-                    // Do nothing
-                },
+                // func12 - ECALL- 0b000000000000
+                "ECALL" => (),
                 "EBREAK" => {
                     // func12 - EBREAK - 0b000000000001
                     ret |= 0x1 << 20;

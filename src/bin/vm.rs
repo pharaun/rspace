@@ -36,7 +36,7 @@ fn main() {
         sra x3 x1 x2
 
         jal x0 0xFFF
-        jalr x0 x1 0xFFF
+        jalr x0 x1 0x0
 
         beq x1 x6 0x1
         bne x2 x5 0x2

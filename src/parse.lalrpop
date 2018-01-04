@@ -42,6 +42,13 @@ pub VecArgs: Vec<types::Args <'input>> = {
 };
 
 // Asm Line = Instruction [0-4] args
+// TODO:
+//  gcc as assemblier uses a slightly different syntax:
+//      - add x0, x1, x3
+//      - lw x0, 0x0(x3)
+//      - sw x0, 0x0(x3)
+//      - csr{rw, rs, rc} a0, cycle, x0
+//      - csr{rw, rs, rc}i a1, sscratch, 1
 pub AsmLine: (&'input str, Vec<types::Args <'input>>) = {
     Instruction VecArgs
 };
