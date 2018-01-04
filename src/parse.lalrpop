@@ -3,6 +3,12 @@ use types;
 
 grammar;
 
+match {
+    r"RD(CYCLE|TIME|INSTRET)H?",
+} else {
+    _
+}
+
 // number == digits + Ox{digits} (does not handle negative number) unsigned int32/64) (later can
 //                              handle negative by converting it to 2's compat and  storing it as unsigned)
 pub Number = { Dec, Hex };
@@ -16,10 +22,17 @@ pub Register = { Reg };
 
 Reg: &'input str = <s:r"x[0-9]+"> => s;
 
-// args = register | number | csr
+// CSR & priv inst
 // csr == ?
+// For now, support a discrete list of csr + priv insts
+pub Csr = { CsrReg };
+
+CsrReg: &'input str = <s:r"RD(CYCLE|TIME|INSTRET)H?"> => s;
+
+// args = register | number | csr
 pub Arguments: types::Args <'input> = {
     <n:Register> => types::Args::Reg(n),
+    <n:Csr> => types::Args::Csr(n),
     <n:Number> => types::Args::Num(n),
 };
 

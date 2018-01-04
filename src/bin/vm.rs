@@ -68,15 +68,15 @@ fn main() {
 
         // TODO: custom layout (imm/registers/etc)
         // TODO: CSR - RDCYCLE[H], RDTIME[H], RDINSTRET[H]
-        //csrrw x1 x0 RDCYCLE
-        //csrrs x2 x0 RDTIME
-        //csrrc x3 x0 RDINSTRET
-        //csrrwi x4 0x1 RDCYCLE
-        //csrrsi x5 0x2 RDTIME
-        //csrrci x6 0x3 RDINSTRET
+        csrrw x1 x0 RDCYCLE
+        csrrs x2 x0 RDTIMEH
+        csrrc x3 x0 RDINSTRET
+        csrrwi x4 0x1 RDCYCLE
+        csrrsi x5 0x2 RDTIME
+        csrrci x6 0x3 RDINSTRETH
 
-        // TODO: func12 - ECALL- 0b000000000000, EBREAK - 0b000000000001
-        //priv ECALL
+        ecall
+        ebreak
 
         mul x0 x1 x2
         mulh x1 x2 x0
@@ -160,6 +160,28 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
             //   imm,   rs1, func3,   rd, opcode
             match inst {
                 "FENCE" | "FENCE.I" => (),
+                "ECALL" => {
+                    // func12 - ECALL- 0b000000000000
+                    // Do nothing
+                },
+                "EBREAK" => {
+                    // func12 - EBREAK - 0b000000000001
+                    ret |= 0x1 << 20;
+                },
+                "CSRRWI" | "CSRRSI" | "CSRRCI" => {
+                    if args.len() != 3 {
+                        println!("{:?}", inst);
+                        panic!("I - Not 3 args");
+                    }
+                    // args rd, imm, csr
+                    ret |= extract_and_shift_register(&args[0],  7);
+
+                    let imm  = extract_imm(&args[1]);
+                    ret |= select_and_shift(imm, 5, 0, 15);
+
+                    let csrreg = extract_csr(&args[2]);
+                    ret |= csrreg << 20;
+                },
                 _ => {
                     if args.len() != 3 {
                         println!("{:?}", inst);
@@ -176,6 +198,11 @@ fn lut_to_binary(inst: &str, args: Vec<rspace::types::Args>, inst_encode: rspace
                             // shamt[4:0]
                             ret |= select_and_shift(imm, 4, 0, 20);
                             // imm[11:5] - taken care by func7
+                        },
+                        "CSRRW" | "CSRRS" | "CSRRC" => {
+                            // args rd, rs, csr
+                            let csrreg = extract_csr(&args[2]);
+                            ret |= csrreg << 20;
                         },
                         _ => {
                             // TODO: deal with imm
@@ -276,12 +303,29 @@ fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
     ((imm & u32::mask(hi..lo)) >> lo) << shift
 }
 
+fn extract_csr(arg: &rspace::types::Args) -> u32 {
+    match *arg {
+        rspace::types::Args::Csr(n) => {
+            match n {
+                "RDCYCLE" => 0xC00,
+                "RDCYCLEH" => 0xC80,
+                "RDTIME" => 0xC01,
+                "RDTIMEH" => 0xC81,
+                "RDINSTRET" => 0xC02,
+                "RDINSTRETH" => 0xC82,
+                _ => panic!("New type of csr"),
+            }
+        },
+        _ => panic!("Was a register or num, expected csr"),
+    }
+}
+
 fn extract_imm(arg: &rspace::types::Args) -> u32 {
     match *arg {
         rspace::types::Args::Num(n) => {
             n
         },
-        _ => panic!("Was a register, expected Num"),
+        _ => panic!("Was a register or csr, expected Num"),
     }
 }
 
@@ -292,7 +336,7 @@ fn extract_and_shift_register(arg: &rspace::types::Args, shift: u32) -> u32 {
             // TODO: for now just drop the x from the registers
             r[1..].parse::<u32>().unwrap() << shift
         },
-        _ => panic!("Was a num, expected register"),
+        _ => panic!("Was a num or csr, expected register"),
     }
 }
 
@@ -310,6 +354,10 @@ fn comment_test() {
     println!("{:?}", rspace::parse::parse_Register("x0"));
     println!("{:?}", rspace::parse::parse_Register("x31"));
 
+    // Test CSR
+    println!("{:?}", rspace::parse::parse_Csr("RDCYCLE"));
+    println!("{:?}", rspace::parse::parse_Csr("RDCYCLEH"));
+
     // Test Arguments
     println!("{:?}", rspace::parse::parse_Arguments("x0"));
     println!("{:?}", rspace::parse::parse_Arguments("0923"));
@@ -324,10 +372,13 @@ fn comment_test() {
 
     // Test Asm line
     println!("{:?}", rspace::parse::parse_AsmLine("ECALL"));
+    println!("{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 RDCYCLE"));
+    println!("{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 RDCYCLEH"));
     println!("{:?}", rspace::parse::parse_AsmLine("SFENCE.VM x0"));
     println!("{:?}", rspace::parse::parse_AsmLine("LUI x0 0xFF"));
     println!("{:?}", rspace::parse::parse_AsmLine("FCVT.W.H x0 x1"));
     println!("{:?}", rspace::parse::parse_AsmLine("FMADD.S x0 x1 x2 x3"));
+    println!("{:?}", rspace::parse::parse_AsmLine("csrrci x6 0x3 RDINSTRET"));
 
     // Test lookups
     println!("{:?}", rspace::opcode::lookup("ADDI"));
