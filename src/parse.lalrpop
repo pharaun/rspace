@@ -4,7 +4,7 @@ use types;
 grammar;
 
 match {
-    r"RD(CYCLE|TIME|INSTRET)H?",
+    r"(CYCLE|TIME|INSTRET)H?",
 } else {
     _
 }
@@ -27,7 +27,7 @@ Reg: &'input str = <s:r"x[0-9]+"> => s;
 // For now, support a discrete list of csr + priv insts
 pub Csr = { CsrReg };
 
-CsrReg: &'input str = <s:r"RD(CYCLE|TIME|INSTRET)H?"> => s;
+CsrReg: &'input str = <s:r"(CYCLE|TIME|INSTRET)H?"> => s;
 
 // args = register | number | csr
 pub Arguments: types::Args <'input> = {

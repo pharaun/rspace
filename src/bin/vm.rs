@@ -67,13 +67,13 @@ fn main() {
         fence.i
 
         // TODO: custom layout (imm/registers/etc)
-        // TODO: CSR - RDCYCLE[H], RDTIME[H], RDINSTRET[H]
-        csrrw x1 x0 RDCYCLE
-        csrrs x2 x0 RDTIMEH
-        csrrc x3 x0 RDINSTRET
-        csrrwi x4 0x1 RDCYCLE
-        csrrsi x5 0x2 RDTIME
-        csrrci x6 0x3 RDINSTRETH
+        // TODO: CSR - CYCLE[H], TIME[H], INSTRET[H]
+        csrrw x1 x0 CYCLE
+        csrrs x2 x0 TIMEH
+        csrrc x3 x0 INSTRET
+        csrrwi x4 0x1 CYCLE
+        csrrsi x5 0x2 TIME
+        csrrci x6 0x3 INSTRETH
 
         ecall
         ebreak
@@ -307,12 +307,12 @@ fn extract_csr(arg: &rspace::types::Args) -> u32 {
     match *arg {
         rspace::types::Args::Csr(n) => {
             match n {
-                "RDCYCLE" => 0xC00,
-                "RDCYCLEH" => 0xC80,
-                "RDTIME" => 0xC01,
-                "RDTIMEH" => 0xC81,
-                "RDINSTRET" => 0xC02,
-                "RDINSTRETH" => 0xC82,
+                "CYCLE" => 0xC00,
+                "CYCLEH" => 0xC80,
+                "TIME" => 0xC01,
+                "TIMEH" => 0xC81,
+                "INSTRET" => 0xC02,
+                "INSTRETH" => 0xC82,
                 _ => panic!("New type of csr"),
             }
         },
@@ -355,8 +355,8 @@ fn comment_test() {
     println!("{:?}", rspace::parse::parse_Register("x31"));
 
     // Test CSR
-    println!("{:?}", rspace::parse::parse_Csr("RDCYCLE"));
-    println!("{:?}", rspace::parse::parse_Csr("RDCYCLEH"));
+    println!("{:?}", rspace::parse::parse_Csr("CYCLE"));
+    println!("{:?}", rspace::parse::parse_Csr("CYCLEH"));
 
     // Test Arguments
     println!("{:?}", rspace::parse::parse_Arguments("x0"));
@@ -372,13 +372,13 @@ fn comment_test() {
 
     // Test Asm line
     println!("{:?}", rspace::parse::parse_AsmLine("ECALL"));
-    println!("{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 RDCYCLE"));
-    println!("{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 RDCYCLEH"));
+    println!("{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 CYCLE"));
+    println!("{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 CYCLEH"));
     println!("{:?}", rspace::parse::parse_AsmLine("SFENCE.VM x0"));
     println!("{:?}", rspace::parse::parse_AsmLine("LUI x0 0xFF"));
     println!("{:?}", rspace::parse::parse_AsmLine("FCVT.W.H x0 x1"));
     println!("{:?}", rspace::parse::parse_AsmLine("FMADD.S x0 x1 x2 x3"));
-    println!("{:?}", rspace::parse::parse_AsmLine("csrrci x6 0x3 RDINSTRET"));
+    println!("{:?}", rspace::parse::parse_AsmLine("csrrci x6 0x3 INSTRET"));
 
     // Test lookups
     println!("{:?}", rspace::opcode::lookup("ADDI"));

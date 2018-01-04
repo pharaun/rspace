@@ -92,8 +92,9 @@ fn main() {
         .entry("CSRRSI", "InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b110), func7: None}")
         .entry("CSRRCI", "InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b111), func7: None}")
 
-        // TODO: func12 - ECALL- 0b000000000000, EBREAK - 0b000000000001
-        .entry("PRIV",   "InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b000), func7: None}")
+        // PRIV
+        .entry("ECALL",  "InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b000), func7: None}")
+        .entry("EBREAK", "InstEnc{encoding: InstType::I, opcode: SYSTEM, func3: Some(0b000), func7: None}")
 
         // Extension - M type
         .entry("MUL",    "InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b000), func7: Some(0b0000001)}")
