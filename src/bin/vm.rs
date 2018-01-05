@@ -1,6 +1,9 @@
 extern crate rspace;
+extern crate byteorder;
 
 use rspace::asm;
+use byteorder::{LittleEndian, WriteBytesExt};
+use std::fs::File;
 
 fn main() {
     // Test asm code
@@ -84,6 +87,13 @@ fn main() {
     "#;
 
     let binary_code = rspace::asm::parse_asm(test_asm);
+
+    // Write out to file
+    let mut wtr = File::create("foo.txt").unwrap();
+
+    for x in &binary_code {
+        wtr.write_u32::<LittleEndian>(*x).unwrap();
+    }
 
     // TODO: virtual machine stuff
 }
