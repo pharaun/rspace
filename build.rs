@@ -35,7 +35,7 @@ fn main() {
         // shamt - 0b0000000
         .entry("SRLI",  "InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b101), func7: None}")
         // shamt - 0b0100000
-        .entry("SRAI",  "InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b101), func7: None}")
+        .entry("SRAI",  "InstEnc{encoding: InstType::I, opcode: OP_IMM, func3: Some(0b101), func7: Some(0b0100000)}")
 
         .entry("LUI",   "InstEnc{encoding: InstType::U, opcode: LUI, func3: None, func7: None}")
 

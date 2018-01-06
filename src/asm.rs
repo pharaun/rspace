@@ -86,7 +86,11 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
             // 31-20, 19-15, 14-12, 11-7, 6-0
             //   imm,   rs1, func3,   rd, opcode
             match inst {
-                "FENCE" | "FENCE.I" => (),
+                "FENCE" => {
+                    // Default settings with all flags toggled (just hardcode for now)
+                    ret |= select_and_shift(0b11111111, 7, 0, 20);
+                },
+                "FENCE.I" => (),
                 // func12 - ECALL- 0b000000000000
                 "ECALL" => (),
                 "EBREAK" => {
