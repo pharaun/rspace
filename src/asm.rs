@@ -196,7 +196,20 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
             match inst_encode.encoding {
                 opcode::InstType::U => {
                     // imm[31:12]
-                    ret |= select_and_shift(imm, 31, 12, 12);
+                    //
+                    // Due to mips legacy, GAS takes the bottom 20 bits, not the top 20 as per
+                    // the spec, but via %hi(0xFF) and %low(0xFF)... macro? we are able to access
+                    // the upper 20bit (it gets shifted down 12 bits). Let's do what GAS does here
+                    // so that we can assemble the output of gcc -S.
+                    //
+                    // This mismatch what you would expect from the docs:
+                    //      LUI places the U-immediate value in the top 20 bits of the destination
+                    //      register rd, filling in the lowest 12 bits with zeros.
+                    //
+                    // TODO: Add `li x1 0xff` and `la x1 symbol` which makes this nicer (takes the
+                    // value and symbol and split it into upper 20 and lower 12 bits and load it)
+                    ret |= select_and_shift(imm, 19, 0, 12);
+                    //ret |= select_and_shift(imm, 31, 12, 12);
                 },
                 opcode::InstType::J => {
                     // imm[19:12]

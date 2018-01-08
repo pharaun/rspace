@@ -39,7 +39,9 @@ fn main() {
         sra x3 x1 x2
 
         // TODO: drop cos elf assemblier doesn't output these
+        // and j is just jal with x0 assumed
         //jal x0 0xFFF
+        // there isn't actually a ret instruction, it's a synonym for jalr x0, 0(x1)
         //jalr x0 x1 0x0
 
         beq x1 x6 0x1
