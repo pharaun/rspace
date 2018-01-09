@@ -168,6 +168,11 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     ret |= select_and_shift(imm, 11, 5, 25);
                 },
                 opcode::InstType::B => {
+                    // TODO: objdump shows bne/beq swapped and so on
+                    // plus all fixed 0x8 jump, so i'm not sure I'm
+                    // encoding these quite right, but with the re-arranged
+                    // order it seems to work.... ?
+
                     // imm[11]
                     ret |= select_and_shift(imm, 11, 11, 7);
                     // imm[4:1]
