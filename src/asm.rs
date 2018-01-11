@@ -1,9 +1,7 @@
 use parse;
 use types;
 use opcode;
-use std;
 
-use core::ops::Range;
 use twiddle::Twiddle;
 
 pub fn parse_asm(input: &str) -> Vec<u32> {
@@ -35,11 +33,11 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
                         // 5. if so proceed below
                         Some(x) => {
                             let binary_line = lut_to_binary(upper_inst, args, x);
-                            let byte_line = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_line.to_le()) };
 
                             //println!("{:?}", line);
                             //println!("{:032b}", binary_line);
                             //println!("{:08x}", binary_line);
+                            //let byte_line = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_line.to_le()) };
                             //println!("{:08b} {:08b} {:08b} {:08b}", byte_line[3], byte_line[2], byte_line[1], byte_line[0]);
 
 

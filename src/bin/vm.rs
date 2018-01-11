@@ -1,9 +1,12 @@
 extern crate rspace;
 extern crate byteorder;
+extern crate twiddle;
 
-use rspace::asm;
-use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt};
 use std::fs::File;
+
+use rspace::types;
+use twiddle::Twiddle;
 
 fn main() {
     // Test asm code
@@ -102,9 +105,48 @@ fn main() {
     let binary_code = rspace::asm::parse_asm(test_asm);
     //compare_assembly(binary_code, test_asm);
 
+    // Virtual machine stuff
 
-    // TODO: virtual machine stuff
+    // Registers
+    let mut reg: [u32; 32] = [0; 32];
+
+    // TODO: shouldn't this be u32?
+    let mut pc: usize = 0;
+
+    // Ram
+    let mut ram: [u32; 1024] = [0; 1024];
+
+    // Rom (would be nice to make this consistent sized)
+    let rom = &binary_code[..];
+
+    // VM loop
+    loop {
+        // TODO: unitify memory at some point
+        let inst = rom[pc];
+
+        // Decode opcode
+        let opcode = select_and_shift(inst, 6, 0);
+
+        // Inst Type
+        let instType = instruction_type(opcode);
+
+        // TODO: decode steps
+        // 1. identify instruction types (r, i, s, u, b, j)
+        // 2. extract the rd, rs1, rs2, imm, func3, func7, etc as needed for the inst type
+        // 3. process the instruction and +4 to pc (32bit instructions)
+    }
 }
+
+
+
+fn select_and_shift(inst: u32, hi: usize, lo: usize) -> u32 {
+    (inst & u32::mask(hi..lo)) >> lo
+}
+
+fn instruction_type(opcode: u32) -> rspace::opcode::InstType {
+    rspace::opcode::InstType::I
+}
+
 
 
 
