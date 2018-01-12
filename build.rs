@@ -55,18 +55,18 @@ fn main() {
         .entry("SUB",   "InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b000), func7: Some(0b0100000)}")
         .entry("SRA",   "InstEnc{encoding: InstType::R, opcode: OP_REG, func3: Some(0b101), func7: Some(0b0100000)}")
 
-        .entry("JAL",   "InstEnc{encoding: InstType::U, opcode: JAL, func3: None, func7: None}")
+        .entry("JAL",   "InstEnc{encoding: InstType::UJ, opcode: JAL, func3: None, func7: None}")
 
         .entry("JALR",  "InstEnc{encoding: InstType::I, opcode: JALR, func3: Some(0b000), func7: None}")
 
-        .entry("BEQ",   "InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b000), func7: None}")
-        .entry("BNE",   "InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b001), func7: None}")
+        .entry("BEQ",   "InstEnc{encoding: InstType::SB, opcode: BRANCH, func3: Some(0b000), func7: None}")
+        .entry("BNE",   "InstEnc{encoding: InstType::SB, opcode: BRANCH, func3: Some(0b001), func7: None}")
 
-        .entry("BLT",   "InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b100), func7: None}")
-        .entry("BLTU",  "InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b110), func7: None}")
+        .entry("BLT",   "InstEnc{encoding: InstType::SB, opcode: BRANCH, func3: Some(0b100), func7: None}")
+        .entry("BLTU",  "InstEnc{encoding: InstType::SB, opcode: BRANCH, func3: Some(0b110), func7: None}")
 
-        .entry("BGE",   "InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b101), func7: None}")
-        .entry("BGEU",  "InstEnc{encoding: InstType::B, opcode: BRANCH, func3: Some(0b111), func7: None}")
+        .entry("BGE",   "InstEnc{encoding: InstType::SB, opcode: BRANCH, func3: Some(0b101), func7: None}")
+        .entry("BGEU",  "InstEnc{encoding: InstType::SB, opcode: BRANCH, func3: Some(0b111), func7: None}")
 
         .entry("LW",    "InstEnc{encoding: InstType::I, opcode: LOAD, func3: Some(0b010), func7: None}")
         .entry("LH",    "InstEnc{encoding: InstType::I, opcode: LOAD, func3: Some(0b001), func7: None}")

@@ -128,7 +128,7 @@ fn main() {
         let opcode = select_and_shift(inst, 6, 0);
 
         // Inst Type
-        let instType = instruction_type(opcode);
+        let instType = rspace::opcode::instruction_type(opcode);
 
         // TODO: decode steps
         // 1. identify instruction types (r, i, s, u, b, j)
@@ -143,9 +143,8 @@ fn select_and_shift(inst: u32, hi: usize, lo: usize) -> u32 {
     (inst & u32::mask(hi..lo)) >> lo
 }
 
-fn instruction_type(opcode: u32) -> rspace::opcode::InstType {
-    rspace::opcode::InstType::I
-}
+
+
 
 
 

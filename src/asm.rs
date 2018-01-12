@@ -144,7 +144,7 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                 },
             }
         },
-        opcode::InstType::S | opcode::InstType::B => {
+        opcode::InstType::S | opcode::InstType::SB => {
             // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
             //   imm,   rs2,   rs1, func3,  imm, opcode
             if args.len() != 3 {
@@ -165,7 +165,7 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     // imm[11:5]
                     ret |= select_and_shift(imm, 11, 5, 25);
                 },
-                opcode::InstType::B => {
+                opcode::InstType::SB => {
                     // TODO: objdump shows bne/beq swapped and so on
                     // plus all fixed 0x8 jump, so i'm not sure I'm
                     // encoding these quite right, but with the re-arranged
@@ -183,7 +183,7 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                 _ => (),
             }
         },
-        opcode::InstType::U | opcode::InstType::J => {
+        opcode::InstType::U | opcode::InstType::UJ => {
             // 31-12, 11-7, 6-0
             //   imm,   rd, opcode
             if args.len() != 2 {
@@ -214,7 +214,7 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     ret |= select_and_shift(imm, 19, 0, 12);
                     //ret |= select_and_shift(imm, 31, 12, 12);
                 },
-                opcode::InstType::J => {
+                opcode::InstType::UJ => {
                     // imm[19:12]
                     ret |= select_and_shift(imm, 19, 12, 0);
                     // imm[11]
