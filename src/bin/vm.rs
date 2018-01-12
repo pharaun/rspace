@@ -130,10 +130,53 @@ fn main() {
         // Inst Type
         let instType = rspace::opcode::instruction_type(opcode);
 
+        // TODO: handle sign extend and so on as needed
+        match instType {
+            rspace::opcode::InstType::R => {
+                let rd    = select_and_shift(inst, 11, 7);
+                let func3 = select_and_shift(inst, 14, 12);
+                let rs1   = select_and_shift(inst, 19, 15);
+                let rs2   = select_and_shift(inst, 24, 20);
+                let func7 = select_and_shift(inst, 31, 25);
+            },
+            rspace::opcode::InstType::I => {
+                let rd    = select_and_shift(inst, 11, 7);
+                let func3 = select_and_shift(inst, 14, 12);
+                let rs1   = select_and_shift(inst, 19, 15);
+                let imm   = select_and_shift(inst, 31, 20);
+            },
+            rspace::opcode::InstType::S => {
+                let func3 = select_and_shift(inst, 14, 12);
+                let rs1   = select_and_shift(inst, 19, 15);
+                let rs2   = select_and_shift(inst, 24, 20);
+                let imm   = (select_and_shift(inst, 31, 25) << 5)
+                          | select_and_shift(inst, 11, 7);
+            },
+            rspace::opcode::InstType::SB => {
+                let func3 = select_and_shift(inst, 14, 12);
+                let rs1   = select_and_shift(inst, 19, 15);
+                let rs2   = select_and_shift(inst, 24, 20);
+                let imm   = (select_and_shift(inst, 31, 31) << 12)
+                          | (select_and_shift(inst, 7, 7) << 11)
+                          | (select_and_shift(inst, 30, 25) << 5)
+                          | (select_and_shift(inst, 11, 8) << 1);
+            },
+            rspace::opcode::InstType::U => {
+                let rd    = select_and_shift(inst, 11, 7);
+                let imm   = (select_and_shift(inst, 31, 12) << 12);
+            },
+            rspace::opcode::InstType::UJ => {
+                let rd    = select_and_shift(inst, 11, 7);
+                let imm   = (select_and_shift(inst, 31, 31) << 20)
+                          | (select_and_shift(inst, 19, 12) << 12)
+                          | (select_and_shift(inst, 20, 20) << 11)
+                          | (select_and_shift(inst, 30, 21) << 1);
+            },
+        }
+
         // TODO: decode steps
-        // 1. identify instruction types (r, i, s, u, b, j)
-        // 2. extract the rd, rs1, rs2, imm, func3, func7, etc as needed for the inst type
         // 3. process the instruction and +4 to pc (32bit instructions)
+        pc += 4;
     }
 }
 
