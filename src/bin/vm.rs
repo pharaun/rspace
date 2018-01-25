@@ -135,316 +135,231 @@ fn main() {
         let opcode = select_and_shift(inst, 6, 0);
 
         // Inst Type
-        // TODO: dont bother? (get rid of inst type bits here)
-        let instType = rspace::opcode::instruction_type(opcode);
+        // TODO: change this over to generating the mask needed (for rspace issue #4)
+        //let instType = rspace::opcode::instruction_type(opcode);
 
+        // Prefetch the func3/7
+        let func3 = select_and_shift(inst, 14, 12);
+        let func7 = select_and_shift(inst, 31, 25);
+
+        // Prefetch rd/rs1/rs2
+        let rd    = select_and_shift(inst, 11, 7);
+        let rs1   = select_and_shift(inst, 19, 15);
+        let rs2   = select_and_shift(inst, 24, 20);
+
+        // IMM types - Probably can be put in the asm steps
         // TODO: handle sign extend and so on as needed
-        match instType {
-            rspace::opcode::InstType::R => {
-                let rd    = select_and_shift(inst, 11, 7);
-                let func3 = select_and_shift(inst, 14, 12);
-                let rs1   = select_and_shift(inst, 19, 15);
-                let rs2   = select_and_shift(inst, 24, 20);
-                let func7 = select_and_shift(inst, 31, 25);
+        let Iimm  = select_and_shift(inst, 31, 20);
+        let Simm  = (select_and_shift(inst, 31, 25) << 5)
+                  | select_and_shift(inst, 11, 7);
+        let SBimm = (select_and_shift(inst, 31, 31) << 12)
+                  | (select_and_shift(inst, 7, 7) << 11)
+                  | (select_and_shift(inst, 30, 25) << 5)
+                  | (select_and_shift(inst, 11, 8) << 1);
+        let Uimm  = (select_and_shift(inst, 31, 12) << 12);
+        let UJimm = (select_and_shift(inst, 31, 31) << 20)
+                  | (select_and_shift(inst, 19, 12) << 12)
+                  | (select_and_shift(inst, 20, 20) << 11)
+                  | (select_and_shift(inst, 30, 21) << 1);
 
-                match opcode {
-                    rspace::opcode::OP_REG => {
-                        match func7 {
-                            0x0000000 => {
-                                match func3 {
-                                    0x000 => {
-                                        // ADD
-                                    },
-                                    0x001 => {
-                                        // SLL
-                                    },
-                                    0x010 => {
-                                        // SLT
-                                    },
-                                    0x011 => {
-                                        // SLTU
-                                    },
-                                    0x100 => {
-                                        // XOR
-                                    },
-                                    0x101 => {
-                                        // SRL
-                                    },
-                                    0x110 => {
-                                        // OR
-                                    },
-                                    0x111 => {
-                                        // AND
-                                    },
-                                    _ => panic!("FIXME"),
-                                }
-                            },
-                            0x0000001 => {
-                                // RV32 M extension
-                                match func3 {
-                                    0x000 => {
-                                        // MUL
-                                    },
-                                    0x001 => {
-                                        // MULH
-                                    },
-                                    0x010 => {
-                                        // MULHSU
-                                    },
-                                    0x011 => {
-                                        // MULHU
-                                    },
-                                    0x100 => {
-                                        // DIV
-                                    },
-                                    0x101 => {
-                                        // DIVU
-                                    },
-                                    0x110 => {
-                                        // REM
-                                    },
-                                    0x111 => {
-                                        // REMU
-                                    },
-                                    _ => panic!("FIXME"),
-                                }
-                            },
-                            0x0100000 => {
-                                match func3 {
-                                    0x000 => {
-                                        // SUB
-                                    },
-                                    0x101 => {
-                                        // SRA
-                                    },
-                                    _ => panic!("FIXME"),
-                                }
-                            },
-                            _ => panic!("FIXME"),
-                        }
-                    },
-                    _ => panic!("FIXME"),
-                }
+        match (func7, func3, opcode) {
+            // RV32 I
+            (0x0000000, 0x000, rspace::opcode::OP_REG) => {
+                // ADD
             },
-            rspace::opcode::InstType::I => {
-                let rd    = select_and_shift(inst, 11, 7);
-                let func3 = select_and_shift(inst, 14, 12);
-                let rs1   = select_and_shift(inst, 19, 15);
+            (0x0100000, 0x000, rspace::opcode::OP_REG) => {
+                // SUB
+            },
+            (0x0000000, 0x001, rspace::opcode::OP_REG) => {
+                // SLL
+            },
+            (0x0000000, 0x010, rspace::opcode::OP_REG) => {
+                // SLT
+            },
+            (0x0000000, 0x011, rspace::opcode::OP_REG) => {
+                // SLTU
+            },
+            (0x0000000, 0x100, rspace::opcode::OP_REG) => {
+                // XOR
+            },
+            (0x0000000, 0x101, rspace::opcode::OP_REG) => {
+                // SRL
+            },
+            (0x0100000, 0x101, rspace::opcode::OP_REG) => {
+                // SRA
+            },
+            (0x0000000, 0x110, rspace::opcode::OP_REG) => {
+                // OR
+            },
+            (0x0000000, 0x111, rspace::opcode::OP_REG) => {
+                // AND
+            },
+
+            // RV32 M extensions
+            (0x0000001, 0x000, rspace::opcode::OP_REG) => {
+                // MUL
+            },
+            (0x0000001, 0x001, rspace::opcode::OP_REG) => {
+                // MULH
+            },
+            (0x0000001, 0x010, rspace::opcode::OP_REG) => {
+                // MULHSU
+            },
+            (0x0000001, 0x011, rspace::opcode::OP_REG) => {
+                // MULHU
+            },
+            (0x0000001, 0x100, rspace::opcode::OP_REG) => {
+                // DIV
+            },
+            (0x0000001, 0x101, rspace::opcode::OP_REG) => {
+                // DIVU
+            },
+            (0x0000001, 0x110, rspace::opcode::OP_REG) => {
+                // REM
+            },
+            (0x0000001, 0x111, rspace::opcode::OP_REG) => {
+                // REMU
+            },
+
+            // RV32 I
+            (        _, 0x000, rspace::opcode::OP_IMM) => {
+                // ADDI
+            },
+            (0x0000000, 0x001, rspace::opcode::OP_IMM) => {
+                // SLLI
+            },
+            (        _, 0x010, rspace::opcode::OP_IMM) => {
+                // SLTI
+            },
+            (        _, 0x011, rspace::opcode::OP_IMM) => {
+                // SLTIU
+            },
+            (        _, 0x100, rspace::opcode::OP_IMM) => {
+                // XORI
+            },
+            (0x0000000, 0x101, rspace::opcode::OP_IMM) => {
+                // SRLI
+            },
+            (0x0100000, 0x101, rspace::opcode::OP_IMM) => {
+                // SRAI
+            },
+            (        _, 0x110, rspace::opcode::OP_IMM) => {
+                // ORI
+            },
+            (        _, 0x111, rspace::opcode::OP_IMM) => {
+                // ANDI
+            },
+
+            // RV32 I
+            (        _, 0x000, rspace::opcode::JALR) => {
+                // JALR
+            },
+
+            // RV32 I
+            (        _, 0x000, rspace::opcode::LOAD) => {
+                // LB
+            },
+            (        _, 0x001, rspace::opcode::LOAD) => {
+                // LH
+            },
+            (        _, 0x010, rspace::opcode::LOAD) => {
+                // LW
+            },
+            (        _, 0x100, rspace::opcode::LOAD) => {
+                // LBU
+            },
+            (        _, 0x101, rspace::opcode::LOAD) => {
+                // LHU
+            },
+
+            // RV32 I
+            (        _, 0x000, rspace::opcode::MISC_MEM) => {
+                // FENCE
+            },
+            (        _, 0x001, rspace::opcode::MISC_MEM) => {
+                // FENCE.I
+            },
+
+            // RV32 I
+            (        _, 0x000, rspace::opcode::SYSTEM) => {
+                // ECALL | EBREAK
                 let imm   = select_and_shift(inst, 31, 20);
 
-                match opcode {
-                    rspace::opcode::OP_IMM => {
-                        match func3 {
-                            0x000 => {
-                                // ADDI
-                            },
-                            0x010 => {
-                                // SLTI
-                            },
-                            0x011 => {
-                                // SLTIU
-                            },
-                            0x100 => {
-                                // XORI
-                            },
-                            0x110 => {
-                                // ORI
-                            },
-                            0x111 => {
-                                // ANDI
-                            },
-                            0x001 => {
-                                // SLLI
-                                match select_and_shift(inst, 31, 25) {
-                                    0x0000000 => {
-                                        // SLLI
-                                    },
-                                    _ => panic!("FIXME"),
-                                }
-                            },
-                            0x101 => {
-                                // SLLI, SRLI, SRAI
-                                match select_and_shift(inst, 31, 25) {
-                                    0x0000000 => {
-                                        // SRLI
-                                    },
-                                    0x0100000 => {
-                                        // SRAI
-                                    },
-                                    _ => panic!("FIXME"),
-                                }
-                            },
-                            // TODO: improve debug print, because we hit this
-                            _ => panic!("I Inst type missing func3 case"),
-                        }
+                match imm {
+                    0x000000000000 => {
+                        // ECALL
                     },
-                    rspace::opcode::JALR => {
-                        match func3 {
-                            0x000 => {
-                                // JALR
-                            },
-                            _ => panic!("FIXME"),
-                        }
-                    },
-                    rspace::opcode::LOAD => {
-                        match func3 {
-                            0x000 => {
-                                // LB
-                            },
-                            0x001 => {
-                                // LH
-                            },
-                            0x010 => {
-                                // LW
-                            },
-                            0x100 => {
-                                // LBU
-                            },
-                            0x101 => {
-                                // LHU
-                            },
-                            _ => panic!("FIXME"),
-                        }
-                    },
-                    rspace::opcode::MISC_MEM => {
-                        match func3 {
-                            0x000 => {
-                                // FENCE
-                            },
-                            0x001 => {
-                                // FENCE.I
-                            },
-                            _ => panic!("FIXME"),
-                        }
-                    },
-                    rspace::opcode::SYSTEM => {
-                        match func3 {
-                            0x000 => {
-                                // ECALL | EBREAK
-                                match imm {
-                                    0x000000000000 => {
-                                        // ECALL
-                                    },
-                                    0x000000000001 => {
-                                        // EBREAK
-                                    },
-                                    _ => panic!("FIXME"),
-                                }
-                            },
-                            0x001 => {
-                                // CSRRW
-                            },
-                            0x010 => {
-                                // CSRRS
-                            },
-                            0x011 => {
-                                // CSRRC
-                            },
-                            0x101 => {
-                                // CSRRWI
-                            },
-                            0x110 => {
-                                // CSRRSI
-                            },
-                            0x111 => {
-                                // CSRRCI
-                            },
-                            _ => panic!("FIXME"),
-                        }
+                    0x000000000001 => {
+                        // EBREAK
                     },
                     _ => panic!("FIXME"),
                 }
             },
-            rspace::opcode::InstType::S => {
-                let func3 = select_and_shift(inst, 14, 12);
-                let rs1   = select_and_shift(inst, 19, 15);
-                let rs2   = select_and_shift(inst, 24, 20);
-                let imm   = (select_and_shift(inst, 31, 25) << 5)
-                          | select_and_shift(inst, 11, 7);
-
-                match opcode {
-                    rspace::opcode::STORE => {
-                        match func3 {
-                            0x000 => {
-                                // SB
-                            },
-                            0x001 => {
-                                // SH
-                            },
-                            0x010 => {
-                                // SW
-                            },
-                            // TODO: improve debug print, because we hit this
-                            _ => panic!("S Inst type missing func3 case"),
-                        }
-                    },
-                    _ => panic!("FIXME"),
-                }
+            (        _, 0x001, rspace::opcode::SYSTEM) => {
+                // CSRRW
             },
-            rspace::opcode::InstType::SB => {
-                let func3 = select_and_shift(inst, 14, 12);
-                let rs1   = select_and_shift(inst, 19, 15);
-                let rs2   = select_and_shift(inst, 24, 20);
-                let imm   = (select_and_shift(inst, 31, 31) << 12)
-                          | (select_and_shift(inst, 7, 7) << 11)
-                          | (select_and_shift(inst, 30, 25) << 5)
-                          | (select_and_shift(inst, 11, 8) << 1);
-
-                match opcode {
-                    rspace::opcode::BRANCH => {
-                        match func3 {
-                            0x000 => {
-                                // BEQ
-                            },
-                            0x001 => {
-                                // BNE
-                            },
-                            0x100 => {
-                                // BLT
-                            },
-                            0x101 => {
-                                // BGE
-                            },
-                            0x110 => {
-                                // BLTU
-                            },
-                            0x111 => {
-                                // BGEU
-                            },
-                            // TODO: improve debug print, because we hit this
-                            _ => panic!("SB Inst type missing func3 case"),
-                        }
-                    },
-                    _ => panic!("FIXME"),
-                }
+            (        _, 0x010, rspace::opcode::SYSTEM) => {
+                // CSRRS
             },
-            rspace::opcode::InstType::U => {
-                let rd    = select_and_shift(inst, 11, 7);
-                let imm   = (select_and_shift(inst, 31, 12) << 12);
-
-                match opcode {
-                    rspace::opcode::LUI => {
-                        // LUI
-                    },
-                    rspace::opcode::AUIPC => {
-                        // AUIPC
-                    },
-                    _ => panic!("FIXME"),
-                }
+            (        _, 0x011, rspace::opcode::SYSTEM) => {
+                // CSRRC
             },
-            rspace::opcode::InstType::UJ => {
-                let rd    = select_and_shift(inst, 11, 7);
-                let imm   = (select_and_shift(inst, 31, 31) << 20)
-                          | (select_and_shift(inst, 19, 12) << 12)
-                          | (select_and_shift(inst, 20, 20) << 11)
-                          | (select_and_shift(inst, 30, 21) << 1);
+            (        _, 0x101, rspace::opcode::SYSTEM) => {
+                // CSRRWI
+            },
+            (        _, 0x110, rspace::opcode::SYSTEM) => {
+                // CSRRSI
+            },
+            (        _, 0x111, rspace::opcode::SYSTEM) => {
+                // CSRRCI
+            },
 
-                match opcode {
-                    rspace::opcode::JAL => {
-                        // JAL
-                    },
-                    _ => panic!("FIXME"),
-                }
+            // RV32 I
+            (        _, 0x000, rspace::opcode::STORE) => {
+                // SB
+            },
+            (        _, 0x001, rspace::opcode::STORE) => {
+                // SH
+            },
+            (        _, 0x010, rspace::opcode::STORE) => {
+                // SW
+            },
+
+            // RV32 I
+            (        _, 0x000, rspace::opcode::BRANCH) => {
+                // BEQ
+            },
+            (        _, 0x001, rspace::opcode::BRANCH) => {
+                // BNE
+            },
+            (        _, 0x100, rspace::opcode::BRANCH) => {
+                // BLT
+            },
+            (        _, 0x101, rspace::opcode::BRANCH) => {
+                // BGE
+            },
+            (        _, 0x110, rspace::opcode::BRANCH) => {
+                // BLTU
+            },
+            (        _, 0x111, rspace::opcode::BRANCH) => {
+                // BGEU
+            },
+
+            // RV32 I
+            (        _,     _, rspace::opcode::LUI) => {
+                // LUI
+            },
+            (        _,     _, rspace::opcode::AUIPC) => {
+                // AUIPC
+            },
+            (        _,     _, rspace::opcode::JAL) => {
+                // JAL
+            },
+
+            // TODO: handle instruction decoding failure
+            (f7, f3, op) => {
+                println!("F7: {:07b} F3: {:03b} OP: {:07b}", f7, f3, op);
+                panic!("FIXME")
             },
         }
 
