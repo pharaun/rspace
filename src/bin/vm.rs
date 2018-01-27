@@ -2,7 +2,7 @@ extern crate rspace;
 extern crate byteorder;
 extern crate twiddle;
 
-use byteorder::{LittleEndian, ReadBytesExt, ByteOrder};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
 use std::fs::File;
 
 use rspace::types;
@@ -104,6 +104,14 @@ fn main() {
 
     let binary_code = rspace::asm::parse_asm(test_asm);
     //compare_assembly(binary_code, test_asm);
+    let binary_u8 = {
+        let mut wtr = vec![];
+
+        for i in 0..binary_code.len() {
+            wtr.write_u32::<LittleEndian>(binary_code[i]);
+        }
+        wtr
+    };
 
     // Virtual machine stuff
 
@@ -114,16 +122,14 @@ fn main() {
     let mut pc: usize = 0;
 
     // Ram
-    let mut ram: [u32; 1024] = [0; 1024];
+    let mut ram: [u8; 4096] = [0; 4096];
 
     // Rom (would be nice to make this consistent sized)
     let rom = {
-        let mut rom: [u32; 1024] = [0; 1024];
+        let mut rom: [u8; 4096] = [0; 4096];
 
-        for i in 0..binary_code.len() {
-            //let buf = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_code[i].to_le()) };
-            //rom[i] = LittleEndian::read_u32(&buf);
-            rom[i] = binary_code[i];
+        for i in 0..binary_u8.len() {
+            rom[i] = binary_u8[i];
         }
         rom
     };
@@ -131,7 +137,9 @@ fn main() {
     // VM loop
     loop {
         // TODO: unitify memory at some point
-        let inst = rom[pc];
+        // TODO: deal with u32 access for inst
+        let inst_u8: [u8; 4] = [rom[pc], rom[pc+1], rom[pc+2], rom[pc+3]];
+        let inst = unsafe { std::mem::transmute::<[u8; 4], u32>(inst_u8) };
 
         // Decode opcode
         let opcode = select_and_shift(inst, 6, 0);
@@ -363,10 +371,13 @@ fn main() {
                 println!("FIX  PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", pc, f7, f3, op);
 
                 //println!("ROM DUMP:");
-                //for i in 0..rom.len() {
-                //    let rop = select_and_shift(rom[i], 6, 0);
-                //    let rfunc3 = select_and_shift(rom[i], 14, 12);
-                //    let rfunc7 = select_and_shift(rom[i], 31, 25);
+                //for i in 0..(binary_u8.len()/4) {
+                //    let rinst_u8: [u8; 4] = [rom[i*4], rom[i*4+1], rom[i*4+2], rom[i*4+3]];
+                //    let rinst = unsafe { std::mem::transmute::<[u8; 4], u32>(rinst_u8) };
+
+                //    let rop = select_and_shift(rinst, 6, 0);
+                //    let rfunc3 = select_and_shift(rinst, 14, 12);
+                //    let rfunc7 = select_and_shift(rinst, 31, 25);
                 //    println!("F7: {:07b} F3: {:03b} OP: {:07b}", rfunc7, rfunc3, rop);
                 //}
                 panic!("FIXME")
@@ -374,10 +385,7 @@ fn main() {
         }
 
         println!("FINE PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", pc, func7, func3, opcode);
-
-        // TODO: ROM + RAM should probably be in u8
-        // for now +1 since ram/rom is in word-length cells of u32
-        pc += 1;
+        pc += 4;
     }
 }
 
