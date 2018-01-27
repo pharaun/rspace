@@ -2,7 +2,7 @@ extern crate rspace;
 extern crate byteorder;
 extern crate twiddle;
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, ByteOrder};
 use std::fs::File;
 
 use rspace::types;
@@ -121,6 +121,8 @@ fn main() {
         let mut rom: [u32; 1024] = [0; 1024];
 
         for i in 0..binary_code.len() {
+            //let buf = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_code[i].to_le()) };
+            //rom[i] = LittleEndian::read_u32(&buf);
             rom[i] = binary_code[i];
         }
         rom
@@ -164,184 +166,184 @@ fn main() {
 
         match (func7, func3, opcode) {
             // RV32 I
-            (0x0000000, 0x000, rspace::opcode::OP_REG) => {
+            (0b0000000, 0b000, rspace::opcode::OP_REG) => {
                 // ADD
             },
-            (0x0100000, 0x000, rspace::opcode::OP_REG) => {
+            (0b0100000, 0b000, rspace::opcode::OP_REG) => {
                 // SUB
             },
-            (0x0000000, 0x001, rspace::opcode::OP_REG) => {
+            (0b0000000, 0b001, rspace::opcode::OP_REG) => {
                 // SLL
             },
-            (0x0000000, 0x010, rspace::opcode::OP_REG) => {
+            (0b0000000, 0b010, rspace::opcode::OP_REG) => {
                 // SLT
             },
-            (0x0000000, 0x011, rspace::opcode::OP_REG) => {
+            (0b0000000, 0b011, rspace::opcode::OP_REG) => {
                 // SLTU
             },
-            (0x0000000, 0x100, rspace::opcode::OP_REG) => {
+            (0b0000000, 0b100, rspace::opcode::OP_REG) => {
                 // XOR
             },
-            (0x0000000, 0x101, rspace::opcode::OP_REG) => {
+            (0b0000000, 0b101, rspace::opcode::OP_REG) => {
                 // SRL
             },
-            (0x0100000, 0x101, rspace::opcode::OP_REG) => {
+            (0b0100000, 0b101, rspace::opcode::OP_REG) => {
                 // SRA
             },
-            (0x0000000, 0x110, rspace::opcode::OP_REG) => {
+            (0b0000000, 0b110, rspace::opcode::OP_REG) => {
                 // OR
             },
-            (0x0000000, 0x111, rspace::opcode::OP_REG) => {
+            (0b0000000, 0b111, rspace::opcode::OP_REG) => {
                 // AND
             },
 
             // RV32 M extensions
-            (0x0000001, 0x000, rspace::opcode::OP_REG) => {
+            (0b0000001, 0b000, rspace::opcode::OP_REG) => {
                 // MUL
             },
-            (0x0000001, 0x001, rspace::opcode::OP_REG) => {
+            (0b0000001, 0b001, rspace::opcode::OP_REG) => {
                 // MULH
             },
-            (0x0000001, 0x010, rspace::opcode::OP_REG) => {
+            (0b0000001, 0b010, rspace::opcode::OP_REG) => {
                 // MULHSU
             },
-            (0x0000001, 0x011, rspace::opcode::OP_REG) => {
+            (0b0000001, 0b011, rspace::opcode::OP_REG) => {
                 // MULHU
             },
-            (0x0000001, 0x100, rspace::opcode::OP_REG) => {
+            (0b0000001, 0b100, rspace::opcode::OP_REG) => {
                 // DIV
             },
-            (0x0000001, 0x101, rspace::opcode::OP_REG) => {
+            (0b0000001, 0b101, rspace::opcode::OP_REG) => {
                 // DIVU
             },
-            (0x0000001, 0x110, rspace::opcode::OP_REG) => {
+            (0b0000001, 0b110, rspace::opcode::OP_REG) => {
                 // REM
             },
-            (0x0000001, 0x111, rspace::opcode::OP_REG) => {
+            (0b0000001, 0b111, rspace::opcode::OP_REG) => {
                 // REMU
             },
 
             // RV32 I
-            (        _, 0x000, rspace::opcode::OP_IMM) => {
+            (        _, 0b000, rspace::opcode::OP_IMM) => {
                 // ADDI
             },
-            (0x0000000, 0x001, rspace::opcode::OP_IMM) => {
+            (0b0000000, 0b001, rspace::opcode::OP_IMM) => {
                 // SLLI
             },
-            (        _, 0x010, rspace::opcode::OP_IMM) => {
+            (        _, 0b010, rspace::opcode::OP_IMM) => {
                 // SLTI
             },
-            (        _, 0x011, rspace::opcode::OP_IMM) => {
+            (        _, 0b011, rspace::opcode::OP_IMM) => {
                 // SLTIU
             },
-            (        _, 0x100, rspace::opcode::OP_IMM) => {
+            (        _, 0b100, rspace::opcode::OP_IMM) => {
                 // XORI
             },
-            (0x0000000, 0x101, rspace::opcode::OP_IMM) => {
+            (0b0000000, 0b101, rspace::opcode::OP_IMM) => {
                 // SRLI
             },
-            (0x0100000, 0x101, rspace::opcode::OP_IMM) => {
+            (0b0100000, 0b101, rspace::opcode::OP_IMM) => {
                 // SRAI
             },
-            (        _, 0x110, rspace::opcode::OP_IMM) => {
+            (        _, 0b110, rspace::opcode::OP_IMM) => {
                 // ORI
             },
-            (        _, 0x111, rspace::opcode::OP_IMM) => {
+            (        _, 0b111, rspace::opcode::OP_IMM) => {
                 // ANDI
             },
 
             // RV32 I
-            (        _, 0x000, rspace::opcode::JALR) => {
+            (        _, 0b000, rspace::opcode::JALR) => {
                 // JALR
             },
 
             // RV32 I
-            (        _, 0x000, rspace::opcode::LOAD) => {
+            (        _, 0b000, rspace::opcode::LOAD) => {
                 // LB
             },
-            (        _, 0x001, rspace::opcode::LOAD) => {
+            (        _, 0b001, rspace::opcode::LOAD) => {
                 // LH
             },
-            (        _, 0x010, rspace::opcode::LOAD) => {
+            (        _, 0b010, rspace::opcode::LOAD) => {
                 // LW
             },
-            (        _, 0x100, rspace::opcode::LOAD) => {
+            (        _, 0b100, rspace::opcode::LOAD) => {
                 // LBU
             },
-            (        _, 0x101, rspace::opcode::LOAD) => {
+            (        _, 0b101, rspace::opcode::LOAD) => {
                 // LHU
             },
 
             // RV32 I
-            (        _, 0x000, rspace::opcode::MISC_MEM) => {
+            (        _, 0b000, rspace::opcode::MISC_MEM) => {
                 // FENCE
             },
-            (        _, 0x001, rspace::opcode::MISC_MEM) => {
+            (        _, 0b001, rspace::opcode::MISC_MEM) => {
                 // FENCE.I
             },
 
             // RV32 I
-            (        _, 0x000, rspace::opcode::SYSTEM) => {
+            (        _, 0b000, rspace::opcode::SYSTEM) => {
                 // ECALL | EBREAK
                 let imm   = select_and_shift(inst, 31, 20);
 
                 match imm {
-                    0x000000000000 => {
+                    0b000000000000 => {
                         // ECALL
                     },
-                    0x000000000001 => {
+                    0b000000000001 => {
                         // EBREAK
                     },
                     _ => panic!("FIXME"),
                 }
             },
-            (        _, 0x001, rspace::opcode::SYSTEM) => {
+            (        _, 0b001, rspace::opcode::SYSTEM) => {
                 // CSRRW
             },
-            (        _, 0x010, rspace::opcode::SYSTEM) => {
+            (        _, 0b010, rspace::opcode::SYSTEM) => {
                 // CSRRS
             },
-            (        _, 0x011, rspace::opcode::SYSTEM) => {
+            (        _, 0b011, rspace::opcode::SYSTEM) => {
                 // CSRRC
             },
-            (        _, 0x101, rspace::opcode::SYSTEM) => {
+            (        _, 0b101, rspace::opcode::SYSTEM) => {
                 // CSRRWI
             },
-            (        _, 0x110, rspace::opcode::SYSTEM) => {
+            (        _, 0b110, rspace::opcode::SYSTEM) => {
                 // CSRRSI
             },
-            (        _, 0x111, rspace::opcode::SYSTEM) => {
+            (        _, 0b111, rspace::opcode::SYSTEM) => {
                 // CSRRCI
             },
 
             // RV32 I
-            (        _, 0x000, rspace::opcode::STORE) => {
+            (        _, 0b000, rspace::opcode::STORE) => {
                 // SB
             },
-            (        _, 0x001, rspace::opcode::STORE) => {
+            (        _, 0b001, rspace::opcode::STORE) => {
                 // SH
             },
-            (        _, 0x010, rspace::opcode::STORE) => {
+            (        _, 0b010, rspace::opcode::STORE) => {
                 // SW
             },
 
             // RV32 I
-            (        _, 0x000, rspace::opcode::BRANCH) => {
+            (        _, 0b000, rspace::opcode::BRANCH) => {
                 // BEQ
             },
-            (        _, 0x001, rspace::opcode::BRANCH) => {
+            (        _, 0b001, rspace::opcode::BRANCH) => {
                 // BNE
             },
-            (        _, 0x100, rspace::opcode::BRANCH) => {
+            (        _, 0b100, rspace::opcode::BRANCH) => {
                 // BLT
             },
-            (        _, 0x101, rspace::opcode::BRANCH) => {
+            (        _, 0b101, rspace::opcode::BRANCH) => {
                 // BGE
             },
-            (        _, 0x110, rspace::opcode::BRANCH) => {
+            (        _, 0b110, rspace::opcode::BRANCH) => {
                 // BLTU
             },
-            (        _, 0x111, rspace::opcode::BRANCH) => {
+            (        _, 0b111, rspace::opcode::BRANCH) => {
                 // BGEU
             },
 
@@ -358,14 +360,24 @@ fn main() {
 
             // TODO: handle instruction decoding failure
             (f7, f3, op) => {
-                println!("F7: {:07b} F3: {:03b} OP: {:07b}", f7, f3, op);
+                println!("FIX  PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", pc, f7, f3, op);
+
+                //println!("ROM DUMP:");
+                //for i in 0..rom.len() {
+                //    let rop = select_and_shift(rom[i], 6, 0);
+                //    let rfunc3 = select_and_shift(rom[i], 14, 12);
+                //    let rfunc7 = select_and_shift(rom[i], 31, 25);
+                //    println!("F7: {:07b} F3: {:03b} OP: {:07b}", rfunc7, rfunc3, rop);
+                //}
                 panic!("FIXME")
             },
         }
 
-        // TODO: decode steps
-        // 3. process the instruction and +4 to pc (32bit instructions)
-        pc += 4;
+        println!("FINE PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", pc, func7, func3, opcode);
+
+        // TODO: ROM + RAM should probably be in u8
+        // for now +1 since ram/rom is in word-length cells of u32
+        pc += 1;
     }
 }
 
