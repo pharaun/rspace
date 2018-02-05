@@ -8,6 +8,10 @@ use std::fs::File;
 use rspace::types;
 use twiddle::Twiddle;
 
+use std::ops::Index;
+use std::ops::IndexMut;
+
+
 fn main() {
     // Test asm code
     let test_asm = r#"
@@ -116,30 +120,38 @@ fn main() {
     // Virtual machine stuff
 
     // Registers
-    let mut reg: [u32; 32] = [0; 32];
+    let mut reg = RegFile::new([0; 31]);
 
     // TODO: shouldn't this be u32?
     let mut pc: usize = 0;
-
-    // Ram
-    let mut ram: [u8; 4096] = [0; 4096];
 
     // Rom (would be nice to make this consistent sized)
     let rom = {
         let mut rom: [u8; 4096] = [0; 4096];
 
+        // TODO: verify
+        // Instructions are stored in memory with each 16-bit parcel stored in a memory halfword
+        // according to the implementation’s natural endianness. Parcels forming one instruction
+        // are stored at increasing halfword addresses, with the lowest addressed parcel holding
+        // the lowest numbered bits in the instruction specification, i.e., instructions are always
+        // stored in a little-endian sequence of parcels regardless of the memory system
+        // endianness.
         for i in 0..binary_u8.len() {
             rom[i] = binary_u8[i];
         }
         rom
     };
 
+    // Memory
+    let mut mem = Memory::new(rom, [0; 4096]);
+
     // VM loop
     loop {
         // TODO: unitify memory at some point
         // TODO: deal with u32 access for inst
-        let inst_u8: [u8; 4] = [rom[pc], rom[pc+1], rom[pc+2], rom[pc+3]];
-        let inst = unsafe { std::mem::transmute::<[u8; 4], u32>(inst_u8) };
+        // TODO: if inst is read from a non u32 aligned address, error out (ISA specifies this)
+        // TODO: instruction that is all zero or all ones is an illegal instruction (trap)
+        let inst = mem.fetch_instruction(pc);
 
         // Decode opcode
         let opcode = select_and_shift(inst, 6, 0);
@@ -375,6 +387,8 @@ fn main() {
                 //    let rinst_u8: [u8; 4] = [rom[i*4], rom[i*4+1], rom[i*4+2], rom[i*4+3]];
                 //    let rinst = unsafe { std::mem::transmute::<[u8; 4], u32>(rinst_u8) };
 
+                //    println!("{:08x}", rinst);
+
                 //    let rop = select_and_shift(rinst, 6, 0);
                 //    let rfunc3 = select_and_shift(rinst, 14, 12);
                 //    let rfunc7 = select_and_shift(rinst, 31, 25);
@@ -393,6 +407,163 @@ fn main() {
 
 fn select_and_shift(inst: u32, hi: usize, lo: usize) -> u32 {
     (inst & u32::mask(hi..lo)) >> lo
+}
+
+
+
+
+#[derive(Debug)]
+struct RegFile {
+    _x0: u32,
+    reg: [u32; 31]
+}
+
+impl RegFile {
+    fn new(reg: [u32; 31]) -> RegFile {
+        RegFile { _x0: 0, reg: reg }
+    }
+}
+
+impl Index<usize> for RegFile {
+    type Output = u32;
+
+    fn index(&self, idx: usize) -> &u32 {
+        match idx {
+            0 => &0,
+            _ => &self.reg[idx-1],
+        }
+    }
+}
+
+impl IndexMut<usize> for RegFile {
+    fn index_mut<'a>(&'a mut self, idx: usize) -> &'a mut u32 {
+        match idx {
+            // TODO: this feel like a hack, can we get rid of _x0?
+            0 => & mut self._x0,
+            _ => & mut self.reg[idx-1],
+        }
+
+    }
+}
+
+
+#[test]
+fn regfile_test() {
+    let mut reg = RegFile::new([0; 31]);
+    reg.reg[0] = 1;
+    reg.reg[1] = 2;
+    reg.reg[30] = 3;
+
+	assert_eq!(reg[0], 0);
+	assert_eq!(reg[1], 1);
+	assert_eq!(reg[2], 2);
+	assert_eq!(reg[31], 3);
+
+    // Test writing to.
+    reg[0] = 10;
+    reg[1] = 11;
+    reg[2] = 12;
+    reg[31] = 13;
+
+	assert_eq!(reg[0], 0);
+	assert_eq!(reg[1], 11);
+	assert_eq!(reg[2], 12);
+	assert_eq!(reg[31], 13);
+}
+
+
+// Memory access stuff
+// TODO: compile time size, instead of hardcoded
+struct Memory {
+    _rom_hole: u8,
+    rom: [u8; 4096],
+    ram: [u8; 4096]
+}
+
+impl Memory {
+    fn new(rom: [u8; 4096], ram: [u8; 4096]) -> Memory {
+        Memory {
+            _rom_hole: 0,
+            rom: rom,
+            ram: ram
+        }
+    }
+
+    fn fetch_instruction(&self, idx: usize) -> u32 {
+        let inst_u8: [u8; 4] = [self[idx], self[idx+1], self[idx+2], self[idx+3]];
+
+        // TODO: better way of doing this
+        //unsafe { std::mem::transmute::<[u8; 4], u32>(inst_u8) }
+        ((inst_u8[0] as u32)) | ((inst_u8[1] as u32) << 8) | ((inst_u8[2] as u32) << 16) | ((inst_u8[3] as u32) << 24)
+    }
+}
+
+impl Index<usize> for Memory {
+    type Output = u8;
+
+    fn index(&self, idx: usize) -> &u8 {
+        if idx < 4096 {
+            &self.rom[idx]
+        } else {
+            &self.ram[idx-4096]
+        }
+    }
+}
+
+impl IndexMut<usize> for Memory {
+    fn index_mut<'a>(&'a mut self, idx: usize) -> &'a mut u8 {
+        if idx < 4096 {
+            & mut self._rom_hole
+        } else {
+            & mut self.ram[idx-4096]
+        }
+    }
+}
+
+
+#[test]
+fn memory_test() {
+    let mut mem = Memory::new([0; 4096], [0; 4096]);
+    mem.rom[0] = 1;
+    mem.rom[4095] = 2;
+    mem.ram[0] = 3;
+    mem.ram[4095] = 4;
+
+    assert_eq!(mem[0], 1);
+    assert_eq!(mem[4095], 2);
+    assert_eq!(mem[4096], 3);
+    assert_eq!(mem[8191], 4);
+
+    // Test writing to.
+    mem[0] = 11;
+    mem[4095] = 12;
+    mem[4096] = 13;
+    mem[8191] = 14;
+
+    // ROM hole
+    assert_eq!(mem[0], 1);
+    assert_eq!(mem[4095], 2);
+
+    // RAM
+    assert_eq!(mem[4096], 13);
+    assert_eq!(mem[8191], 14);
+}
+
+#[test]
+fn instruction_memory_test() {
+    let mut mem = Memory::new([0; 4096], [0; 4096]);
+
+    mem.rom[0] = 1;
+    mem.rom[1] = 2;
+    mem.rom[2] = 3;
+    mem.rom[3] = 4;
+
+    for pc in 0..3 {
+        let inst_u8: [u8; 4] = [mem[pc], mem[pc+1], mem[pc+2], mem[pc+3]];
+        let inst = unsafe { std::mem::transmute::<[u8; 4], u32>(inst_u8) };
+
+        assert_eq!(mem.fetch_instruction(pc), inst);
+    }
 }
 
 
