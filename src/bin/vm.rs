@@ -454,10 +454,10 @@ fn regfile_test() {
     reg.reg[1] = 2;
     reg.reg[30] = 3;
 
-	assert_eq!(reg[0], 0);
-	assert_eq!(reg[1], 1);
-	assert_eq!(reg[2], 2);
-	assert_eq!(reg[31], 3);
+    assert_eq!(reg[0], 0);
+    assert_eq!(reg[1], 1);
+    assert_eq!(reg[2], 2);
+    assert_eq!(reg[31], 3);
 
     // Test writing to.
     reg[0] = 10;
@@ -465,10 +465,10 @@ fn regfile_test() {
     reg[2] = 12;
     reg[31] = 13;
 
-	assert_eq!(reg[0], 0);
-	assert_eq!(reg[1], 11);
-	assert_eq!(reg[2], 12);
-	assert_eq!(reg[31], 13);
+    assert_eq!(reg[0], 0);
+    assert_eq!(reg[1], 11);
+    assert_eq!(reg[2], 12);
+    assert_eq!(reg[31], 13);
 }
 
 

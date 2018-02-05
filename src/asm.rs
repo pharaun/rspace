@@ -287,7 +287,7 @@ fn extract_and_shift_register(arg: &types::Args, shift: u32) -> u32 {
 
 #[test]
 fn comment_test() {
-	assert_eq!(";;", ";;");
+    assert_eq!(";;", ";;");
 
     // Test number parse
     println!("{:?}", parse::parse_Number("09213"));
