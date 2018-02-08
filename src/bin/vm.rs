@@ -71,8 +71,8 @@ fn main() {
         lbu x5 x0 0x5
 
         // TODO: the args are swapped
-        //sw x0 x1 0x1
-        sw x1 x0 0x1
+        //sw x0 x2 0x1
+        sw x2 x0 0x1
         //sh x0 x2 0x2
         sh x2 x0 0x2
         //sb x0 x3 0x3
@@ -165,11 +165,12 @@ fn main() {
         let func7 = select_and_shift(inst, 31, 25);
 
         // Prefetch rd/rs1/rs2
-        let rd    = select_and_shift(inst, 11, 7);
-        let rs1   = select_and_shift(inst, 19, 15);
-        let rs2   = select_and_shift(inst, 24, 20);
+        let rd    = select_and_shift(inst, 11, 7) as usize;
+        let rs1   = select_and_shift(inst, 19, 15) as usize;
+        let rs2   = select_and_shift(inst, 24, 20) as usize;
 
         // IMM types - Probably can be put in the asm steps
+        let shamt = select_and_shift(inst, 24, 20);
         // TODO: handle sign extend and so on as needed
         let Iimm  = select_and_shift(inst, 31, 20);
         let Simm  = (select_and_shift(inst, 31, 25) << 5)
@@ -188,33 +189,47 @@ fn main() {
             // RV32 I
             (0b0000000, 0b000, rspace::opcode::OP_REG) => {
                 // ADD
+                reg[rd] = reg[rs1] + reg[rs2];
             },
             (0b0100000, 0b000, rspace::opcode::OP_REG) => {
                 // SUB
+                reg[rd] = reg[rs1] - reg[rs2];
             },
             (0b0000000, 0b001, rspace::opcode::OP_REG) => {
                 // SLL
+                let shamt = select_and_shift(reg[rs2], 4, 0);
+                reg[rd] = reg[rs1] << shamt;
             },
             (0b0000000, 0b010, rspace::opcode::OP_REG) => {
                 // SLT
+                reg[rd] = if (reg[rs1] as i32) < (reg[rs2] as i32) { 0x1 } else { 0x0 }
             },
             (0b0000000, 0b011, rspace::opcode::OP_REG) => {
                 // SLTU
+                reg[rd] = if reg[rs1] < reg[rs2] { 0x1 } else { 0x0 }
             },
             (0b0000000, 0b100, rspace::opcode::OP_REG) => {
                 // XOR
+                reg[rd] = reg[rs1] ^ reg[rs2];
             },
             (0b0000000, 0b101, rspace::opcode::OP_REG) => {
                 // SRL
+                let shamt = select_and_shift(reg[rs2], 4, 0);
+                reg[rd] = reg[rs1] >> shamt;
             },
             (0b0100000, 0b101, rspace::opcode::OP_REG) => {
                 // SRA
+                let shamt = select_and_shift(reg[rs2], 4, 0);
+                // apparently arithmetic right shift depends on type of left operator
+                reg[rd] = ((reg[rs1] as i32) >> shamt) as u32;
             },
             (0b0000000, 0b110, rspace::opcode::OP_REG) => {
                 // OR
+                reg[rd] = reg[rs1] | reg[rs2];
             },
             (0b0000000, 0b111, rspace::opcode::OP_REG) => {
                 // AND
+                reg[rd] = reg[rs1] & reg[rs2];
             },
 
             // RV32 M extensions
@@ -246,60 +261,102 @@ fn main() {
             // RV32 I
             (        _, 0b000, rspace::opcode::OP_IMM) => {
                 // ADDI
+                // TODO: add as signed?
+                reg[rd] = reg[rs1] + sign_extend(inst, Iimm);
             },
             (0b0000000, 0b001, rspace::opcode::OP_IMM) => {
                 // SLLI
+                reg[rd] = reg[rs1] << shamt;
             },
             (        _, 0b010, rspace::opcode::OP_IMM) => {
                 // SLTI
+                reg[rd] = if (reg[rs1] as i32) < (sign_extend(inst, Iimm) as i32) { 0x1 } else { 0x0 }
             },
             (        _, 0b011, rspace::opcode::OP_IMM) => {
                 // SLTIU
+                reg[rd] = if reg[rs1] < sign_extend(inst, Iimm) { 0x1 } else { 0x0 }
             },
             (        _, 0b100, rspace::opcode::OP_IMM) => {
                 // XORI
+                reg[rd] = reg[rs1] ^ sign_extend(inst, Iimm);
             },
             (0b0000000, 0b101, rspace::opcode::OP_IMM) => {
                 // SRLI
+                reg[rd] = reg[rs1] >> shamt;
             },
             (0b0100000, 0b101, rspace::opcode::OP_IMM) => {
                 // SRAI
+                // apparently arithmetic right shift depends on type of left operator
+                reg[rd] = ((reg[rs1] as i32) >> shamt) as u32;
             },
             (        _, 0b110, rspace::opcode::OP_IMM) => {
                 // ORI
+                reg[rd] = reg[rs1] | sign_extend(inst, Iimm);
             },
             (        _, 0b111, rspace::opcode::OP_IMM) => {
                 // ANDI
+                reg[rd] = reg[rs1] & sign_extend(inst, Iimm);
             },
 
             // RV32 I
             (        _, 0b000, rspace::opcode::JALR) => {
                 // JALR
+                // TODO: unclear if we need to execute the jumped to instruction or +4?
+                //pc = (reg[rs1] + Iimm) as usize;
+                //reg[rd] = (pc + 4) as u32;
             },
 
             // RV32 I
             (        _, 0b000, rspace::opcode::LOAD) => {
                 // LB
+                // TODO: abstract this to memory?
+                let byte = mem[(reg[rs1] + sign_extend(inst, Iimm)) as usize];
+                reg[rd] = sign_extend_8_to_32(byte as u32);
             },
             (        _, 0b001, rspace::opcode::LOAD) => {
                 // LH
+                // TODO: abstract this to memory?
+                let bytes: [u8; 2] = [
+                    mem[(reg[rs1] + sign_extend(inst, Iimm)) as usize],
+                    mem[(reg[rs1] + sign_extend(inst, Iimm) + 1) as usize]
+                ];
+                reg[rd] = sign_extend_16_to_32((bytes[0] as u32) | ((bytes[1] as u32) << 8));
             },
             (        _, 0b010, rspace::opcode::LOAD) => {
                 // LW
+                // TODO: abstract this to memory?
+                let bytes: [u8; 4] = [
+                    mem[(reg[rs1] + sign_extend(inst, Iimm)) as usize],
+                    mem[(reg[rs1] + sign_extend(inst, Iimm) + 1) as usize],
+                    mem[(reg[rs1] + sign_extend(inst, Iimm) + 2) as usize],
+                    mem[(reg[rs1] + sign_extend(inst, Iimm) + 3) as usize]
+                ];
+                reg[rd] = ((bytes[0] as u32)) | ((bytes[1] as u32) << 8) | ((bytes[2] as u32) << 16) | ((bytes[3] as u32) << 24);
             },
             (        _, 0b100, rspace::opcode::LOAD) => {
                 // LBU
+                // TODO: abstract this to memory?
+                let byte = mem[(reg[rs1] + sign_extend(inst, Iimm)) as usize];
+                reg[rd] = (byte as u32);
             },
             (        _, 0b101, rspace::opcode::LOAD) => {
                 // LHU
+                // TODO: abstract this to memory?
+                let bytes: [u8; 2] = [
+                    mem[(reg[rs1] + sign_extend(inst, Iimm)) as usize],
+                    mem[(reg[rs1] + sign_extend(inst, Iimm) + 1) as usize]
+                ];
+                reg[rd] = (bytes[0] as u32) | ((bytes[1] as u32) << 8);
             },
 
             // RV32 I
             (        _, 0b000, rspace::opcode::MISC_MEM) => {
                 // FENCE
+                // NOP instruction
             },
             (        _, 0b001, rspace::opcode::MISC_MEM) => {
                 // FENCE.I
+                // NOP instruction
             },
 
             // RV32 I
@@ -339,43 +396,82 @@ fn main() {
             // RV32 I
             (        _, 0b000, rspace::opcode::STORE) => {
                 // SB
+                // TODO: abstract this to memory?
+                mem[(reg[rs1] + sign_extend(inst, Simm)) as usize] = (reg[rs2] & 0x00_00_00_FF) as u8;
             },
             (        _, 0b001, rspace::opcode::STORE) => {
                 // SH
+                // TODO: abstract this to memory?
+                mem[(reg[rs1] + sign_extend(inst, Simm)) as usize]     = (reg[rs2] & 0x00_00_00_FF) as u8;
+                mem[(reg[rs1] + sign_extend(inst, Simm) + 1) as usize] = (reg[rs2] & 0x00_00_FF_00) as u8;
             },
             (        _, 0b010, rspace::opcode::STORE) => {
                 // SW
+                // TODO: abstract this to memory?
+                mem[(reg[rs1] + sign_extend(inst, Simm)) as usize]     = (reg[rs2] & 0x00_00_00_FF) as u8;
+                mem[(reg[rs1] + sign_extend(inst, Simm) + 1) as usize] = (reg[rs2] & 0x00_00_FF_00) as u8;
+                mem[(reg[rs1] + sign_extend(inst, Simm) + 2) as usize] = (reg[rs2] & 0x00_FF_00_00) as u8;
+                mem[(reg[rs1] + sign_extend(inst, Simm) + 3) as usize] = (reg[rs2] & 0xFF_00_00_00) as u8;
             },
 
             // RV32 I
             (        _, 0b000, rspace::opcode::BRANCH) => {
                 // BEQ
+                // TODO: unclear if we need to execute the jumped to instruction or +4?
+                //if reg[rs1] == reg[rs2] {
+                //    pc += (sign_extend(inst, SBimm) as usize);
+                //}
             },
             (        _, 0b001, rspace::opcode::BRANCH) => {
                 // BNE
+                // TODO: unclear if we need to execute the jumped to instruction or +4?
+                //if reg[rs1] != reg[rs2] {
+                //    pc += (sign_extend(inst, SBimm) as usize);
+                //}
             },
             (        _, 0b100, rspace::opcode::BRANCH) => {
                 // BLT
+                // TODO: unclear if we need to execute the jumped to instruction or +4?
+                //if (reg[rs1] as i32) < (reg[rs2] as i32) {
+                //    pc += (sign_extend(inst, SBimm) as usize);
+                //}
             },
             (        _, 0b101, rspace::opcode::BRANCH) => {
                 // BGE
+                // TODO: unclear if we need to execute the jumped to instruction or +4?
+                //if (reg[rs1] as i32) >= (reg[rs2] as i32) {
+                //    pc += (sign_extend(inst, SBimm) as usize);
+                //}
             },
             (        _, 0b110, rspace::opcode::BRANCH) => {
                 // BLTU
+                // TODO: unclear if we need to execute the jumped to instruction or +4?
+                //if reg[rs1] < reg[rs2] {
+                //    pc += (sign_extend(inst, SBimm) as usize);
+                //}
             },
             (        _, 0b111, rspace::opcode::BRANCH) => {
                 // BGEU
+                // TODO: unclear if we need to execute the jumped to instruction or +4?
+                //if reg[rs1] >= reg[rs2] {
+                //    pc += (sign_extend(inst, SBimm) as usize);
+                //}
             },
 
             // RV32 I
             (        _,     _, rspace::opcode::LUI) => {
                 // LUI
+                reg[rd] = Uimm;
             },
             (        _,     _, rspace::opcode::AUIPC) => {
                 // AUIPC
+                reg[rd] = Uimm + (pc as u32);
             },
             (        _,     _, rspace::opcode::JAL) => {
                 // JAL
+                // TODO: unclear if we need to execute the jumped to instruction or +4?
+                //pc += sign_extend(inst, UJimm) as usize;
+                //reg[rd] = (pc + 4) as u32;
             },
 
             // TODO: handle instruction decoding failure
@@ -410,6 +506,40 @@ fn select_and_shift(inst: u32, hi: usize, lo: usize) -> u32 {
 }
 
 
+// TODO: better to move imm inst extraction here?
+fn sign_extend(inst: u32, imm: u32) -> u32 {
+    if ((inst & 0x80_00_00_00) == 0x80_00_00_00) {
+        let opcode = select_and_shift(inst, 6, 0);
+        let mask = match rspace::opcode::instruction_type(opcode) {
+            rspace::opcode::InstType::R  => 0x0,
+            rspace::opcode::InstType::I  => u32::mask(31..11),
+            rspace::opcode::InstType::S  => u32::mask(31..11),
+            rspace::opcode::InstType::SB => u32::mask(31..12),
+            rspace::opcode::InstType::U  => u32::mask(31..31),
+            rspace::opcode::InstType::UJ => u32::mask(31..20),
+        };
+
+        imm | (0xff_ff_ff_ff & mask)
+    } else {
+        imm
+    }
+}
+
+fn sign_extend_8_to_32(imm: u32) -> u32 {
+    if (imm & 0x80) == 0x80 {
+        imm | 0xff_ff_ff_00
+    } else {
+        imm
+    }
+}
+
+fn sign_extend_16_to_32(imm: u32) -> u32 {
+    if (imm & 0x80_00) == 0x80_00 {
+        imm | 0xff_ff_00_00
+    } else {
+        imm
+    }
+}
 
 
 #[derive(Debug)]
