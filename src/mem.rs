@@ -1,5 +1,6 @@
 use std::ops::Index;
 use std::ops::IndexMut;
+use std;
 
 // Memory access stuff
 // TODO: compile time size, instead of hardcoded
