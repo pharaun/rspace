@@ -5,12 +5,6 @@ extern crate twiddle;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
 use std::fs::File;
 
-use rspace::types;
-use twiddle::Twiddle;
-
-use std::ops::Index;
-use std::ops::IndexMut;
-
 
 fn main() {
     // Test asm code
