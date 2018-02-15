@@ -1,6 +1,7 @@
 extern crate phf;
 extern crate core;
 extern crate twiddle;
+extern crate byteorder;
 
 pub mod parse;
 pub mod types;

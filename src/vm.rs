@@ -1,8 +1,10 @@
 use opcode;
 use mem;
 use regfile;
+use asm;
 
 use twiddle::Twiddle;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
 
 pub struct Emul32 {
     reg: regfile::RegFile,
@@ -72,7 +74,7 @@ impl Emul32 {
                 // RV32 I
                 (0b0000000, 0b000, opcode::OP_REG) => {
                     // ADD
-                    self.reg[rd] = self.reg[rs1] + self.reg[rs2];
+                    self.reg[rd] = self.reg[rs1].wrapping_add(self.reg[rs2]);
                 },
                 (0b0100000, 0b000, opcode::OP_REG) => {
                     // SUB
@@ -373,6 +375,7 @@ impl Emul32 {
                     //    let rfunc7 = select_and_shift(rinst, 31, 25);
                     //    println!("F7: {:07b} F3: {:03b} OP: {:07b}", rfunc7, rfunc3, rop);
                     //}
+                    break;
                     panic!("FIXME")
                 },
             }
@@ -422,4 +425,121 @@ fn sign_extend_16_to_32(imm: u32) -> u32 {
     } else {
         imm
     }
+}
+
+
+#[test]
+fn add_inst_test() {
+  // Arithmetic tests
+  TEST_RR_OP(2,  "add", 0x00000000, 0x00000000, 0x00000000);
+  TEST_RR_OP(3,  "add", 0x00000002, 0x00000001, 0x00000001);
+  TEST_RR_OP(4,  "add", 0x0000000a, 0x00000003, 0x00000007);
+
+  TEST_RR_OP(5,  "add", 0xffff8000, 0x00000000, 0xffff8000);
+  TEST_RR_OP(6,  "add", 0x80000000, 0x80000000, 0x00000000);
+  TEST_RR_OP(7,  "add", 0x7fff8000, 0x80000000, 0xffff8000);
+
+  TEST_RR_OP(8,  "add", 0x00007fff, 0x00000000, 0x00007fff);
+  TEST_RR_OP(9,  "add", 0x7fffffff, 0x7fffffff, 0x00000000);
+  TEST_RR_OP(10, "add", 0x80007ffe, 0x7fffffff, 0x00007fff);
+
+  TEST_RR_OP(11, "add", 0x80007fff, 0x80000000, 0x00007fff);
+  TEST_RR_OP(12, "add", 0x7fff7fff, 0x7fffffff, 0xffff8000);
+
+  TEST_RR_OP(13, "add", 0xffffffff, 0x00000000, 0xffffffff);
+  TEST_RR_OP(14, "add", 0x00000000, 0xffffffff, 0x00000001);
+  TEST_RR_OP(15, "add", 0xfffffffe, 0xffffffff, 0xffffffff);
+
+  TEST_RR_OP(16, "add", 0x80000000, 0x00000001, 0x7fffffff);
+
+  // Source/Destination tests
+  TEST_RR_SRC1_EQ_DEST(17, "add", 24, 13, 11);
+  TEST_RR_SRC2_EQ_DEST(18, "add", 25, 14, 11);
+  TEST_RR_SRC12_EQ_DEST(19, "add", 26, 13);
+
+  // Bypassing tests
+  TEST_RR_DEST_BYPASS(20, 0, "add", 24, 13, 11);
+  TEST_RR_DEST_BYPASS(21, 1, "add", 25, 14, 11);
+  TEST_RR_DEST_BYPASS(22, 2, "add", 26, 15, 11);
+
+  TEST_RR_SRC12_BYPASS(23, 0, 0, "add", 24, 13, 11);
+  TEST_RR_SRC12_BYPASS(24, 0, 1, "add", 25, 14, 11);
+  TEST_RR_SRC12_BYPASS(25, 0, 2, "add", 26, 15, 11);
+  TEST_RR_SRC12_BYPASS(26, 1, 0, "add", 24, 13, 11);
+  TEST_RR_SRC12_BYPASS(27, 1, 1, "add", 25, 14, 11);
+  TEST_RR_SRC12_BYPASS(28, 2, 0, "add", 26, 15, 11);
+
+  TEST_RR_SRC21_BYPASS(29, 0, 0, "add", 24, 13, 11);
+  TEST_RR_SRC21_BYPASS(30, 0, 1, "add", 25, 14, 11);
+  TEST_RR_SRC21_BYPASS(31, 0, 2, "add", 26, 15, 11);
+  TEST_RR_SRC21_BYPASS(32, 1, 0, "add", 24, 13, 11);
+  TEST_RR_SRC21_BYPASS(33, 1, 1, "add", 25, 14, 11);
+  TEST_RR_SRC21_BYPASS(34, 2, 0, "add", 26, 15, 11);
+
+  TEST_RR_ZEROSRC1(35, "add", 15, 15);
+  TEST_RR_ZEROSRC2(36, "add", 32, 32);
+  TEST_RR_ZEROSRC12(37, "add", 0);
+  TEST_RR_ZERODEST(38, "add", 16, 30);
+}
+
+// TODO: make this more flexible (ie list of reg + value, plus expected value+reg afterward)
+fn TEST_RR_OP(test: u8, op: &str, r: u32, a: u32, b: u32) {
+    // load the rom
+    let rom = {
+        let mut rom: [u8; 4096] = [0; 4096];
+        let asm_u8 = {
+            let asm = asm::parse_asm(&format!("{} x3 x1 x2", op));
+            let mut wtr = vec![];
+
+            for i in 0..asm.len() {
+                wtr.write_u32::<LittleEndian>(asm[i]);
+            }
+            wtr
+        };
+
+        for i in 0..asm_u8.len() {
+            rom[i] = asm_u8[i];
+        }
+        rom
+    };
+    let mut vm = Emul32::new_with_rom(rom);
+
+    // Load the registers
+    vm.reg[1] = a;
+    vm.reg[2] = b;
+
+    // Run
+    vm.run();
+
+    // Validate
+    assert_eq!(vm.reg[3], r);
+}
+fn TEST_RR_SRC1_EQ_DEST(test: u8, op: &str, res: u32, a: u32, b: u32) {
+}
+fn TEST_RR_SRC2_EQ_DEST(test: u8, op: &str, res: u32, a: u32, b: u32) {
+}
+fn TEST_RR_SRC12_EQ_DEST(test: u8, op: &str, res: u32, a: u32) {
+}
+fn TEST_RR_ZEROSRC1(test: u8, op: &str, r: u32, b: u32) {
+}
+fn TEST_RR_ZEROSRC2(test: u8, op: &str, r: u32, a: u32) {
+}
+fn TEST_RR_ZEROSRC12(test: u8, op: &str, r: u32) {
+}
+fn TEST_RR_ZERODEST(test: u8, op: &str, a: u32, b: u32) {
+}
+
+// TODO: replace with a direct TEST_RR_OP call
+fn TEST_RR_DEST_BYPASS(test: u8, n: u32, op: &str, res: u32, a: u32, b: u32) {
+    TEST_RR_OP(test, op, res, a, b);
+}
+
+// TODO: replace with a direct TEST_RR_OP call
+fn TEST_RR_SRC12_BYPASS(test: u8, n1: u32, n2: u32, op: &str, res: u32, a: u32, b: u32) {
+    TEST_RR_OP(test, op, res, a, b);
+}
+
+// TODO: replace with a direct TEST_RR_OP call
+fn TEST_RR_SRC21_BYPASS(test: u8, n1: u32, n2: u32, op: &str, res: u32, a: u32, b: u32) {
+    TEST_RR_OP(test, op, res, a, b);
 }
