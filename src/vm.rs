@@ -427,27 +427,12 @@ fn sign_extend_16_to_32(imm: u32) -> u32 {
 }
 
 
+
+
 #[cfg(test)]
-mod rr_op_tests {
-    use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
+mod op_tests {
     use super::*;
-
-    #[test]
-    fn add_inst() { include!("../test-rv32im/add.rs"); }
-
-    #[test]
-    fn sub_inst() { include!("../test-rv32im/sub.rs"); }
-
-    #[test]
-    fn xor_inst() { include!("../test-rv32im/xor.rs"); }
-
-    #[test]
-    fn or_inst() { include!("../test-rv32im/or.rs"); }
-
-    #[test]
-    fn and_inst() { include!("../test-rv32im/and.rs"); }
-
-
+    use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
 
     // TODO: Put in some sort of generic test suite utilities
     fn generate_rom(opcodes: &str) -> [u8; 4096] {
@@ -468,140 +453,188 @@ mod rr_op_tests {
         rom
     }
 
-    // TODO: make this more flexible (ie list of reg + value, plus expected value+reg afterward)
-    fn TEST_RR_OP(test: u8, op: &str, r: u32, a: u32, b: u32) {
-        // load the rom
-        let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x3 x1 x2", op)));
+    mod rr_op_tests {
+        use super::*;
 
-        // Load the registers
-        vm.reg[1] = a;
-        vm.reg[2] = b;
+        #[test]
+        fn add_inst() { include!("../test-rv32im/add.rs"); }
 
-        // Run
-        vm.run();
+        #[test]
+        fn sub_inst() { include!("../test-rv32im/sub.rs"); }
 
-        // Validate
-        assert_eq!(vm.reg[1], a);
-        assert_eq!(vm.reg[2], b);
-        assert_eq!(vm.reg[3], r);
+        #[test]
+        fn xor_inst() { include!("../test-rv32im/xor.rs"); }
+
+        #[test]
+        fn or_inst() { include!("../test-rv32im/or.rs"); }
+
+        #[test]
+        fn and_inst() { include!("../test-rv32im/and.rs"); }
+
+        #[test]
+        fn sll_inst() { include!("../test-rv32im/sll.rs"); }
+
+        #[test]
+        fn srl_inst() { include!("../test-rv32im/srl.rs"); }
+
+        #[test]
+        fn sra_inst() { include!("../test-rv32im/sra.rs"); }
+
+        #[test]
+        fn slt_inst() { include!("../test-rv32im/slt.rs"); }
+
+        #[test]
+        fn sltu_inst() { include!("../test-rv32im/sltu.rs"); }
+
+
+        // TODO: make this more flexible (ie list of reg + value, plus expected value+reg afterward)
+        fn TEST_RR_OP(test: u8, op: &str, r: u32, a: u32, b: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x3 x1 x2", op)));
+
+            // Load the registers
+            vm.reg[1] = a;
+            vm.reg[2] = b;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], a);
+            assert_eq!(vm.reg[2], b);
+            assert_eq!(vm.reg[3], r);
+        }
+
+        fn TEST_RR_SRC1_EQ_DEST(test: u8, op: &str, res: u32, a: u32, b: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 x2", op)));
+
+            // Load the registers
+            vm.reg[1] = a;
+            vm.reg[2] = b;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], res);
+            assert_eq!(vm.reg[2], b);
+        }
+
+        fn TEST_RR_SRC2_EQ_DEST(test: u8, op: &str, res: u32, a: u32, b: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x2 x1 x2", op)));
+
+            // Load the registers
+            vm.reg[1] = a;
+            vm.reg[2] = b;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], a);
+            assert_eq!(vm.reg[2], res);
+        }
+
+        fn TEST_RR_SRC12_EQ_DEST(test: u8, op: &str, res: u32, a: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 x1", op)));
+
+            // Load the registers
+            vm.reg[1] = a;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], res);
+        }
+
+        fn TEST_RR_ZEROSRC1(test: u8, op: &str, r: u32, b: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 x2", op)));
+
+            // Load the registers
+            vm.reg[2] = b;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[0], 0);
+            assert_eq!(vm.reg[1], r);
+            assert_eq!(vm.reg[2], b);
+        }
+
+        fn TEST_RR_ZEROSRC2(test: u8, op: &str, r: u32, a: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x2 x0", op)));
+
+            // Load the registers
+            vm.reg[2] = a;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[0], 0);
+            assert_eq!(vm.reg[1], r);
+            assert_eq!(vm.reg[2], a);
+        }
+
+        fn TEST_RR_ZEROSRC12(test: u8, op: &str, r: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 x0", op)));
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[0], 0);
+            assert_eq!(vm.reg[1], r);
+        }
+
+        fn TEST_RR_ZERODEST(test: u8, op: &str, a: u32, b: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x0 x1 x2", op)));
+
+            // Load the registers
+            vm.reg[1] = a;
+            vm.reg[2] = b;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[0], 0);
+            assert_eq!(vm.reg[1], a);
+            assert_eq!(vm.reg[2], b);
+        }
+
+        fn TEST_RR_DEST_BYPASS(test: u8, n: u32, op: &str, res: u32, a: u32, b: u32) {
+            TEST_RR_OP(test, op, res, a, b);
+        }
+
+        fn TEST_RR_SRC12_BYPASS(test: u8, n1: u32, n2: u32, op: &str, res: u32, a: u32, b: u32) {
+            TEST_RR_OP(test, op, res, a, b);
+        }
+
+        fn TEST_RR_SRC21_BYPASS(test: u8, n1: u32, n2: u32, op: &str, res: u32, a: u32, b: u32) {
+            TEST_RR_OP(test, op, res, a, b);
+        }
+
+        fn TEST_SRL(n: u8, v: u32, a: u32) {
+            let xlen = 32;
+            let xlen_mask: u32 = 1 << (xlen - 1) << 1;
+            let xlen_mask_two: u32 = xlen_mask.wrapping_sub(1);
+
+            TEST_RR_OP(n, "srl", (v & xlen_mask_two) >> (a as usize), v, a)
+        }
     }
 
-    fn TEST_RR_SRC1_EQ_DEST(test: u8, op: &str, res: u32, a: u32, b: u32) {
-        // load the rom
-        let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 x2", op)));
+    mod imm_op_tests {
+        use super::*;
 
-        // Load the registers
-        vm.reg[1] = a;
-        vm.reg[2] = b;
-
-        // Run
-        vm.run();
-
-        // Validate
-        assert_eq!(vm.reg[1], res);
-        assert_eq!(vm.reg[2], b);
-    }
-
-    fn TEST_RR_SRC2_EQ_DEST(test: u8, op: &str, res: u32, a: u32, b: u32) {
-        // load the rom
-        let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x2 x1 x2", op)));
-
-        // Load the registers
-        vm.reg[1] = a;
-        vm.reg[2] = b;
-
-        // Run
-        vm.run();
-
-        // Validate
-        assert_eq!(vm.reg[1], a);
-        assert_eq!(vm.reg[2], res);
-    }
-
-    fn TEST_RR_SRC12_EQ_DEST(test: u8, op: &str, res: u32, a: u32) {
-        // load the rom
-        let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 x1", op)));
-
-        // Load the registers
-        vm.reg[1] = a;
-
-        // Run
-        vm.run();
-
-        // Validate
-        assert_eq!(vm.reg[1], res);
-    }
-
-    fn TEST_RR_ZEROSRC1(test: u8, op: &str, r: u32, b: u32) {
-        // load the rom
-        let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 x2", op)));
-
-        // Load the registers
-        vm.reg[2] = b;
-
-        // Run
-        vm.run();
-
-        // Validate
-        assert_eq!(vm.reg[0], 0);
-        assert_eq!(vm.reg[1], r);
-        assert_eq!(vm.reg[2], b);
-    }
-
-    fn TEST_RR_ZEROSRC2(test: u8, op: &str, r: u32, a: u32) {
-        // load the rom
-        let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x2 x0", op)));
-
-        // Load the registers
-        vm.reg[2] = a;
-
-        // Run
-        vm.run();
-
-        // Validate
-        assert_eq!(vm.reg[0], 0);
-        assert_eq!(vm.reg[1], r);
-        assert_eq!(vm.reg[2], a);
-    }
-
-    fn TEST_RR_ZEROSRC12(test: u8, op: &str, r: u32) {
-        // load the rom
-        let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 x0", op)));
-
-        // Run
-        vm.run();
-
-        // Validate
-        assert_eq!(vm.reg[0], 0);
-        assert_eq!(vm.reg[1], r);
-    }
-
-    fn TEST_RR_ZERODEST(test: u8, op: &str, a: u32, b: u32) {
-        // load the rom
-        let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x0 x1 x2", op)));
-
-        // Load the registers
-        vm.reg[1] = a;
-        vm.reg[2] = b;
-
-        // Run
-        vm.run();
-
-        // Validate
-        assert_eq!(vm.reg[0], 0);
-        assert_eq!(vm.reg[1], a);
-        assert_eq!(vm.reg[2], b);
-    }
-
-    fn TEST_RR_DEST_BYPASS(test: u8, n: u32, op: &str, res: u32, a: u32, b: u32) {
-        TEST_RR_OP(test, op, res, a, b);
-    }
-
-    fn TEST_RR_SRC12_BYPASS(test: u8, n1: u32, n2: u32, op: &str, res: u32, a: u32, b: u32) {
-        TEST_RR_OP(test, op, res, a, b);
-    }
-
-    fn TEST_RR_SRC21_BYPASS(test: u8, n1: u32, n2: u32, op: &str, res: u32, a: u32, b: u32) {
-        TEST_RR_OP(test, op, res, a, b);
     }
 }
