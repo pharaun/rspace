@@ -14,10 +14,10 @@ match {
 pub Number = { Dec, Hex };
 
 Dec: u32 = <s:r"[0-9]+"> => u32::from_str(s).unwrap();
-Hex: u32 = <s:r"0x[0-9A-F]+"> => u32::from_str_radix(&s[2..], 16).unwrap();
+Hex: u32 = <s:r"0x[0-9A-Fa-f]+"> => u32::from_str_radix(&s[2..], 16).unwrap();
 
 // Register == letter + digits
-// For now only support x{0-31] styled registers
+// For now only support x{0-31} styled registers
 pub Register = { Reg };
 
 Reg: &'input str = <s:r"x[0-9]+"> => s;

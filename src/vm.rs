@@ -486,6 +486,30 @@ mod op_tests {
         #[test]
         fn sltu_inst() { include!("../test-rv32im/sltu.rs"); }
 
+        #[test]
+        fn div_inst() { include!("../test-rv32im/div.rs"); }
+
+        #[test]
+        fn divu_inst() { include!("../test-rv32im/divu.rs"); }
+
+        #[test]
+        fn mul_inst() { include!("../test-rv32im/mul.rs"); }
+
+        #[test]
+        fn mulh_inst() { include!("../test-rv32im/mulh.rs"); }
+
+        #[test]
+        fn mulhsu_inst() { include!("../test-rv32im/mulhsu.rs"); }
+
+        #[test]
+        fn mulhu_inst() { include!("../test-rv32im/mulhu.rs"); }
+
+        #[test]
+        fn rem_inst() { include!("../test-rv32im/rem.rs"); }
+
+        #[test]
+        fn remu_inst() { include!("../test-rv32im/remu.rs"); }
+
 
         // TODO: make this more flexible (ie list of reg + value, plus expected value+reg afterward)
         fn TEST_RR_OP(test: u8, op: &str, r: u32, a: u32, b: u32) {
@@ -636,5 +660,104 @@ mod op_tests {
     mod imm_op_tests {
         use super::*;
 
+        #[test]
+        fn slli_inst() { include!("../test-rv32im/slli.rs"); }
+
+        #[test]
+        fn srli_inst() { include!("../test-rv32im/slli.rs"); }
+
+        #[test]
+        fn srai_inst() { include!("../test-rv32im/srai.rs"); }
+
+        #[test]
+        fn addi_inst() { include!("../test-rv32im/addi.rs"); }
+
+        #[test]
+        fn andi_inst() { include!("../test-rv32im/andi.rs"); }
+
+        #[test]
+        fn ori_inst() { include!("../test-rv32im/ori.rs"); }
+
+        #[test]
+        fn xori_inst() { include!("../test-rv32im/xori.rs"); }
+
+        #[test]
+        fn slti_inst() { include!("../test-rv32im/slti.rs"); }
+
+        #[test]
+        fn sltiu_inst() { include!("../test-rv32im/sltiu.rs"); }
+
+
+        fn TEST_IMM_OP(test: u8, op: &str, res: u32, a: u32, imm: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x2 x1 0x{:08x}", op, imm)));
+
+            // Load the registers
+            vm.reg[1] = a;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], a);
+            assert_eq!(vm.reg[2], res);
+        }
+
+        fn TEST_IMM_SRC1_EQ_DEST(test: u8, op: &str, res: u32, a: u32, imm: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 0x{:08x}", op, imm)));
+
+            // Load the registers
+            vm.reg[1] = a;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], res);
+        }
+
+        fn TEST_IMM_ZEROSRC1(test: u8, op: &str, res: u32, imm: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 0x{:08x}", op, imm)));
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[0], 0);
+            assert_eq!(vm.reg[1], res);
+        }
+
+        fn TEST_IMM_ZERODEST(test: u8, op: &str, a: u32, imm: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x0 x1 0x{:08x}", op, imm)));
+
+            // Load the registers
+            vm.reg[1] = a;
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[0], 0);
+            assert_eq!(vm.reg[1], a);
+        }
+
+        fn TEST_IMM_DEST_BYPASS(test: u8, n: u32, op: &str, res: u32, a: u32, imm: u32) {
+            TEST_IMM_OP(test, op, res, a, imm);
+        }
+
+        fn TEST_IMM_SRC1_DEST_BYPASS(test: u8, n: u32, op: &str, res: u32, a: u32, imm: u32) {
+            TEST_IMM_OP(test, op, res, a, imm);
+        }
+
+        fn TEST_SRL(n: u8, v: u32, a: u32) {
+            let xlen = 32;
+            let xlen_mask: u32 = 1 << (xlen - 1) << 1;
+            let xlen_mask_two: u32 = xlen_mask.wrapping_sub(1);
+
+            TEST_IMM_OP(n, "srli", (v & xlen_mask_two) >> (a as usize), v, a)
+        }
     }
 }
