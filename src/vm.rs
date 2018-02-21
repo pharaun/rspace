@@ -175,7 +175,6 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::OP_IMM) => {
                     // ADDI
-                    // TODO: add as signed?
                     self.reg[rd] = self.reg[rs1].wrapping_add(sign_extend(inst, i_imm));
                 },
                 (0b0000000, 0b001, opcode::OP_IMM) => {
@@ -216,8 +215,8 @@ impl Emul32 {
                 (        _, 0b000, opcode::JALR) => {
                     // JALR
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    //self.pc = (self.reg[rs1] + i_imm) as usize;
-                    //self.reg[rd] = (self.pc + 4) as u32;
+                    self.pc = (self.reg[rs1] + i_imm) as usize;
+                    self.reg[rd] = (self.pc + 4) as u32;
                 },
 
                 // RV32 I
@@ -332,44 +331,44 @@ impl Emul32 {
                 (        _, 0b000, opcode::BRANCH) => {
                     // BEQ
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    //if self.reg[rs1] == self.reg[rs2] {
-                    //    self.pc += (sign_extend(inst, sb_imm) as usize);
-                    //}
+                    if self.reg[rs1] == self.reg[rs2] {
+                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                    }
                 },
                 (        _, 0b001, opcode::BRANCH) => {
                     // BNE
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    //if self.reg[rs1] != self.reg[rs2] {
-                    //    self.pc += (sign_extend(inst, sb_imm) as usize);
-                    //}
+                    if self.reg[rs1] != self.reg[rs2] {
+                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                    }
                 },
                 (        _, 0b100, opcode::BRANCH) => {
                     // BLT
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    //if (self.reg[rs1] as i32) < (self.reg[rs2] as i32) {
-                    //    self.pc += (sign_extend(inst, sb_imm) as usize);
-                    //}
+                    if (self.reg[rs1] as i32) < (self.reg[rs2] as i32) {
+                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                    }
                 },
                 (        _, 0b101, opcode::BRANCH) => {
                     // BGE
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    //if (self.reg[rs1] as i32) >= (self.reg[rs2] as i32) {
-                    //    self.pc += (sign_extend(inst, sb_imm) as usize);
-                    //}
+                    if (self.reg[rs1] as i32) >= (self.reg[rs2] as i32) {
+                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                    }
                 },
                 (        _, 0b110, opcode::BRANCH) => {
                     // BLTU
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    //if self.reg[rs1] < self.reg[rs2] {
-                    //    self.pc += (sign_extend(inst, sb_imm) as usize);
-                    //}
+                    if self.reg[rs1] < self.reg[rs2] {
+                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                    }
                 },
                 (        _, 0b111, opcode::BRANCH) => {
                     // BGEU
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    //if self.reg[rs1] >= self.reg[rs2] {
-                    //    self.pc += (sign_extend(inst, sb_imm) as usize);
-                    //}
+                    if self.reg[rs1] >= self.reg[rs2] {
+                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                    }
                 },
 
                 // RV32 I
@@ -383,9 +382,9 @@ impl Emul32 {
                 },
                 (        _,     _, opcode::JAL) => {
                     // JAL
-                    // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    //self.pc += sign_extend(inst, uj_imm) as usize;
-                    //self.reg[rd] = (self.pc + 4) as u32;
+                    // TODO: unclear if we need to execute the jumped to instruction or +4? (most impl has -4 to pc)
+                    self.pc += sign_extend(inst, uj_imm) as usize;
+                    self.reg[rd] = (self.pc + 4) as u32;
                 },
 
                 // TODO: handle instruction decoding failure
