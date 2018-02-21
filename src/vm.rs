@@ -119,27 +119,57 @@ impl Emul32 {
                 // RV32 M extensions
                 (0b0000001, 0b000, opcode::OP_REG) => {
                     // MUL
+                    let product: u64 = (self.reg[rs1] as u64) * (self.reg[rs2] as u64);
+                    self.reg[rd] = (product & u64::mask(31..0)) as u32;
                 },
                 (0b0000001, 0b001, opcode::OP_REG) => {
                     // MULH
+                    let product: i64 = (sign_extend_32_to_64(self.reg[rs1]) as i64) * (sign_extend_32_to_64(self.reg[rs2]) as i64);
+                    self.reg[rd] = (((product >> 32) as u64) & u64::mask(31..0)) as u32;
                 },
                 (0b0000001, 0b010, opcode::OP_REG) => {
                     // MULHSU
+                    let product: i64 = (sign_extend_32_to_64(self.reg[rs1]) as i64) * (self.reg[rs2] as i64);
+                    self.reg[rd] = (((product >> 32) as u64) & u64::mask(31..0)) as u32;
                 },
                 (0b0000001, 0b011, opcode::OP_REG) => {
                     // MULHU
+                    let product: u64 = (self.reg[rs1] as u64) * (self.reg[rs2] as u64);
+                    self.reg[rd] = ((product >> 32) & u64::mask(31..0)) as u32;
                 },
                 (0b0000001, 0b100, opcode::OP_REG) => {
                     // DIV
+                    let neg: u32 = (-1 as i32) as u32;
+                    self.reg[rd] = match (self.reg[rs2], self.reg[rs1]) {
+                        (    0x0,             _) => (-1i32) as u32,
+                        (    neg, 0xff_ff_ff_ff) => 0xff_ff_ff_ff,
+                        (divisor,      dividend) => (dividend as i32).wrapping_div(divisor as i32) as u32,
+                    };
                 },
                 (0b0000001, 0b101, opcode::OP_REG) => {
                     // DIVU
+                    if self.reg[rs2] == 0x0 {
+                        self.reg[rd] = 0xff_ff_ff_ff;
+                    } else {
+                        self.reg[rd] = self.reg[rs1] / self.reg[rs2];
+                    }
                 },
                 (0b0000001, 0b110, opcode::OP_REG) => {
                     // REM
+                    let neg: u32 = (-1 as i32) as u32;
+                    self.reg[rd] = match (self.reg[rs2], self.reg[rs1]) {
+                        (    0x0,             _) => self.reg[rs1],
+                        (    neg, 0xff_ff_ff_ff) => 0x0,
+                        (divisor,      dividend) => (dividend as i32).wrapping_rem(divisor as i32) as u32,
+                    };
                 },
                 (0b0000001, 0b111, opcode::OP_REG) => {
                     // REMU
+                    if self.reg[rs2] == 0x0 {
+                        self.reg[rd] = self.reg[rs1];
+                    } else {
+                        self.reg[rd] = self.reg[rs1] % self.reg[rs2];
+                    }
                 },
 
                 // RV32 I
@@ -426,6 +456,13 @@ fn sign_extend_16_to_32(imm: u32) -> u32 {
     }
 }
 
+fn sign_extend_32_to_64(imm: u32) -> u64 {
+    if (imm & 0x80_00_00_00) == 0x80_00_00_00 {
+        (imm as u64) | 0xff_ff_ff_ff_00_00_00_00
+    } else {
+        imm as u64
+    }
+}
 
 
 
