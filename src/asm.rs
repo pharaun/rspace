@@ -23,27 +23,33 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
                     println!("{:?}", line);
                     println!("{:?}", x);
                 },
-                Ok((inst, args)) => {
-                    let upper_inst = &inst.to_uppercase();
+                Ok(asmline) => {
+                    match asmline {
+                        types::AsmLine::Lab(l) => {},
+                        types::AsmLine::Lns(l, inst, args) => {},
+                        types::AsmLine::Ins(inst, args) => {
+                            let upper_inst = &inst.to_uppercase();
 
-                    // 3. lookup if in the opcode lookup table
-                    match opcode::lookup(upper_inst) {
-                        // 4. if not (macro/etc, panic for now)
-                        None => println!("Skipping for now - {:?}", inst),
-                        // 5. if so proceed below
-                        Some(x) => {
-                            let binary_line = lut_to_binary(upper_inst, args, x);
+                            // 3. lookup if in the opcode lookup table
+                            match opcode::lookup(upper_inst) {
+                                // 4. if not (macro/etc, panic for now)
+                                None => println!("Skipping for now - {:?}", inst),
+                                // 5. if so proceed below
+                                Some(x) => {
+                                    let binary_line = lut_to_binary(upper_inst, args, x);
 
-                            //println!("{:?}", line);
-                            //println!("{:032b}", binary_line);
-                            //println!("{:08x}", binary_line);
-                            //let byte_line = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_line.to_le()) };
-                            //println!("{:08b} {:08b} {:08b} {:08b}", byte_line[3], byte_line[2], byte_line[1], byte_line[0]);
+                                    //println!("{:?}", line);
+                                    //println!("{:032b}", binary_line);
+                                    //println!("{:08x}", binary_line);
+                                    //let byte_line = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_line.to_le()) };
+                                    //println!("{:08b} {:08b} {:08b} {:08b}", byte_line[3], byte_line[2], byte_line[1], byte_line[0]);
 
 
-                            // TODO: the elf dump shows it in different order, need to compare +
-                            // figure out if i need to rearrange the bytes in the output?
-                            asm_out.push(binary_line);
+                                    // TODO: the elf dump shows it in different order, need to compare +
+                                    // figure out if i need to rearrange the bytes in the output?
+                                    asm_out.push(binary_line);
+                                },
+                            }
                         },
                     }
                 },

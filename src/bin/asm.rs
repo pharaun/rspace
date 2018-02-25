@@ -7,52 +7,84 @@ fn main() {
     let binary_code = rspace::asm::parse_asm("add x0 x0 x0");
 
     // Test number parse
-    println!("{:?}", rspace::parse::parse_Number("09213"));
-    println!("{:?}", rspace::parse::parse_Number("009213"));
-    println!("{:?}", rspace::parse::parse_Number("0xFF"));
-    println!("{:?}", rspace::parse::parse_Number("0xff"));
-    println!("{:?}", rspace::parse::parse_Number("0x09123"));
+    println!("Numbers:");
+    println!("\t{:?}", rspace::parse::parse_Number("09213"));
+    println!("\t{:?}", rspace::parse::parse_Number("009213"));
+    println!("\t{:?}", rspace::parse::parse_Number("0xFF"));
+    println!("\t{:?}", rspace::parse::parse_Number("0xff"));
+    println!("\t{:?}", rspace::parse::parse_Number("0x09123"));
 
     // Test register
-    println!("{:?}", rspace::parse::parse_Register("x0"));
-    println!("{:?}", rspace::parse::parse_Register("x31"));
+    println!();
+    println!("Register:");
+    println!("\t{:?}", rspace::parse::parse_Register("x0"));
+    println!("\t{:?}", rspace::parse::parse_Register("x31"));
 
     // Test CSR
-    println!("{:?}", rspace::parse::parse_Csr("CYCLE"));
-    println!("{:?}", rspace::parse::parse_Csr("CYCLEH"));
+    println!();
+    println!("CSR:");
+    println!("\t{:?}", rspace::parse::parse_Csr("CYCLE"));
+    println!("\t{:?}", rspace::parse::parse_Csr("CYCLEH"));
 
     // Test Arguments
-    println!("{:?}", rspace::parse::parse_Arguments("x0"));
-    println!("{:?}", rspace::parse::parse_Arguments("0923"));
-    println!("{:?}", rspace::parse::parse_Arguments("0xFF"));
-    println!("{:?}", rspace::parse::parse_Arguments("0xff"));
+    println!();
+    println!("Argument:");
+    println!("\t{:?}", rspace::parse::parse_Arguments("x0"));
+    println!("\t{:?}", rspace::parse::parse_Arguments("0923"));
+    println!("\t{:?}", rspace::parse::parse_Arguments("0xFF"));
+    println!("\t{:?}", rspace::parse::parse_Arguments("0xff"));
+    println!("\t{:?}", rspace::parse::parse_Arguments("label"));
+    println!("\t{:?}", rspace::parse::parse_Arguments("1b"));
+    println!("\t{:?}", rspace::parse::parse_Arguments("32f"));
 
     // Test list of args
-    println!("{:?}", rspace::parse::parse_VecArgs(""));
-    println!("{:?}", rspace::parse::parse_VecArgs("0xFF"));
-    println!("{:?}", rspace::parse::parse_VecArgs("0xFF x0"));
-    println!("{:?}", rspace::parse::parse_VecArgs("0xFF x0 0923"));
-    println!("{:?}", rspace::parse::parse_VecArgs("0xFF x0 0923 x2"));
+    println!();
+    println!("List Argument:");
+    println!("\t{:?}", rspace::parse::parse_VecArgs(""));
+    println!("\t{:?}", rspace::parse::parse_VecArgs("0xFF"));
+    println!("\t{:?}", rspace::parse::parse_VecArgs("0xFF x0"));
+    println!("\t{:?}", rspace::parse::parse_VecArgs("0xFF x0 0923"));
+    println!("\t{:?}", rspace::parse::parse_VecArgs("0xFF x0 0923 x2"));
+    println!("\t{:?}", rspace::parse::parse_VecArgs("0xFF x0 0923 label"));
+    println!("\t{:?}", rspace::parse::parse_VecArgs("0xFF x0 0923 1b"));
+    println!("\t{:?}", rspace::parse::parse_VecArgs("0xFF x0 0923 32f"));
 
     // Test Asm line
-    println!("{:?}", rspace::parse::parse_AsmLine("ECALL"));
-    println!("{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 CYCLE"));
-    println!("{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 CYCLEH"));
-    println!("{:?}", rspace::parse::parse_AsmLine("SFENCE.VM x0"));
-    println!("{:?}", rspace::parse::parse_AsmLine("LUI x0 0xFF"));
-    println!("{:?}", rspace::parse::parse_AsmLine("LUI x0 0xff"));
-    println!("{:?}", rspace::parse::parse_AsmLine("FCVT.W.H x0 x1"));
-    println!("{:?}", rspace::parse::parse_AsmLine("FMADD.S x0 x1 x2 x3"));
-    println!("{:?}", rspace::parse::parse_AsmLine("csrrci x6 0x3 INSTRET"));
+    println!();
+    println!("Asm Line:");
+    println!("\t{:?}", rspace::parse::parse_AsmLine("ECALL"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 CYCLE"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("CSRRS x0 x1 CYCLEH"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("SFENCE.VM x0"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("LUI x0 0xFF"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("LUI x0 0xff"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("FCVT.W.H x0 x1"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("FMADD.S x0 x1 x2 x3"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("csrrci x6 0x3 INSTRET"));
 
     // Test lookups
-    println!("{:?}", rspace::opcode::lookup("ADDI"));
-    println!("{:?}", rspace::opcode::lookup("SRA"));
-    println!("{:?}", rspace::opcode::lookup("NOP"));
+    println!();
+    println!("Lookup:");
+    println!("\t{:?}", rspace::opcode::lookup("ADDI"));
+    println!("\t{:?}", rspace::opcode::lookup("SRA"));
+    println!("\t{:?}", rspace::opcode::lookup("NOP"));
 
     // Test text labels
+    println!();
+    println!("Text Label:");
+    println!("\t{:?}", rspace::parse::parse_AsmLine("label: ECALL"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("label:"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("BEQ x0 x0 label"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("label: BEQ x0 x0 label"));
 
     // Test numeric labels
+    println!();
+    println!("Numeric Label:");
+    println!("\t{:?}", rspace::parse::parse_AsmLine("1: ECALL"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("2:"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("BEQ x0 x0 3f"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("BEQ x0 x0 2b"));
+    println!("\t{:?}", rspace::parse::parse_AsmLine("1: BEQ x0 x0 1b"));
 
     // test absolute addressing
 

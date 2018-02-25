@@ -29,11 +29,20 @@ pub Csr = { CsrReg };
 
 CsrReg: &'input str = <s:r"(CYCLE|TIME|INSTRET)H?"> => s;
 
+// Labels (local label)
+pub Label = { LLabel, WLabel };
+
+LLabel: &'input str = <s:r"[0-9]+[BFbf]"> => s;
+
+// Label == letters (but using . to make inst happy)
+WLabel: &'input str = <s:r"[A-Za-z.]+"> => s;
+
 // args = register | number | csr
 pub Arguments: types::Args <'input> = {
     <n:Register> => types::Args::Reg(n),
     <n:Csr> => types::Args::Csr(n),
     <n:Number> => types::Args::Num(n),
+    <n:Label> => types::Args::Lab(n),
 };
 
 // [0-4] args
@@ -49,9 +58,14 @@ pub VecArgs: Vec<types::Args <'input>> = {
 //      - sw x0, 0x0(x3)
 //      - csr{rw, rs, rc} a0, cycle, x0
 //      - csr{rw, rs, rc}i a1, sscratch, 1
-pub AsmLine: (&'input str, Vec<types::Args <'input>>) = {
-    Instruction VecArgs
+pub AsmLine: types::AsmLine <'input> = {
+    <l:r"[0-9]+"> ":" <i:WLabel> <v:VecArgs> => types::AsmLine::Lns(l, i, v),
+    <l:WLabel> ":" <i:WLabel> <v:VecArgs>    => types::AsmLine::Lns(l, i, v),
+    //Instruction VecArgs
+    <i:WLabel> <v:VecArgs>                   => types::AsmLine::Ins(i, v),
+    <i:r"[0-9]+"> ":"                        => types::AsmLine::Lab(i),
+    <i:WLabel> ":"                           => types::AsmLine::Lab(i),
 };
 
 // Instruction == letter + .
-Instruction: &'input str = <s:r"[A-Za-z.]+"> => s;
+//Instruction: &'input str = <s:r"[A-Za-z.]+"> => s;
