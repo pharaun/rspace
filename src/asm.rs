@@ -19,7 +19,7 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
     // This symbol table will be a list of (label, location)
     // Will handle duplicate entries by just listing it
     let mut position: usize = 0; // Per u32 word
-    let mut labelAcc: Vec<types::Labels> = Vec::new();
+    let mut label_acc: Vec<types::Labels> = Vec::new();
     let mut symbol_table: Vec<(types::Labels, usize)> = Vec::new();
 
     // Assembly output
@@ -46,14 +46,14 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
                     match asmline {
                         types::AsmLine::Lab(l) => {
                             // We see a label, accumulate it till we get an asm line to attribute it to
-                            labelAcc.push(l);
+                            label_acc.push(l);
                         },
                         types::AsmLine::Lns(l, inst, args) => {
                             // We see a label, accumulate + handle it
-                            labelAcc.push(l);
+                            label_acc.push(l);
 
                             // Put labels onto symbol list
-                            while let Some(la) = labelAcc.pop() {
+                            while let Some(la) = label_acc.pop() {
                                 symbol_table.push((la, position));
                             }
 
@@ -65,7 +65,7 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
                         },
                         types::AsmLine::Ins(inst, args) => {
                             // Check if there's any accumulated label, and if so put onto symbol list
-                            while let Some(la) = labelAcc.pop() {
+                            while let Some(la) = label_acc.pop() {
                                 symbol_table.push((la, position));
                             }
 

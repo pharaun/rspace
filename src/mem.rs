@@ -1,6 +1,5 @@
 use std::ops::Index;
 use std::ops::IndexMut;
-use std;
 
 // Memory access stuff
 // TODO: compile time size, instead of hardcoded
@@ -81,6 +80,8 @@ fn memory_test() {
 
 #[test]
 fn instruction_memory_test() {
+    use std;
+
     let mut mem = Memory::new([0; 4096], [0; 4096]);
 
     mem.rom[0] = 1;

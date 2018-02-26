@@ -1,7 +1,6 @@
 use opcode;
 use mem;
 use regfile;
-use asm;
 
 use twiddle::Twiddle;
 
@@ -139,10 +138,10 @@ impl Emul32 {
                 },
                 (0b0000001, 0b100, opcode::OP_REG) => {
                     // DIV
-                    let neg: u32 = (-1 as i32) as u32;
+                    let _neg: u32 = (-1 as i32) as u32;
                     self.reg[rd] = match (self.reg[rs2], self.reg[rs1]) {
                         (    0x0,             _) => (-1i32) as u32,
-                        (    neg, 0xff_ff_ff_ff) => 0xff_ff_ff_ff,
+                        (   _neg, 0xff_ff_ff_ff) => 0xff_ff_ff_ff,
                         (divisor,      dividend) => (dividend as i32).wrapping_div(divisor as i32) as u32,
                     };
                 },
@@ -156,10 +155,10 @@ impl Emul32 {
                 },
                 (0b0000001, 0b110, opcode::OP_REG) => {
                     // REM
-                    let neg: u32 = (-1 as i32) as u32;
+                    let _neg: u32 = (-1 as i32) as u32;
                     self.reg[rd] = match (self.reg[rs2], self.reg[rs1]) {
                         (    0x0,             _) => self.reg[rs1],
-                        (    neg, 0xff_ff_ff_ff) => 0x0,
+                        (   _neg, 0xff_ff_ff_ff) => 0x0,
                         (divisor,      dividend) => (dividend as i32).wrapping_rem(divisor as i32) as u32,
                     };
                 },
@@ -332,42 +331,42 @@ impl Emul32 {
                     // BEQ
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if self.reg[rs1] == self.reg[rs2] {
-                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                        self.pc += sign_extend(inst, sb_imm) as usize;
                     }
                 },
                 (        _, 0b001, opcode::BRANCH) => {
                     // BNE
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if self.reg[rs1] != self.reg[rs2] {
-                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                        self.pc += sign_extend(inst, sb_imm) as usize;
                     }
                 },
                 (        _, 0b100, opcode::BRANCH) => {
                     // BLT
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if (self.reg[rs1] as i32) < (self.reg[rs2] as i32) {
-                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                        self.pc += sign_extend(inst, sb_imm) as usize;
                     }
                 },
                 (        _, 0b101, opcode::BRANCH) => {
                     // BGE
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if (self.reg[rs1] as i32) >= (self.reg[rs2] as i32) {
-                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                        self.pc += sign_extend(inst, sb_imm) as usize;
                     }
                 },
                 (        _, 0b110, opcode::BRANCH) => {
                     // BLTU
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if self.reg[rs1] < self.reg[rs2] {
-                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                        self.pc += sign_extend(inst, sb_imm) as usize;
                     }
                 },
                 (        _, 0b111, opcode::BRANCH) => {
                     // BGEU
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if self.reg[rs1] >= self.reg[rs2] {
-                        self.pc += (sign_extend(inst, sb_imm) as usize);
+                        self.pc += sign_extend(inst, sb_imm) as usize;
                     }
                 },
 
@@ -404,7 +403,7 @@ impl Emul32 {
                     //    println!("F7: {:07b} F3: {:03b} OP: {:07b}", rfunc7, rfunc3, rop);
                     //}
                     break;
-                    panic!("FIXME")
+                    //panic!("FIXME")
                 },
             }
 
@@ -467,8 +466,9 @@ fn sign_extend_32_to_64(imm: u32) -> u64 {
 
 #[cfg(test)]
 mod op_tests {
+    use asm;
     use super::*;
-    use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
+    use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
     // TODO: Put in some sort of generic test suite utilities
     fn generate_rom(opcodes: &str) -> [u8; 4096] {
@@ -512,7 +512,7 @@ mod op_tests {
         include!("../test-rv32im/remu.rs");
 
         // TODO: make this more flexible (ie list of reg + value, plus expected value+reg afterward)
-        fn TEST_RR_OP(test: u8, op: &str, r: u32, a: u32, b: u32) {
+        fn TEST_RR_OP(_test: u8, op: &str, r: u32, a: u32, b: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x3 x1 x2", op)));
 
@@ -532,7 +532,7 @@ mod op_tests {
             assert_eq!(vm.reg[3], r);
         }
 
-        fn TEST_RR_SRC1_EQ_DEST(test: u8, op: &str, res: u32, a: u32, b: u32) {
+        fn TEST_RR_SRC1_EQ_DEST(_test: u8, op: &str, res: u32, a: u32, b: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 x2", op)));
 
@@ -548,7 +548,7 @@ mod op_tests {
             assert_eq!(vm.reg[2], b);
         }
 
-        fn TEST_RR_SRC2_EQ_DEST(test: u8, op: &str, res: u32, a: u32, b: u32) {
+        fn TEST_RR_SRC2_EQ_DEST(_test: u8, op: &str, res: u32, a: u32, b: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x2 x1 x2", op)));
 
@@ -564,7 +564,7 @@ mod op_tests {
             assert_eq!(vm.reg[2], res);
         }
 
-        fn TEST_RR_SRC12_EQ_DEST(test: u8, op: &str, res: u32, a: u32) {
+        fn TEST_RR_SRC12_EQ_DEST(_test: u8, op: &str, res: u32, a: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 x1", op)));
 
@@ -578,7 +578,7 @@ mod op_tests {
             assert_eq!(vm.reg[1], res);
         }
 
-        fn TEST_RR_ZEROSRC1(test: u8, op: &str, r: u32, b: u32) {
+        fn TEST_RR_ZEROSRC1(_test: u8, op: &str, r: u32, b: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 x2", op)));
 
@@ -597,7 +597,7 @@ mod op_tests {
             assert_eq!(vm.reg[2], b);
         }
 
-        fn TEST_RR_ZEROSRC2(test: u8, op: &str, r: u32, a: u32) {
+        fn TEST_RR_ZEROSRC2(_test: u8, op: &str, r: u32, a: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x2 x0", op)));
 
@@ -616,7 +616,7 @@ mod op_tests {
             assert_eq!(vm.reg[2], a);
         }
 
-        fn TEST_RR_ZEROSRC12(test: u8, op: &str, r: u32) {
+        fn TEST_RR_ZEROSRC12(_test: u8, op: &str, r: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 x0", op)));
 
@@ -631,7 +631,7 @@ mod op_tests {
             assert_eq!(vm.reg[1], r);
         }
 
-        fn TEST_RR_ZERODEST(test: u8, op: &str, a: u32, b: u32) {
+        fn TEST_RR_ZERODEST(_test: u8, op: &str, a: u32, b: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x0 x1 x2", op)));
 
@@ -648,15 +648,15 @@ mod op_tests {
             assert_eq!(vm.reg[2], b);
         }
 
-        fn TEST_RR_DEST_BYPASS(test: u8, n: u32, op: &str, res: u32, a: u32, b: u32) {
+        fn TEST_RR_DEST_BYPASS(test: u8, _n: u32, op: &str, res: u32, a: u32, b: u32) {
             TEST_RR_OP(test, op, res, a, b);
         }
 
-        fn TEST_RR_SRC12_BYPASS(test: u8, n1: u32, n2: u32, op: &str, res: u32, a: u32, b: u32) {
+        fn TEST_RR_SRC12_BYPASS(test: u8, _n1: u32, _n2: u32, op: &str, res: u32, a: u32, b: u32) {
             TEST_RR_OP(test, op, res, a, b);
         }
 
-        fn TEST_RR_SRC21_BYPASS(test: u8, n1: u32, n2: u32, op: &str, res: u32, a: u32, b: u32) {
+        fn TEST_RR_SRC21_BYPASS(test: u8, _n1: u32, _n2: u32, op: &str, res: u32, a: u32, b: u32) {
             TEST_RR_OP(test, op, res, a, b);
         }
 
@@ -683,7 +683,7 @@ mod op_tests {
         include!("../test-rv32im/sltiu.rs");
 
 
-        fn TEST_IMM_OP(test: u8, op: &str, res: u32, a: u32, imm: u32) {
+        fn TEST_IMM_OP(_test: u8, op: &str, res: u32, a: u32, imm: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x2 x1 0x{:08x}", op, imm)));
 
@@ -701,7 +701,7 @@ mod op_tests {
             assert_eq!(vm.reg[2], res);
         }
 
-        fn TEST_IMM_SRC1_EQ_DEST(test: u8, op: &str, res: u32, a: u32, imm: u32) {
+        fn TEST_IMM_SRC1_EQ_DEST(_test: u8, op: &str, res: u32, a: u32, imm: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 0x{:08x}", op, imm)));
 
@@ -715,7 +715,7 @@ mod op_tests {
             assert_eq!(vm.reg[1], res);
         }
 
-        fn TEST_IMM_ZEROSRC1(test: u8, op: &str, res: u32, imm: u32) {
+        fn TEST_IMM_ZEROSRC1(_test: u8, op: &str, res: u32, imm: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 0x{:08x}", op, imm)));
 
@@ -730,7 +730,7 @@ mod op_tests {
             assert_eq!(vm.reg[1], res);
         }
 
-        fn TEST_IMM_ZERODEST(test: u8, op: &str, a: u32, imm: u32) {
+        fn TEST_IMM_ZERODEST(_test: u8, op: &str, a: u32, imm: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x0 x1 0x{:08x}", op, imm)));
 
@@ -745,11 +745,11 @@ mod op_tests {
             assert_eq!(vm.reg[1], a);
         }
 
-        fn TEST_IMM_DEST_BYPASS(test: u8, n: u32, op: &str, res: u32, a: u32, imm: u32) {
+        fn TEST_IMM_DEST_BYPASS(test: u8, _n: u32, op: &str, res: u32, a: u32, imm: u32) {
             TEST_IMM_OP(test, op, res, a, imm);
         }
 
-        fn TEST_IMM_SRC1_BYPASS(test: u8, n: u32, op: &str, res: u32, a: u32, imm: u32) {
+        fn TEST_IMM_SRC1_BYPASS(test: u8, _n: u32, op: &str, res: u32, a: u32, imm: u32) {
             TEST_IMM_OP(test, op, res, a, imm);
         }
 

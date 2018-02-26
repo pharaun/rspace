@@ -1,7 +1,5 @@
 extern crate rspace;
 
-use rspace::asm;
-
 fn main() {
     // TODO: ingest asm from file or stdin, emit to file or stdout the binary code
     // Test asm code
@@ -19,7 +17,7 @@ lb:     addi x0 x0 2
         beq x0 x0 1b
         jal x0 lb
     "#;
-    let binary_code = rspace::asm::parse_asm(test_asm);
+    rspace::asm::parse_asm(test_asm);
 
     //parser_test();
 }
