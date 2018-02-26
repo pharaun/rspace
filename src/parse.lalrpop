@@ -4,8 +4,13 @@ use types;
 grammar;
 
 match {
-    r"(CYCLE|TIME|INSTRET)H?",
+    r"(CYCLE|TIME|INSTRET)H?" => CSR,
 } else {
+    r"[0-9]+"                 => NUM,
+    r"0x[0-9A-F-a-f]+"        => HEX,
+    r"x[0-9]+"                => REG,
+    r"[0-9]+[BFbf]"           => NUMLAB,
+    r"[A-Za-z.]+"             => STR,
     _
 }
 
@@ -13,42 +18,46 @@ match {
 //                              handle negative by converting it to 2's compat and  storing it as unsigned)
 pub Number = { Dec, Hex };
 
-Dec: u32 = <s:r"[0-9]+"> => u32::from_str(s).unwrap();
-Hex: u32 = <s:r"0x[0-9A-Fa-f]+"> => u32::from_str_radix(&s[2..], 16).unwrap();
+Dec: u32 = <s:NUM> => u32::from_str(s).unwrap();
+Hex: u32 = <s:HEX> => u32::from_str_radix(&s[2..], 16).unwrap();
 
 // Register == letter + digits
 // For now only support x{0-31} styled registers
 pub Register = { Reg };
 
-Reg: &'input str = <s:r"x[0-9]+"> => s;
+Reg: &'input str = <s:REG> => s;
 
 // CSR & priv inst
 // csr == ?
 // For now, support a discrete list of csr + priv insts
 pub Csr = { CsrReg };
 
-CsrReg: &'input str = <s:r"(CYCLE|TIME|INSTRET)H?"> => s;
+CsrReg: &'input str = <s:CSR> => s;
 
-// Labels (local label)
-pub Label = { LLabel, WLabel };
+// Labels (local label, word label)
+pub Label: types::Labels <'input> = {
+    <n:LLabel> => types::Labels::NLabel(n),
+    <n:WLabel> => types::Labels::WLabel(n),
+};
 
-LLabel: &'input str = <s:r"[0-9]+[BFbf]"> => s;
+LLabel: &'input str = <s:NUMLAB> => s;
+WLabel: &'input str = <s:STR> => s;
 
-// Label == letters (but using . to make inst happy)
-WLabel: &'input str = <s:r"[A-Za-z.]+"> => s;
-
-// args = register | number | csr
+// args = register | number | csr | label
 pub Arguments: types::Args <'input> = {
     <n:Register> => types::Args::Reg(n),
-    <n:Csr> => types::Args::Csr(n),
-    <n:Number> => types::Args::Num(n),
-    <n:Label> => types::Args::Lab(n),
+    <n:Csr>      => types::Args::Csr(n),
+    <n:Number>   => types::Args::Num(n),
+    <n:Label>    => types::Args::Lab(n),
 };
 
 // [0-4] args
 pub VecArgs: Vec<types::Args <'input>> = {
     <Arguments*>
 };
+
+// Instruction == letter + .
+Instruction: &'input str = <s:STR> => s;
 
 // Asm Line = Instruction [0-4] args
 // TODO:
@@ -59,13 +68,9 @@ pub VecArgs: Vec<types::Args <'input>> = {
 //      - csr{rw, rs, rc} a0, cycle, x0
 //      - csr{rw, rs, rc}i a1, sscratch, 1
 pub AsmLine: types::AsmLine <'input> = {
-    <l:r"[0-9]+"> ":" <i:WLabel> <v:VecArgs> => types::AsmLine::Lns(l, i, v),
-    <l:WLabel> ":" <i:WLabel> <v:VecArgs>    => types::AsmLine::Lns(l, i, v),
-    //Instruction VecArgs
-    <i:WLabel> <v:VecArgs>                   => types::AsmLine::Ins(i, v),
-    <i:r"[0-9]+"> ":"                        => types::AsmLine::Lab(i),
-    <i:WLabel> ":"                           => types::AsmLine::Lab(i),
+    <l:NUM> ":" <i:Instruction> <v:VecArgs>    => types::AsmLine::Lns(types::Labels::NLabel(l), i, v),
+    <l:WLabel> ":" <i:Instruction> <v:VecArgs> => types::AsmLine::Lns(types::Labels::WLabel(l), i, v),
+    <i:Instruction> <v:VecArgs>                => types::AsmLine::Ins(i, v),
+    <l:NUM> ":"                                => types::AsmLine::Lab(types::Labels::NLabel(l)),
+    <l:WLabel> ":"                             => types::AsmLine::Lab(types::Labels::WLabel(l)),
 };
-
-// Instruction == letter + .
-//Instruction: &'input str = <s:r"[A-Za-z.]+"> => s;

@@ -4,8 +4,27 @@ use opcode;
 
 use twiddle::Twiddle;
 
+
+// TODO: Code quality improvement
+//
+// 1. First pass: Clean up the raw parser output, and uniformize into a nice AST with error tracking) (ie file location information
+// 2. Second pass: Expand the macros and other relevant bits a needed
+// 3. Third pass: Collect up the label and symbols
+// 4. Fourth pass: rectify the inst into u32 + attribute memory location for labels
+// 5. Fifth pass: Find where to put data, and then rectify reference to data/memory locations.
 pub fn parse_asm(input: &str) -> Vec<u32> {
-    let mut asm_out: Vec<u32> = Vec::new();
+    // First pass -> Vec<(u32, or entry to retrify on 2nd pass (for labels))>
+    let mut first_pass: Vec<types::AsmLine> = Vec::new();
+
+    // This symbol table will be a list of (label, location)
+    // Will handle duplicate entries by just listing it
+    let mut position: usize = 0; // Per u32 word
+    let mut labelAcc: Vec<types::Labels> = Vec::new();
+    let mut symbol_table: Vec<(types::Labels, usize)> = Vec::new();
+
+    // Assembly output
+    // Second pass -> Vec<u32>
+    let mut second_pass: Vec<u32> = Vec::new();
 
     for line in input.lines() {
         let line = line.trim();
@@ -25,31 +44,36 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
                 },
                 Ok(asmline) => {
                     match asmline {
-                        types::AsmLine::Lab(l) => {},
-                        types::AsmLine::Lns(l, inst, args) => {},
-                        types::AsmLine::Ins(inst, args) => {
-                            let upper_inst = &inst.to_uppercase();
+                        types::AsmLine::Lab(l) => {
+                            // We see a label, accumulate it till we get an asm line to attribute it to
+                            labelAcc.push(l);
+                        },
+                        types::AsmLine::Lns(l, inst, args) => {
+                            // We see a label, accumulate + handle it
+                            labelAcc.push(l);
 
-                            // 3. lookup if in the opcode lookup table
-                            match opcode::lookup(upper_inst) {
-                                // 4. if not (macro/etc, panic for now)
-                                None => println!("Skipping for now - {:?}", inst),
-                                // 5. if so proceed below
-                                Some(x) => {
-                                    let binary_line = lut_to_binary(upper_inst, args, x);
-
-                                    //println!("{:?}", line);
-                                    //println!("{:032b}", binary_line);
-                                    //println!("{:08x}", binary_line);
-                                    //let byte_line = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_line.to_le()) };
-                                    //println!("{:08b} {:08b} {:08b} {:08b}", byte_line[3], byte_line[2], byte_line[1], byte_line[0]);
-
-
-                                    // TODO: the elf dump shows it in different order, need to compare +
-                                    // figure out if i need to rearrange the bytes in the output?
-                                    asm_out.push(binary_line);
-                                },
+                            // Put labels onto symbol list
+                            while let Some(la) = labelAcc.pop() {
+                                symbol_table.push((la, position));
                             }
+
+                            // Process instruction
+                            first_pass.push(types::AsmLine::Ins(inst, args));
+
+                            // Inc line pointer
+                            position += 1;
+                        },
+                        types::AsmLine::Ins(inst, args) => {
+                            // Check if there's any accumulated label, and if so put onto symbol list
+                            while let Some(la) = labelAcc.pop() {
+                                symbol_table.push((la, position));
+                            }
+
+                            // Process instruction
+                            first_pass.push(types::AsmLine::Ins(inst, args));
+
+                            // Inc line pointer
+                            position += 1;
                         },
                     }
                 },
@@ -57,10 +81,41 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
         }
     }
 
-    asm_out
+    // Debug label positioning
+    println!("{:?}", position);
+    println!("{:?}", symbol_table);
+
+    // Start second pass
+    while let Some(types::AsmLine::Ins(inst, args)) = first_pass.pop() {
+        let upper_inst = &inst.to_uppercase();
+
+        // 3. lookup if in the opcode lookup table
+        match opcode::lookup(upper_inst) {
+            // 4. if not (macro/etc, panic for now)
+            None => println!("Skipping for now - {:?}", inst),
+            // 5. if so proceed below
+            Some(x) => {
+                let binary_line = lut_to_binary(upper_inst, args, x, &symbol_table);
+
+                //println!("{:?}", line);
+                //println!("{:032b}", binary_line);
+                //println!("{:08x}", binary_line);
+                //let byte_line = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_line.to_le()) };
+                //println!("{:08b} {:08b} {:08b} {:08b}", byte_line[3], byte_line[2], byte_line[1], byte_line[0]);
+
+
+                // TODO: the elf dump shows it in different order, need to compare +
+                // figure out if i need to rearrange the bytes in the output?
+                second_pass.push(binary_line);
+            },
+        }
+    }
+
+    second_pass
 }
 
-fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEnc) -> u32 {
+// TODO: support labeled memory location, for now only branches + jumps
+fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEnc, symbol: &Vec<(types::Labels, usize)>) -> u32 {
     let mut ret: u32 = 0x0;
 
     // Opcode
@@ -267,7 +322,7 @@ fn extract_csr(arg: &types::Args) -> u32 {
                 _ => panic!("New type of csr"),
             }
         },
-        _ => panic!("Was a register or num, expected csr"),
+        _ => panic!("Was a register or num or label, expected csr"),
     }
 }
 
@@ -276,7 +331,7 @@ fn extract_imm(arg: &types::Args) -> u32 {
         types::Args::Num(n) => {
             n
         },
-        _ => panic!("Was a register or csr, expected Num"),
+        _ => panic!("Was a register or csr or label, expected Num"),
     }
 }
 
@@ -287,6 +342,13 @@ fn extract_and_shift_register(arg: &types::Args, shift: u32) -> u32 {
             // TODO: for now just drop the x from the registers
             r[1..].parse::<u32>().unwrap() << shift
         },
-        _ => panic!("Was a num or csr, expected register"),
+        _ => panic!("Was a num or csr or label, expected register"),
+    }
+}
+
+fn is_label(arg: &types::Args) -> bool {
+    match *arg {
+        types::Args::Lab(_) => true,
+        _ => false,
     }
 }
