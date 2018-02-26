@@ -86,6 +86,7 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
     println!("{:?}", symbol_table);
 
     // Start second pass
+    position = 0; // Per u32 word
     while let Some(types::AsmLine::Ins(inst, args)) = first_pass.pop() {
         let upper_inst = &inst.to_uppercase();
 
@@ -95,7 +96,7 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
             None => println!("Skipping for now - {:?}", inst),
             // 5. if so proceed below
             Some(x) => {
-                let binary_line = lut_to_binary(upper_inst, args, x, &symbol_table);
+                let binary_line = lut_to_binary(upper_inst, args, x, &symbol_table, position);
 
                 //println!("{:?}", line);
                 //println!("{:032b}", binary_line);
@@ -109,13 +110,15 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
                 second_pass.push(binary_line);
             },
         }
+
+        position += 1;
     }
 
     second_pass
 }
 
 // TODO: support labeled memory location, for now only branches + jumps
-fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEnc, symbol: &Vec<(types::Labels, usize)>) -> u32 {
+fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEnc, symbol: &Vec<(types::Labels, usize)>, pos: usize) -> u32 {
     let mut ret: u32 = 0x0;
 
     // Opcode
@@ -192,6 +195,9 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                             let csrreg = extract_csr(&args[2]);
                             ret |= csrreg << 20;
                         },
+                        "JALR" => {
+                            // TODO: JALR jumps, has labels
+                        },
                         _ => {
                             // TODO: deal with imm
                             // TODO: design a function for dealing with imm (takes a list of range + shift)
@@ -216,11 +222,10 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
             ret |= extract_and_shift_register(&args[0], 15);
             ret |= extract_and_shift_register(&args[1], 20);
 
-            // TODO: deal with imm
-            let imm  = extract_imm(&args[2]);
-
             match inst_encode.encoding {
                 opcode::InstType::S => {
+                    // TODO: deal with imm
+                    let imm  = extract_imm(&args[2]);
                     // imm[4:0]
                     ret |= select_and_shift(imm, 4, 0, 7);
                     // imm[11:5]
@@ -231,15 +236,20 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     // plus all fixed 0x8 jump, so i'm not sure I'm
                     // encoding these quite right, but with the re-arranged
                     // order it seems to work.... ?
-
-                    // imm[11]
-                    ret |= select_and_shift(imm, 11, 11, 7);
-                    // imm[4:1]
-                    ret |= select_and_shift(imm, 4, 1, 8);
-                    // imm[10:5]
-                    ret |= select_and_shift(imm, 10, 5, 25);
-                    // imm[12]
-                    ret |= select_and_shift(imm, 12, 12, 31);
+                    if is_label(&args[2]) {
+                        // TODO: deal with labels
+                    } else {
+                        // TODO: deal with imm
+                        let imm  = extract_imm(&args[2]);
+                        // imm[11]
+                        ret |= select_and_shift(imm, 11, 11, 7);
+                        // imm[4:1]
+                        ret |= select_and_shift(imm, 4, 1, 8);
+                        // imm[10:5]
+                        ret |= select_and_shift(imm, 10, 5, 25);
+                        // imm[12]
+                        ret |= select_and_shift(imm, 12, 12, 31);
+                    }
                 },
                 _ => (),
             }
@@ -253,10 +263,6 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
             }
             // args rd imm
             ret |= extract_and_shift_register(&args[0], 7);
-
-            // TODO: deal with imm
-            let imm = extract_imm(&args[1]);
-
             match inst_encode.encoding {
                 opcode::InstType::U => {
                     // imm[31:12]
@@ -272,18 +278,26 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     //
                     // TODO: Add `li x1 0xff` and `la x1 symbol` which makes this nicer (takes the
                     // value and symbol and split it into upper 20 and lower 12 bits and load it)
+                    // TODO: deal with imm
+                    let imm = extract_imm(&args[1]);
                     ret |= select_and_shift(imm, 19, 0, 12);
                     //ret |= select_and_shift(imm, 31, 12, 12);
                 },
                 opcode::InstType::UJ => {
-                    // imm[19:12]
-                    ret |= select_and_shift(imm, 19, 12, 0);
-                    // imm[11]
-                    ret |= select_and_shift(imm, 11, 11, 20);
-                    // imm[10:1]
-                    ret |= select_and_shift(imm, 10, 1, 21);
-                    // imm[20]
-                    ret |= select_and_shift(imm, 20, 20, 31);
+                    if is_label(&args[1]) {
+                        // TODO: deal with labels
+                    } else {
+                        // TODO: deal with imm
+                        let imm = extract_imm(&args[1]);
+                        // imm[19:12]
+                        ret |= select_and_shift(imm, 19, 12, 0);
+                        // imm[11]
+                        ret |= select_and_shift(imm, 11, 11, 20);
+                        // imm[10:1]
+                        ret |= select_and_shift(imm, 10, 1, 21);
+                        // imm[20]
+                        ret |= select_and_shift(imm, 20, 20, 31);
+                    }
                 },
                 _ => (),
             }
@@ -351,4 +365,14 @@ fn is_label(arg: &types::Args) -> bool {
         types::Args::Lab(_) => true,
         _ => false,
     }
+}
+
+fn any_label(arg: &Vec<types::Args>) -> bool {
+    for i in arg {
+        match i {
+            &types::Args::Lab(_) => return true,
+            _ => (),
+        }
+    }
+    false
 }
