@@ -197,6 +197,17 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                         },
                         "JALR" => {
                             // TODO: JALR jumps, has labels
+                            if is_label(&args[2]) {
+                                let lab = extract_label(args[2].clone());
+                            } else {
+                                // TODO: deal with imm
+                                // TODO: design a function for dealing with imm (takes a list of range + shift)
+                                // for extracting bytes and shifting em to relevant spot plus dealing with sign
+                                // extend as needed
+                                let imm  = extract_imm(&args[2]);
+                                // imm[11:0]
+                                ret |= select_and_shift(imm, 11, 0, 20);
+                            }
                         },
                         _ => {
                             // TODO: deal with imm
@@ -238,6 +249,7 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     // order it seems to work.... ?
                     if is_label(&args[2]) {
                         // TODO: deal with labels
+                        let lab = extract_label(args[2].clone());
                     } else {
                         // TODO: deal with imm
                         let imm  = extract_imm(&args[2]);
@@ -286,6 +298,7 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                 opcode::InstType::UJ => {
                     if is_label(&args[1]) {
                         // TODO: deal with labels
+                        let lab = extract_label(args[1].clone());
                     } else {
                         // TODO: deal with imm
                         let imm = extract_imm(&args[1]);
@@ -360,19 +373,19 @@ fn extract_and_shift_register(arg: &types::Args, shift: u32) -> u32 {
     }
 }
 
+// TODO: should be able to use this without a clone
+fn extract_label<'input>(arg: types::Args<'input>) -> types::Labels<'input> {
+    match arg {
+        types::Args::Lab(l) => {
+            l
+        },
+        _ => panic!("Was a register or csr or num, expected Label"),
+    }
+}
+
 fn is_label(arg: &types::Args) -> bool {
     match *arg {
         types::Args::Lab(_) => true,
         _ => false,
     }
-}
-
-fn any_label(arg: &Vec<types::Args>) -> bool {
-    for i in arg {
-        match i {
-            &types::Args::Lab(_) => return true,
-            _ => (),
-        }
-    }
-    false
 }
