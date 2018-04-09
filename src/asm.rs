@@ -87,6 +87,7 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
 
     // Start second pass
     position = 0; // Per u32 word
+    first_pass.reverse(); // Since we pop from end, reverse order
     while let Some(types::AsmLine::Ins(inst, args)) = first_pass.pop() {
         let upper_inst = &inst.to_uppercase();
 
@@ -117,8 +118,10 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
     second_pass
 }
 
-// TODO: support labeled memory location, for now only branches + jumps
-fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEnc, symbol: &Vec<(types::Labels, usize)>, pos: usize) -> u32 {
+// TODO: support labeled memory location, for now only branches + jumps (need more support)
+// Don't know how to figure out if i should generate a relative or an absolute address, branches are always relative to the inst
+// supporting those for now, the jalr/auipc/lui/jal i can't figure out yet
+fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEnc, symbol: &Vec<(types::Labels, usize)>, inst_pos: usize) -> u32 {
     let mut ret: u32 = 0x0;
 
     // Opcode
@@ -196,9 +199,11 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                             ret |= csrreg << 20;
                         },
                         "JALR" => {
-                            // TODO: JALR jumps, has labels
                             if is_label(&args[2]) {
+                                // TODO: deal with labels
                                 let lab = extract_label(args[2].clone());
+                                let lpos = find_label_position(lab, symbol, inst_pos);
+                                let imm = encode_relative_offset(inst_pos, lpos);
                             } else {
                                 // TODO: deal with imm
                                 // TODO: design a function for dealing with imm (takes a list of range + shift)
@@ -250,6 +255,17 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     if is_label(&args[2]) {
                         // TODO: deal with labels
                         let lab = extract_label(args[2].clone());
+                        let lpos = find_label_position(lab, symbol, inst_pos);
+                        let imm = encode_relative_offset(inst_pos, lpos);
+
+                        // imm[11]
+                        ret |= select_and_shift(imm, 11, 11, 7);
+                        // imm[4:1]
+                        ret |= select_and_shift(imm, 4, 1, 8);
+                        // imm[10:5]
+                        ret |= select_and_shift(imm, 10, 5, 25);
+                        // imm[12]
+                        ret |= select_and_shift(imm, 12, 12, 31);
                     } else {
                         // TODO: deal with imm
                         let imm  = extract_imm(&args[2]);
@@ -299,6 +315,8 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     if is_label(&args[1]) {
                         // TODO: deal with labels
                         let lab = extract_label(args[1].clone());
+                        let lpos = find_label_position(lab, symbol, inst_pos);
+                        let imm = encode_relative_offset(inst_pos, lpos);
                     } else {
                         // TODO: deal with imm
                         let imm = extract_imm(&args[1]);
@@ -388,4 +406,87 @@ fn is_label(arg: &types::Args) -> bool {
         types::Args::Lab(_) => true,
         _ => false,
     }
+}
+
+// TODO: this is kinda a poor quality function, need to redo it
+fn find_label_position<'input>(lab: types::Labels<'input>, symbol: &Vec<(types::Labels, usize)>, inst_pos: usize) -> usize {
+//    println!("");
+//    println!("Label to look up: {:?}", lab);
+//    println!("Instruction Position: {:?}", inst_pos);
+
+    // Decode the type of Label it is (is it a word or a numberic label)
+    // If word, proceed, but if numberic,
+    //      parse the letter after (b or f) for backward or forward numberic ref
+    //      find inst pos then proceed backward or forward in search for the numberic ref
+    // if word
+    //      Assume no duplicate word label (should not happen, integrity check the symbol table)
+    //      linear scan till you find the matching word label
+    match lab {
+        types::Labels::WLabel(l) => {
+            for val in symbol.iter() {
+                match val {
+                    &(types::Labels::WLabel(sl), spos) => {
+                        if sl == l {
+                            //println!("Label Position: {:?}", spos);
+                            return spos
+                        }
+                    },
+                    _ => (),
+                }
+            }
+            panic!("Did not find the label in the symbol table!")
+        },
+        types::Labels::NLabel(l) => {
+            let mut s = String::from(l);
+
+            let dir = s.pop().unwrap();
+            let num = &s;
+
+            match dir {
+                'f' => {
+                    // Forward
+                    for val in symbol.iter() {
+                        match val {
+                            &(types::Labels::NLabel(sl), spos) => {
+                                if (sl == num) & (spos >= inst_pos) {
+                                    //println!("Label Position: {:?}", spos);
+                                    return spos
+                                }
+                            },
+                            _ => (),
+                        }
+                    }
+                    panic!("Did not find the label in the symbol table!")
+                },
+                'b' => {
+                    // Backward
+                    for val in symbol.iter().rev() {
+                        match val {
+                            &(types::Labels::NLabel(sl), spos) => {
+                                if (sl == num) & (spos <= inst_pos) {
+                                    //println!("Label Position: {:?}", spos);
+                                    return spos
+                                }
+                            },
+                            _ => (),
+                        }
+                    }
+                    panic!("Did not find the label in the symbol table!")
+                },
+                _ => panic!("Invalid identifer, should be b or f for NLabel"),
+            }
+        },
+    }
+}
+
+fn encode_relative_offset(inst_pos: usize, label_pos: usize) -> u32 {
+    // TODO: hella truncation
+    // This assumes u32 sized instruction words, the pos are integer in block of u32
+    // If label pos is earlier than inst_pos its a negative offset
+    // and viceverse
+    // The address is in byte (hence u32 blocks)
+    let inst_addr: i64 = (inst_pos as i64) * 4;
+    let label_addr: i64 = (label_pos as i64) * 4;
+    let offset = label_addr - inst_addr;
+    offset as u32
 }

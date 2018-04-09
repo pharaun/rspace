@@ -11,7 +11,7 @@ lb:     addi x0 x0 2
 1:
         addi x0 x0 4
         beq x0 x0 1b
-        jalr x0 x0 la
+        jal x0 la
         beq x0 x0 2f
 2:      addi x0 x0 5
         beq x0 x0 1b

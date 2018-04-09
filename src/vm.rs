@@ -214,7 +214,8 @@ impl Emul32 {
                 (        _, 0b000, opcode::JALR) => {
                     // JALR
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    self.pc = (self.reg[rs1] + i_imm) as usize;
+                    // Need to zero the last value
+                    self.pc = ((self.reg[rs1] + i_imm) & 0xff_ff_ff_fe) as usize;
                     self.reg[rd] = (self.pc + 4) as u32;
                 },
 
@@ -329,44 +330,80 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::BRANCH) => {
                     // BEQ
-                    // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if self.reg[rs1] == self.reg[rs2] {
-                        self.pc += sign_extend(inst, sb_imm) as usize;
+                        // TODO need a better way to deal with the usize PC
+                        let offset = sign_extend(inst, sb_imm) as i32;
+                        if offset < 0 {
+                            self.pc = self.pc - ((offset * -1) as usize);
+                        } else {
+                            self.pc += offset as usize;
+                        }
+                        self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b001, opcode::BRANCH) => {
                     // BNE
-                    // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if self.reg[rs1] != self.reg[rs2] {
-                        self.pc += sign_extend(inst, sb_imm) as usize;
+                        // TODO need a better way to deal with the usize PC
+                        let offset = sign_extend(inst, sb_imm) as i32;
+                        if offset < 0 {
+                            self.pc = self.pc - ((offset * -1) as usize);
+                        } else {
+                            self.pc += offset as usize;
+                        }
+                        self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b100, opcode::BRANCH) => {
                     // BLT
-                    // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if (self.reg[rs1] as i32) < (self.reg[rs2] as i32) {
-                        self.pc += sign_extend(inst, sb_imm) as usize;
+                        // TODO need a better way to deal with the usize PC
+                        let offset = sign_extend(inst, sb_imm) as i32;
+                        if offset < 0 {
+                            self.pc = self.pc - ((offset * -1) as usize);
+                        } else {
+                            self.pc += offset as usize;
+                        }
+                        self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b101, opcode::BRANCH) => {
                     // BGE
-                    // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if (self.reg[rs1] as i32) >= (self.reg[rs2] as i32) {
-                        self.pc += sign_extend(inst, sb_imm) as usize;
+                        // TODO need a better way to deal with the usize PC
+                        let offset = sign_extend(inst, sb_imm) as i32;
+                        if offset < 0 {
+                            self.pc = self.pc - ((offset * -1) as usize);
+                        } else {
+                            self.pc += offset as usize;
+                        }
+                        self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b110, opcode::BRANCH) => {
                     // BLTU
-                    // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if self.reg[rs1] < self.reg[rs2] {
-                        self.pc += sign_extend(inst, sb_imm) as usize;
+                        // TODO need a better way to deal with the usize PC
+                        let offset = sign_extend(inst, sb_imm) as i32;
+                        if offset < 0 {
+                            self.pc = self.pc - ((offset * -1) as usize);
+                        } else {
+                            self.pc += offset as usize;
+                        }
+                        self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b111, opcode::BRANCH) => {
                     // BGEU
-                    // TODO: unclear if we need to execute the jumped to instruction or +4?
                     if self.reg[rs1] >= self.reg[rs2] {
-                        self.pc += sign_extend(inst, sb_imm) as usize;
+                        // TODO need a better way to deal with the usize PC
+                        let offset = sign_extend(inst, sb_imm) as i32;
+                        if offset < 0 {
+                            self.pc = self.pc - ((offset * -1) as usize);
+                        } else {
+                            self.pc += offset as usize;
+                        }
+                        self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
 
@@ -759,6 +796,119 @@ mod op_tests {
             let xlen_mask_two: u32 = xlen_mask.wrapping_sub(1);
 
             TEST_IMM_OP(n, "srli", (v & xlen_mask_two) >> (a as usize), v, a)
+        }
+    }
+
+    mod branch_tests {
+        use super::*;
+
+        include!("../test-rv32im/beq.rs");
+
+
+        fn TEST_BR2_OP_TAKEN(_test: u8, inst: &str, val1: u32, val2: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    &format!(
+                        "\n
+                        1: addi x3 x0 0x1\n
+                        {} x1 x2 3f\n
+                        addi x4 x0 0x1\n
+                        2: addi x5 x0 0x1\n
+                        {} x1 x2 4f\n
+                        addi x6 x0 0x1\n
+                        3: addi x7 x0 0x1\n
+                        {} x1 x2 2b\n
+                        addi x8 x0 0x1\n
+                        4: addi x9 x0 0x1\n
+                        addi x10 x0 0x1",
+                        inst, inst, inst
+                    )
+                )
+            );
+
+            // Load the registers
+            vm.reg[1] = val1;
+            vm.reg[2] = val2;
+
+            // Validate - A bit complicated, but basically we want to always take the branch
+            // The sentinel here is x3, x4, and x5, and x6 to confirm completion
+            assert_eq!(vm.reg[3], 0);
+            assert_eq!(vm.reg[4], 0);
+            assert_eq!(vm.reg[5], 0);
+            assert_eq!(vm.reg[6], 0);
+            assert_eq!(vm.reg[7], 0);
+            assert_eq!(vm.reg[8], 0);
+            assert_eq!(vm.reg[9], 0);
+            assert_eq!(vm.reg[10], 0);
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], val1);
+            assert_eq!(vm.reg[2], val2);
+            assert_eq!(vm.reg[3], 0x1); // Jumped to
+            assert_eq!(vm.reg[4], 0); // Jumped over
+            assert_eq!(vm.reg[5], 0x1); // jumped to
+            assert_eq!(vm.reg[6], 0); // jumped over
+            assert_eq!(vm.reg[7], 0x1); // jumped to
+            assert_eq!(vm.reg[8], 0); // jumped over
+            assert_eq!(vm.reg[9], 0x1); // jumped to
+            assert_eq!(vm.reg[10], 0x1); // Finished
+        }
+
+        fn TEST_BR2_OP_NOTTAKEN(_test: u8, inst: &str, val1: u32, val2: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    &format!(
+                        "\n
+                        1: addi x3 x0 0x1\n
+                        {} x1 x2 3f\n
+                        addi x4 x0 0x1\n
+                        2: addi x5 x0 0x1\n
+                        {} x1 x2 4f\n
+                        addi x6 x0 0x1\n
+                        3: addi x7 x0 0x1\n
+                        {} x1 x2 2b\n
+                        addi x8 x0 0x1\n
+                        4: addi x9 x0 0x1\n
+                        addi x10 x0 0x1",
+                        inst, inst, inst
+                    )
+                )
+            );
+
+            // Load the registers
+            vm.reg[1] = val1;
+            vm.reg[2] = val2;
+
+            // Validate - A bit complicated, but basically we want to always not take the branch
+            // The sentinel here is x3, x4, and x5, and x6 to confirm completion
+            assert_eq!(vm.reg[3], 0);
+            assert_eq!(vm.reg[4], 0);
+            assert_eq!(vm.reg[5], 0);
+            assert_eq!(vm.reg[6], 0);
+            assert_eq!(vm.reg[7], 0);
+            assert_eq!(vm.reg[8], 0);
+            assert_eq!(vm.reg[9], 0);
+            assert_eq!(vm.reg[10], 0);
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], val1);
+            assert_eq!(vm.reg[2], val2);
+            assert_eq!(vm.reg[3], 0x1);
+            assert_eq!(vm.reg[4], 0x1);
+            assert_eq!(vm.reg[5], 0x1);
+            assert_eq!(vm.reg[6], 0x1);
+            assert_eq!(vm.reg[7], 0x1);
+            assert_eq!(vm.reg[8], 0x1);
+            assert_eq!(vm.reg[9], 0x1);
+            assert_eq!(vm.reg[10], 0x1);
         }
     }
 }
