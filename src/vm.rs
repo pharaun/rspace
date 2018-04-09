@@ -803,6 +803,11 @@ mod op_tests {
         use super::*;
 
         include!("../test-rv32im/beq.rs");
+        include!("../test-rv32im/bge.rs");
+        include!("../test-rv32im/bgeu.rs");
+        include!("../test-rv32im/blt.rs");
+        include!("../test-rv32im/bltu.rs");
+        include!("../test-rv32im/bne.rs");
 
 
         fn TEST_BR2_OP_TAKEN(_test: u8, inst: &str, val1: u32, val2: u32) {
