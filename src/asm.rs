@@ -253,7 +253,6 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     // encoding these quite right, but with the re-arranged
                     // order it seems to work.... ?
                     if is_label(&args[2]) {
-                        // TODO: deal with labels
                         let lab = extract_label(args[2].clone());
                         let lpos = find_label_position(lab, symbol, inst_pos);
                         let imm = encode_relative_offset(inst_pos, lpos);
@@ -313,10 +312,18 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                 },
                 opcode::InstType::UJ => {
                     if is_label(&args[1]) {
-                        // TODO: deal with labels
                         let lab = extract_label(args[1].clone());
                         let lpos = find_label_position(lab, symbol, inst_pos);
                         let imm = encode_relative_offset(inst_pos, lpos);
+
+                        // imm[19:12]
+                        ret |= select_and_shift(imm, 19, 12, 0);
+                        // imm[11]
+                        ret |= select_and_shift(imm, 11, 11, 20);
+                        // imm[10:1]
+                        ret |= select_and_shift(imm, 10, 1, 21);
+                        // imm[20]
+                        ret |= select_and_shift(imm, 20, 20, 31);
                     } else {
                         // TODO: deal with imm
                         let imm = extract_imm(&args[1]);

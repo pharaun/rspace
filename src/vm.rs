@@ -213,6 +213,7 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::JALR) => {
                     // JALR
+                    // TODO: TEST
                     // TODO: unclear if we need to execute the jumped to instruction or +4?
                     // Need to zero the last value
                     self.pc = ((self.reg[rs1] + i_imm) & 0xff_ff_ff_fe) as usize;
@@ -222,12 +223,14 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::LOAD) => {
                     // LB
+                    // TODO: TEST
                     // TODO: abstract this to memory?
                     let byte = self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize];
                     self.reg[rd] = sign_extend_8_to_32(byte as u32);
                 },
                 (        _, 0b001, opcode::LOAD) => {
                     // LH
+                    // TODO: TEST
                     // TODO: abstract this to memory?
                     let bytes: [u8; 2] = [
                         self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize],
@@ -237,6 +240,7 @@ impl Emul32 {
                 },
                 (        _, 0b010, opcode::LOAD) => {
                     // LW
+                    // TODO: TEST
                     // TODO: abstract this to memory?
                     let bytes: [u8; 4] = [
                         self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize],
@@ -248,12 +252,14 @@ impl Emul32 {
                 },
                 (        _, 0b100, opcode::LOAD) => {
                     // LBU
+                    // TODO: TEST
                     // TODO: abstract this to memory?
                     let byte = self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize];
                     self.reg[rd] = byte as u32;
                 },
                 (        _, 0b101, opcode::LOAD) => {
                     // LHU
+                    // TODO: TEST
                     // TODO: abstract this to memory?
                     let bytes: [u8; 2] = [
                         self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize],
@@ -280,27 +286,34 @@ impl Emul32 {
                     match imm {
                         0b000000000000 => {
                             // ECALL
+                            // NOP instruction
                         },
                         0b000000000001 => {
                             // EBREAK
+                            // NOP instruction
                         },
                         _ => panic!("FIXME"),
                     }
                 },
                 (        _, 0b001, opcode::SYSTEM) => {
                     // CSRRW
+                    // TODO: implement
                 },
                 (        _, 0b010, opcode::SYSTEM) => {
                     // CSRRS
+                    // TODO: implement
                 },
                 (        _, 0b011, opcode::SYSTEM) => {
                     // CSRRC
+                    // TODO: implement
                 },
                 (        _, 0b101, opcode::SYSTEM) => {
                     // CSRRWI
+                    // TODO: implement
                 },
                 (        _, 0b110, opcode::SYSTEM) => {
                     // CSRRSI
+                    // TODO: implement
                 },
                 (        _, 0b111, opcode::SYSTEM) => {
                     // CSRRCI
@@ -309,17 +322,20 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::STORE) => {
                     // SB
+                    // TODO: TEST
                     // TODO: abstract this to memory?
                     self.mem[(self.reg[rs1] + sign_extend(inst, s_imm)) as usize] = (self.reg[rs2] & 0x00_00_00_FF) as u8;
                 },
                 (        _, 0b001, opcode::STORE) => {
                     // SH
+                    // TODO: TEST
                     // TODO: abstract this to memory?
                     self.mem[(self.reg[rs1] + sign_extend(inst, s_imm)) as usize]     = (self.reg[rs2] & 0x00_00_00_FF) as u8;
                     self.mem[(self.reg[rs1] + sign_extend(inst, s_imm) + 1) as usize] = (self.reg[rs2] & 0x00_00_FF_00) as u8;
                 },
                 (        _, 0b010, opcode::STORE) => {
                     // SW
+                    // TODO: TEST
                     // TODO: abstract this to memory?
                     self.mem[(self.reg[rs1] + sign_extend(inst, s_imm)) as usize]     = (self.reg[rs2] & 0x00_00_00_FF) as u8;
                     self.mem[(self.reg[rs1] + sign_extend(inst, s_imm) + 1) as usize] = (self.reg[rs2] & 0x00_00_FF_00) as u8;
@@ -410,17 +426,26 @@ impl Emul32 {
                 // RV32 I
                 (        _,     _, opcode::LUI) => {
                     // LUI
+                    // TODO: TEST
                     self.reg[rd] = u_imm;
                 },
                 (        _,     _, opcode::AUIPC) => {
                     // AUIPC
+                    // TODO: TEST
                     self.reg[rd] = u_imm + (self.pc as u32);
                 },
                 (        _,     _, opcode::JAL) => {
                     // JAL
-                    // TODO: unclear if we need to execute the jumped to instruction or +4? (most impl has -4 to pc)
-                    self.pc += sign_extend(inst, uj_imm) as usize;
                     self.reg[rd] = (self.pc + 4) as u32;
+
+                    // TODO need a better way to deal with the usize PC
+                    let offset = sign_extend(inst, uj_imm) as i32;
+                    if offset < 0 {
+                        self.pc = self.pc - ((offset * -1) as usize);
+                    } else {
+                        self.pc += offset as usize;
+                    }
+                    self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                 },
 
                 // TODO: handle instruction decoding failure
@@ -916,4 +941,50 @@ mod op_tests {
             assert_eq!(vm.reg[10], 0x1);
         }
     }
+
+    mod jump_tests {
+        use super::*;
+
+        #[test]
+        fn jal_inst() {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    // TODO:
+                    // LA x5 ta (to grab the address of ta to compare)
+                    "addi x1 x0 0x1\n
+                    jal x2 ta\n
+                    addi x3 x0 0x1\n
+                    ta: addi x4 x0 0x1"
+                )
+            );
+
+            // Validate
+            assert_eq!(vm.reg[1], 0);
+            assert_eq!(vm.reg[2], 0);
+            assert_eq!(vm.reg[3], 0);
+            assert_eq!(vm.reg[4], 0);
+            assert_eq!(vm.reg[5], 0);
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], 0x1);
+            //assert_eq!(vm.reg[2], vm.reg[5]);
+            assert_eq!(vm.reg[2], 0x8); // TODO replace with above ^
+            assert_eq!(vm.reg[3], 0);
+            assert_eq!(vm.reg[4], 0x1);
+        }
+
+        #[test]
+        fn jalr_inst() {
+        }
+    }
+
+        // STORE
+        // LOADs
+        // SYNCH (fence)
+        // COUNTERS (CSR)
+        // SYSTEM (scall/sbreak)/(ebreak/ecall)
 }
