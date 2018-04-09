@@ -347,78 +347,42 @@ impl Emul32 {
                 (        _, 0b000, opcode::BRANCH) => {
                     // BEQ
                     if self.reg[rs1] == self.reg[rs2] {
-                        // TODO need a better way to deal with the usize PC
-                        let offset = sign_extend(inst, sb_imm) as i32;
-                        if offset < 0 {
-                            self.pc = self.pc - ((offset * -1) as usize);
-                        } else {
-                            self.pc += offset as usize;
-                        }
+                        self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
                         self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b001, opcode::BRANCH) => {
                     // BNE
                     if self.reg[rs1] != self.reg[rs2] {
-                        // TODO need a better way to deal with the usize PC
-                        let offset = sign_extend(inst, sb_imm) as i32;
-                        if offset < 0 {
-                            self.pc = self.pc - ((offset * -1) as usize);
-                        } else {
-                            self.pc += offset as usize;
-                        }
+                        self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
                         self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b100, opcode::BRANCH) => {
                     // BLT
                     if (self.reg[rs1] as i32) < (self.reg[rs2] as i32) {
-                        // TODO need a better way to deal with the usize PC
-                        let offset = sign_extend(inst, sb_imm) as i32;
-                        if offset < 0 {
-                            self.pc = self.pc - ((offset * -1) as usize);
-                        } else {
-                            self.pc += offset as usize;
-                        }
+                        self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
                         self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b101, opcode::BRANCH) => {
                     // BGE
                     if (self.reg[rs1] as i32) >= (self.reg[rs2] as i32) {
-                        // TODO need a better way to deal with the usize PC
-                        let offset = sign_extend(inst, sb_imm) as i32;
-                        if offset < 0 {
-                            self.pc = self.pc - ((offset * -1) as usize);
-                        } else {
-                            self.pc += offset as usize;
-                        }
+                        self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
                         self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b110, opcode::BRANCH) => {
                     // BLTU
                     if self.reg[rs1] < self.reg[rs2] {
-                        // TODO need a better way to deal with the usize PC
-                        let offset = sign_extend(inst, sb_imm) as i32;
-                        if offset < 0 {
-                            self.pc = self.pc - ((offset * -1) as usize);
-                        } else {
-                            self.pc += offset as usize;
-                        }
+                        self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
                         self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
                 (        _, 0b111, opcode::BRANCH) => {
                     // BGEU
                     if self.reg[rs1] >= self.reg[rs2] {
-                        // TODO need a better way to deal with the usize PC
-                        let offset = sign_extend(inst, sb_imm) as i32;
-                        if offset < 0 {
-                            self.pc = self.pc - ((offset * -1) as usize);
-                        } else {
-                            self.pc += offset as usize;
-                        }
+                        self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
                         self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                     }
                 },
@@ -426,25 +390,18 @@ impl Emul32 {
                 // RV32 I
                 (        _,     _, opcode::LUI) => {
                     // LUI
-                    // TODO: TEST
                     self.reg[rd] = u_imm;
                 },
                 (        _,     _, opcode::AUIPC) => {
                     // AUIPC
-                    // TODO: TEST
-                    self.reg[rd] = u_imm + (self.pc as u32);
+                    // TODO: TEST - don't really have a way to test yet
+                    self.reg[rd] = u_imm.wrapping_add(self.pc as u32);
                 },
                 (        _,     _, opcode::JAL) => {
                     // JAL
                     self.reg[rd] = (self.pc + 4) as u32;
 
-                    // TODO need a better way to deal with the usize PC
-                    let offset = sign_extend(inst, uj_imm) as i32;
-                    if offset < 0 {
-                        self.pc = self.pc - ((offset * -1) as usize);
-                    } else {
-                        self.pc += offset as usize;
-                    }
+                    self.pc = (sign_extend(inst, uj_imm).wrapping_add(self.pc as u32)) as usize;
                     self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                 },
 
@@ -942,8 +899,10 @@ mod op_tests {
         }
     }
 
-    mod jump_tests {
+    mod misc_tests {
         use super::*;
+
+        include!("../test-rv32im/lui.rs");
 
         #[test]
         fn jal_inst() {
@@ -955,7 +914,10 @@ mod op_tests {
                     "addi x1 x0 0x1\n
                     jal x2 ta\n
                     addi x3 x0 0x1\n
-                    ta: addi x4 x0 0x1"
+                    ta: addi x4 x0 0x1\n
+                    "
+                    //auipc x5 ta\n
+                    //addi x5 x5 ta"
                 )
             );
 
@@ -971,19 +933,40 @@ mod op_tests {
 
             // Validate
             assert_eq!(vm.reg[1], 0x1);
+            assert_eq!(vm.reg[2], 0x8); // Hardcode address, re-validate (la - auipc+addi)
             //assert_eq!(vm.reg[2], vm.reg[5]);
-            assert_eq!(vm.reg[2], 0x8); // TODO replace with above ^
             assert_eq!(vm.reg[3], 0);
             assert_eq!(vm.reg[4], 0x1);
         }
 
-        #[test]
-        fn jalr_inst() {
+        fn TEST_LUI(_test: u8, res: u32, num: u32, shift: u32) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    &format!(
+                        "lui x1 {}\n
+                        srai x1 x1 {}",
+                        num, shift
+                    )
+                )
+            );
+
+            // Validate
+            assert_eq!(vm.reg[1], 0);
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], res);
         }
     }
 
+        // AUIPC
+        // JALR
         // STORE
         // LOADs
+        // Lower Priority:
         // SYNCH (fence)
         // COUNTERS (CSR)
         // SYSTEM (scall/sbreak)/(ebreak/ecall)

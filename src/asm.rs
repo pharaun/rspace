@@ -215,6 +215,7 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                             }
                         },
                         _ => {
+                            // TODO: to support addi for 'la'
                             // TODO: deal with imm
                             // TODO: design a function for dealing with imm (takes a list of range + shift)
                             // for extracting bytes and shifting em to relevant spot plus dealing with sign
@@ -292,6 +293,9 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
             ret |= extract_and_shift_register(&args[0], 7);
             match inst_encode.encoding {
                 opcode::InstType::U => {
+                    // TODO: update lui + auipc tests to not use this mips legacy
+                    //
+                    // LUI only probably (verify)
                     // imm[31:12]
                     //
                     // Due to mips legacy, GAS takes the bottom 20 bits, not the top 20 as per
@@ -306,9 +310,21 @@ fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEn
                     // TODO: Add `li x1 0xff` and `la x1 symbol` which makes this nicer (takes the
                     // value and symbol and split it into upper 20 and lower 12 bits and load it)
                     // TODO: deal with imm
-                    let imm = extract_imm(&args[1]);
-                    ret |= select_and_shift(imm, 19, 0, 12);
-                    //ret |= select_and_shift(imm, 31, 12, 12);
+                    //let imm = extract_imm(&args[1]);
+                    //ret |= select_and_shift(imm, 19, 0, 12);
+                    if is_label(&args[1]) {
+                        let lab = extract_label(args[1].clone());
+                        let lpos = find_label_position(lab, symbol, inst_pos);
+                        let imm = encode_relative_offset(inst_pos, lpos);
+
+                        ret |= select_and_shift(imm, 19, 0, 12);
+                        //ret |= select_and_shift(imm, 31, 12, 12);
+                    } else {
+                        // TODO: this relative offset doesn't work for LUI, we want to see label, get the value from that and store that
+                        let imm = extract_imm(&args[1]);
+                        ret |= select_and_shift(imm, 19, 0, 12);
+                        //ret |= select_and_shift(imm, 31, 12, 12);
+                    }
                 },
                 opcode::InstType::UJ => {
                     if is_label(&args[1]) {
