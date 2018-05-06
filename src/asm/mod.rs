@@ -1,8 +1,9 @@
-use parse;
-use types;
-use opcode;
+use vm::opcode;
 
 use twiddle::Twiddle;
+
+pub mod parse;
+pub mod types;
 
 
 // TODO: Code quality improvement

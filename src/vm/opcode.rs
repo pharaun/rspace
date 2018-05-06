@@ -62,7 +62,7 @@ pub fn instruction_type(opcode: u32) -> InstType {
 }
 
 // Codegen from pf_codegen
-include!("../codegen/opcode.rs");
+include!("../../codegen/opcode.rs");
 
 pub fn lookup(keyword: &str) -> Option<InstEnc> {
     OPCODE.get(keyword).cloned()

@@ -26,24 +26,24 @@ mod op_tests {
     mod rr_op_tests {
         use super::*;
 
-        include!("../test-rv32im/add.rs");
-        include!("../test-rv32im/sub.rs");
-        include!("../test-rv32im/xor.rs");
-        include!("../test-rv32im/or.rs");
-        include!("../test-rv32im/and.rs");
-        include!("../test-rv32im/sll.rs");
-        include!("../test-rv32im/srl.rs");
-        include!("../test-rv32im/sra.rs");
-        include!("../test-rv32im/slt.rs");
-        include!("../test-rv32im/sltu.rs");
-        include!("../test-rv32im/div.rs");
-        include!("../test-rv32im/divu.rs");
-        include!("../test-rv32im/mul.rs");
-        include!("../test-rv32im/mulh.rs");
-        include!("../test-rv32im/mulhsu.rs");
-        include!("../test-rv32im/mulhu.rs");
-        include!("../test-rv32im/rem.rs");
-        include!("../test-rv32im/remu.rs");
+        include!("../../test-rv32im/add.rs");
+        include!("../../test-rv32im/sub.rs");
+        include!("../../test-rv32im/xor.rs");
+        include!("../../test-rv32im/or.rs");
+        include!("../../test-rv32im/and.rs");
+        include!("../../test-rv32im/sll.rs");
+        include!("../../test-rv32im/srl.rs");
+        include!("../../test-rv32im/sra.rs");
+        include!("../../test-rv32im/slt.rs");
+        include!("../../test-rv32im/sltu.rs");
+        include!("../../test-rv32im/div.rs");
+        include!("../../test-rv32im/divu.rs");
+        include!("../../test-rv32im/mul.rs");
+        include!("../../test-rv32im/mulh.rs");
+        include!("../../test-rv32im/mulhsu.rs");
+        include!("../../test-rv32im/mulhu.rs");
+        include!("../../test-rv32im/rem.rs");
+        include!("../../test-rv32im/remu.rs");
 
         // TODO: make this more flexible (ie list of reg + value, plus expected value+reg afterward)
         fn TEST_RR_OP(_test: u8, op: &str, r: u32, a: u32, b: u32) {
@@ -206,15 +206,15 @@ mod op_tests {
     mod imm_op_tests {
         use super::*;
 
-        include!("../test-rv32im/slli.rs");
-        include!("../test-rv32im/srli.rs");
-        include!("../test-rv32im/srai.rs");
-        include!("../test-rv32im/addi.rs");
-        include!("../test-rv32im/andi.rs");
-        include!("../test-rv32im/ori.rs");
-        include!("../test-rv32im/xori.rs");
-        include!("../test-rv32im/slti.rs");
-        include!("../test-rv32im/sltiu.rs");
+        include!("../../test-rv32im/slli.rs");
+        include!("../../test-rv32im/srli.rs");
+        include!("../../test-rv32im/srai.rs");
+        include!("../../test-rv32im/addi.rs");
+        include!("../../test-rv32im/andi.rs");
+        include!("../../test-rv32im/ori.rs");
+        include!("../../test-rv32im/xori.rs");
+        include!("../../test-rv32im/slti.rs");
+        include!("../../test-rv32im/sltiu.rs");
 
 
         fn TEST_IMM_OP(_test: u8, op: &str, res: u32, a: u32, imm: u32) {
@@ -299,12 +299,12 @@ mod op_tests {
     mod branch_tests {
         use super::*;
 
-        include!("../test-rv32im/beq.rs");
-        include!("../test-rv32im/bge.rs");
-        include!("../test-rv32im/bgeu.rs");
-        include!("../test-rv32im/blt.rs");
-        include!("../test-rv32im/bltu.rs");
-        include!("../test-rv32im/bne.rs");
+        include!("../../test-rv32im/beq.rs");
+        include!("../../test-rv32im/bge.rs");
+        include!("../../test-rv32im/bgeu.rs");
+        include!("../../test-rv32im/blt.rs");
+        include!("../../test-rv32im/bltu.rs");
+        include!("../../test-rv32im/bne.rs");
 
 
         fn TEST_BR2_OP_TAKEN(_test: u8, inst: &str, val1: u32, val2: u32) {
@@ -417,7 +417,7 @@ mod op_tests {
     mod misc_tests {
         use super::*;
 
-        include!("../test-rv32im/lui.rs");
+        include!("../../test-rv32im/lui.rs");
 
         #[test]
         fn jal_inst() {

@@ -1,8 +1,9 @@
-use opcode;
-use mem;
-use regfile;
-
 use twiddle::Twiddle;
+
+pub mod regfile;
+pub mod mem;
+pub mod opcode;
+
 
 pub struct Emul32 {
     reg: regfile::RegFile,
@@ -483,4 +484,4 @@ fn sign_extend_32_to_64(imm: u32) -> u64 {
 
 
 // Tests getting too long, include instead
-include!("vm_test.rs");
+include!("test.rs");
