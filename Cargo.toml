@@ -6,7 +6,7 @@ authors = ["Anja Berens <pharaun666@gmail.com>"]
 build = "build.rs" # lalrpop, phf_codegen
 
 [build-dependencies]
-lalrpop = "0.13.1"
+lalrpop = "0.14.0"
 phf_codegen = "0.7.21"
 
 [dependencies]
@@ -26,7 +26,7 @@ byteorder = "1.2.1"
 regex = "0.2.0"
 
 # Add a dependency on the LALRPOP runtime library:
-lalrpop-util = "0.13.1"
+lalrpop-util = "0.14.0"
 
 # phf runtime library:
 phf = "0.7.21"
