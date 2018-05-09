@@ -1,16 +1,16 @@
 use std::str::FromStr;
-use asm::types;
+use asm::ast;
 
 grammar;
 
 match {
-    r"(CYCLE|TIME|INSTRET)H?" => CSR,
+//    r"x[0-9]+"                          => REG,
+    r"(zero|ra|[sgtf]p|[tsax][0-9]+)"   => REG,
 } else {
-    r"[0-9]+"                 => NUM,
-    r"0x[0-9A-F-a-f]+"        => HEX,
-    r"x[0-9]+"                => REG,
-    r"[0-9]+[BFbf]"           => NUMLAB,
-    r"[A-Za-z.]+"             => STR,
+    r"-?[0-9]+"                         => NUM,
+    r"0x[0-9A-F-a-f]+"                  => HEX,
+    r"[0-9]+[BFbf]"                     => NUMLAB,
+    r"[A-Za-z.]+"                       => STR,
     _
 }
 
@@ -23,36 +23,34 @@ Hex: u32 = <s:HEX> => u32::from_str_radix(&s[2..], 16).unwrap();
 
 // Register == letter + digits
 // For now only support x{0-31} styled registers
-pub Register = { Reg };
+pub Register: &'input str = {
+    <n:Reg> => ast::map_reg(n),
+};
 
 Reg: &'input str = <s:REG> => s;
 
-// CSR & priv inst
-// csr == ?
-// For now, support a discrete list of csr + priv insts
-pub Csr = { CsrReg };
 
-CsrReg: &'input str = <s:CSR> => s;
-
-// Labels (local label, word label)
-pub Label: types::Labels <'input> = {
-    <n:LLabel> => types::Labels::NLabel(n),
-    <n:WLabel> => types::Labels::WLabel(n),
+// args = register | number | csr | label
+pub Arguments: ast::Args <'input> = {
+    <n:Register> => ast::Args::Reg(n),
+    <n:Number>   => ast::Args::Num(n),
+    <n:LLabel>   => ast::Args::Lab(ast::Labels::NLabel(n)),
+    <n:Str>      => {
+        // Parse CSR else panic
+        if ast::is_csr(n) {
+            ast::Args::Csr(n)
+        } else {
+            ast::Args::Lab(ast::Labels::WLabel(n))
+        }
+    },
 };
 
+Str: &'input str = <s:STR> => s;
 LLabel: &'input str = <s:NUMLAB> => s;
 WLabel: &'input str = <s:STR> => s;
 
-// args = register | number | csr | label
-pub Arguments: types::Args <'input> = {
-    <n:Register> => types::Args::Reg(n),
-    <n:Csr>      => types::Args::Csr(n),
-    <n:Number>   => types::Args::Num(n),
-    <n:Label>    => types::Args::Lab(n),
-};
-
 // [0-4] args
-pub VecArgs: Vec<types::Args <'input>> = {
+pub VecArgs: Vec<ast::Args <'input>> = {
     <Arguments*>
 };
 
@@ -67,10 +65,10 @@ Instruction: &'input str = <s:STR> => s;
 //      - sw x0, 0x0(x3)
 //      - csr{rw, rs, rc} a0, cycle, x0
 //      - csr{rw, rs, rc}i a1, sscratch, 1
-pub AsmLine: types::AsmLine <'input> = {
-    <l:NUM> ":" <i:Instruction> <v:VecArgs>    => types::AsmLine::Lns(types::Labels::NLabel(l), i, v),
-    <l:WLabel> ":" <i:Instruction> <v:VecArgs> => types::AsmLine::Lns(types::Labels::WLabel(l), i, v),
-    <i:Instruction> <v:VecArgs>                => types::AsmLine::Ins(i, v),
-    <l:NUM> ":"                                => types::AsmLine::Lab(types::Labels::NLabel(l)),
-    <l:WLabel> ":"                             => types::AsmLine::Lab(types::Labels::WLabel(l)),
+pub AsmLine: ast::AsmLine <'input> = {
+    <l:NUM> ":" <i:Instruction> <v:VecArgs>    => ast::AsmLine::Lns(ast::Labels::NLabel(l), i, v),
+    <l:WLabel> ":" <i:Instruction> <v:VecArgs> => ast::AsmLine::Lns(ast::Labels::WLabel(l), i, v),
+    <i:Instruction> <v:VecArgs>                => ast::AsmLine::Ins(i, v),
+    <l:NUM> ":"                                => ast::AsmLine::Lab(ast::Labels::NLabel(l)),
+    <l:WLabel> ":"                             => ast::AsmLine::Lab(ast::Labels::WLabel(l)),
 };

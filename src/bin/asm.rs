@@ -27,6 +27,8 @@ fn parser_test() {
     println!("Numbers:");
     println!("\t{:?}", rspace::asm::parse::parse_Number("09213"));
     println!("\t{:?}", rspace::asm::parse::parse_Number("009213"));
+    println!("\t{:?}", rspace::asm::parse::parse_Number("-9213"));
+    println!("\t{:?}", rspace::asm::parse::parse_Number("-009213"));
     println!("\t{:?}", rspace::asm::parse::parse_Number("0xFF"));
     println!("\t{:?}", rspace::asm::parse::parse_Number("0xff"));
     println!("\t{:?}", rspace::asm::parse::parse_Number("0x09123"));
@@ -40,8 +42,8 @@ fn parser_test() {
     // Test CSR
     println!();
     println!("CSR:");
-    println!("\t{:?}", rspace::asm::parse::parse_Csr("CYCLE"));
-    println!("\t{:?}", rspace::asm::parse::parse_Csr("CYCLEH"));
+    println!("\t{:?}", rspace::asm::parse::parse_Arguments("CYCLE"));
+    println!("\t{:?}", rspace::asm::parse::parse_Arguments("CYCLEH"));
 
     // Test Arguments
     println!();

@@ -3,7 +3,7 @@ use vm::opcode;
 use twiddle::Twiddle;
 
 pub mod parse;
-pub mod types;
+pub mod ast;
 
 
 // TODO: Code quality improvement
@@ -15,13 +15,13 @@ pub mod types;
 // 5. Fifth pass: Find where to put data, and then rectify reference to data/memory locations.
 pub fn parse_asm(input: &str) -> Vec<u32> {
     // First pass -> Vec<(u32, or entry to retrify on 2nd pass (for labels))>
-    let mut first_pass: Vec<types::AsmLine> = Vec::new();
+    let mut first_pass: Vec<ast::AsmLine> = Vec::new();
 
     // This symbol table will be a list of (label, location)
     // Will handle duplicate entries by just listing it
     let mut position: usize = 0; // Per u32 word
-    let mut label_acc: Vec<types::Labels> = Vec::new();
-    let mut symbol_table: Vec<(types::Labels, usize)> = Vec::new();
+    let mut label_acc: Vec<ast::Labels> = Vec::new();
+    let mut symbol_table: Vec<(ast::Labels, usize)> = Vec::new();
 
     // Assembly output
     // Second pass -> Vec<u32>
@@ -45,11 +45,11 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
                 },
                 Ok(asmline) => {
                     match asmline {
-                        types::AsmLine::Lab(l) => {
+                        ast::AsmLine::Lab(l) => {
                             // We see a label, accumulate it till we get an asm line to attribute it to
                             label_acc.push(l);
                         },
-                        types::AsmLine::Lns(l, inst, args) => {
+                        ast::AsmLine::Lns(l, inst, args) => {
                             // We see a label, accumulate + handle it
                             label_acc.push(l);
 
@@ -59,19 +59,19 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
                             }
 
                             // Process instruction
-                            first_pass.push(types::AsmLine::Ins(inst, args));
+                            first_pass.push(ast::AsmLine::Ins(inst, args));
 
                             // Inc line pointer
                             position += 1;
                         },
-                        types::AsmLine::Ins(inst, args) => {
+                        ast::AsmLine::Ins(inst, args) => {
                             // Check if there's any accumulated label, and if so put onto symbol list
                             while let Some(la) = label_acc.pop() {
                                 symbol_table.push((la, position));
                             }
 
                             // Process instruction
-                            first_pass.push(types::AsmLine::Ins(inst, args));
+                            first_pass.push(ast::AsmLine::Ins(inst, args));
 
                             // Inc line pointer
                             position += 1;
@@ -89,7 +89,7 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
     // Start second pass
     position = 0; // Per u32 word
     first_pass.reverse(); // Since we pop from end, reverse order
-    while let Some(types::AsmLine::Ins(inst, args)) = first_pass.pop() {
+    while let Some(ast::AsmLine::Ins(inst, args)) = first_pass.pop() {
         let upper_inst = &inst.to_uppercase();
 
         // 3. lookup if in the opcode lookup table
@@ -122,7 +122,7 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
 // TODO: support labeled memory location, for now only branches + jumps (need more support)
 // Don't know how to figure out if i should generate a relative or an absolute address, branches are always relative to the inst
 // supporting those for now, the jalr/auipc/lui/jal i can't figure out yet
-fn lut_to_binary(inst: &str, args: Vec<types::Args>, inst_encode: opcode::InstEnc, symbol: &Vec<(types::Labels, usize)>, inst_pos: usize) -> u32 {
+fn lut_to_binary(inst: &str, args: Vec<ast::Args>, inst_encode: opcode::InstEnc, symbol: &Vec<(ast::Labels, usize)>, inst_pos: usize) -> u32 {
     let mut ret: u32 = 0x0;
 
     // Opcode
@@ -378,9 +378,9 @@ fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
     ((imm & u32::mask(hi..lo)) >> lo) << shift
 }
 
-fn extract_csr(arg: &types::Args) -> u32 {
+fn extract_csr(arg: &ast::Args) -> u32 {
     match *arg {
-        types::Args::Csr(n) => {
+        ast::Args::Csr(n) => {
             match n {
                 "CYCLE" => 0xC00,
                 "CYCLEH" => 0xC80,
@@ -395,18 +395,18 @@ fn extract_csr(arg: &types::Args) -> u32 {
     }
 }
 
-fn extract_imm(arg: &types::Args) -> u32 {
+fn extract_imm(arg: &ast::Args) -> u32 {
     match *arg {
-        types::Args::Num(n) => {
+        ast::Args::Num(n) => {
             n
         },
         _ => panic!("Was a register or csr or label, expected Num"),
     }
 }
 
-fn extract_and_shift_register(arg: &types::Args, shift: u32) -> u32 {
+fn extract_and_shift_register(arg: &ast::Args, shift: u32) -> u32 {
     match *arg {
-        types::Args::Reg(r) => {
+        ast::Args::Reg(r) => {
             // Map x0..x31 -> 0..31
             // TODO: for now just drop the x from the registers
             r[1..].parse::<u32>().unwrap() << shift
@@ -416,24 +416,24 @@ fn extract_and_shift_register(arg: &types::Args, shift: u32) -> u32 {
 }
 
 // TODO: should be able to use this without a clone
-fn extract_label<'input>(arg: types::Args<'input>) -> types::Labels<'input> {
+fn extract_label<'input>(arg: ast::Args<'input>) -> ast::Labels<'input> {
     match arg {
-        types::Args::Lab(l) => {
+        ast::Args::Lab(l) => {
             l
         },
         _ => panic!("Was a register or csr or num, expected Label"),
     }
 }
 
-fn is_label(arg: &types::Args) -> bool {
+fn is_label(arg: &ast::Args) -> bool {
     match *arg {
-        types::Args::Lab(_) => true,
+        ast::Args::Lab(_) => true,
         _ => false,
     }
 }
 
 // TODO: this is kinda a poor quality function, need to redo it
-fn find_label_position<'input>(lab: types::Labels<'input>, symbol: &Vec<(types::Labels, usize)>, inst_pos: usize) -> usize {
+fn find_label_position<'input>(lab: ast::Labels<'input>, symbol: &Vec<(ast::Labels, usize)>, inst_pos: usize) -> usize {
 //    println!("");
 //    println!("Label to look up: {:?}", lab);
 //    println!("Instruction Position: {:?}", inst_pos);
@@ -446,10 +446,10 @@ fn find_label_position<'input>(lab: types::Labels<'input>, symbol: &Vec<(types::
     //      Assume no duplicate word label (should not happen, integrity check the symbol table)
     //      linear scan till you find the matching word label
     match lab {
-        types::Labels::WLabel(l) => {
+        ast::Labels::WLabel(l) => {
             for val in symbol.iter() {
                 match val {
-                    &(types::Labels::WLabel(sl), spos) => {
+                    &(ast::Labels::WLabel(sl), spos) => {
                         if sl == l {
                             //println!("Label Position: {:?}", spos);
                             return spos
@@ -460,7 +460,7 @@ fn find_label_position<'input>(lab: types::Labels<'input>, symbol: &Vec<(types::
             }
             panic!("Did not find the label in the symbol table!")
         },
-        types::Labels::NLabel(l) => {
+        ast::Labels::NLabel(l) => {
             let mut s = String::from(l);
 
             let dir = s.pop().unwrap();
@@ -471,7 +471,7 @@ fn find_label_position<'input>(lab: types::Labels<'input>, symbol: &Vec<(types::
                     // Forward
                     for val in symbol.iter() {
                         match val {
-                            &(types::Labels::NLabel(sl), spos) => {
+                            &(ast::Labels::NLabel(sl), spos) => {
                                 if (sl == num) & (spos >= inst_pos) {
                                     //println!("Label Position: {:?}", spos);
                                     return spos
@@ -486,7 +486,7 @@ fn find_label_position<'input>(lab: types::Labels<'input>, symbol: &Vec<(types::
                     // Backward
                     for val in symbol.iter().rev() {
                         match val {
-                            &(types::Labels::NLabel(sl), spos) => {
+                            &(ast::Labels::NLabel(sl), spos) => {
                                 if (sl == num) & (spos <= inst_pos) {
                                     //println!("Label Position: {:?}", spos);
                                     return spos

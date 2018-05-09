@@ -98,6 +98,18 @@ fn main() {
 
         rem x0 x1 x2
         remu x1 x2 x0
+
+        rem zero ra sp
+        rem gp tp t0
+        rem t1 t2 s0
+        rem fp s1 a0
+        rem a1 a2 a3
+        rem a4 a5 a6
+        rem a7 s2 s3
+        rem s4 s5 s6
+        rem s7 s8 s9
+        rem s10 s11 t3
+        rem t4 t5 t6
     "#;
 
     let binary_code = rspace::asm::parse_asm(test_asm);
