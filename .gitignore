@@ -1,5 +1,2 @@
 target
 Cargo.lock
-src/parse.rs
-src/asm/parse.rs
-codegen/

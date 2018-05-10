@@ -5,14 +5,19 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use std::env;
 
 fn main() {
     // lalrpop processing
-    // TODO: move output to codegen dir
-    lalrpop::process_root().unwrap();
+    lalrpop::Configuration::new()
+        .use_cargo_dir_conventions()
+        .process_file("src/asm/parse.lalrpop")
+        .unwrap();
+
+	println!("cargo:rerun-if-changed=src/asm/parse.lalrpop");
 
     // phf_codegen for opcodes
-    let path = Path::new("codegen/opcode.rs");
+	let path = Path::new(&env::var("OUT_DIR").unwrap()).join("opcode.rs");
     fs::create_dir("codegen").unwrap_or_else(|why| {
         println!("! {:?}", why.kind());
     });
