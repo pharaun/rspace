@@ -17,6 +17,7 @@ lb:     addi x0 x0 2
         beq x0 x0 1b
         jal x0 lb
     "#;
+
     rspace::asm::parse_asm(test_asm);
 
     //parser_test();

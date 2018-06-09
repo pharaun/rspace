@@ -1,10 +1,10 @@
 use std::str::FromStr;
+use asm::parse;
 use asm::ast;
 
 grammar;
 
 match {
-//    r"x[0-9]+"                          => REG,
     r"(zero|ra|[sgtf]p|[tsax][0-9]+)"   => REG,
 } else {
     r"-?[0-9]+"                         => NUM,
@@ -22,9 +22,8 @@ Dec: u32 = <s:NUM> => u32::from_str(s).unwrap();
 Hex: u32 = <s:HEX> => u32::from_str_radix(&s[2..], 16).unwrap();
 
 // Register == letter + digits
-// For now only support x{0-31} styled registers
 pub Register: &'input str = {
-    <n:Reg> => ast::map_reg(n),
+    <n:Reg> => parse::map_reg(n),
 };
 
 Reg: &'input str = <s:REG> => s;
@@ -37,7 +36,7 @@ pub Arguments: ast::Args <'input> = {
     <n:LLabel>   => ast::Args::Lab(ast::Labels::NLabel(n)),
     <n:Str>      => {
         // Parse CSR else panic
-        if ast::is_csr(n) {
+        if parse::is_csr(n) {
             ast::Args::Csr(n)
         } else {
             ast::Args::Lab(ast::Labels::WLabel(n))
@@ -57,6 +56,12 @@ pub VecArgs: Vec<ast::Args <'input>> = {
 // Instruction == letter + .
 Instruction: &'input str = <s:STR> => s;
 
+// Non Instruction Labels
+pub Label: ast::Labels <'input> = {
+    <l:NUM> ":"     => ast::Labels::NLabel(l),
+    <l:WLabel> ":"  => ast::Labels::WLabel(l),
+};
+
 // Asm Line = Instruction [0-4] args
 // TODO:
 //  gcc as assemblier uses a slightly different syntax:
@@ -66,9 +71,7 @@ Instruction: &'input str = <s:STR> => s;
 //      - csr{rw, rs, rc} a0, cycle, x0
 //      - csr{rw, rs, rc}i a1, sscratch, 1
 pub AsmLine: ast::AsmLine <'input> = {
-    <l:NUM> ":" <i:Instruction> <v:VecArgs>    => ast::AsmLine::Lns(ast::Labels::NLabel(l), i, v),
-    <l:WLabel> ":" <i:Instruction> <v:VecArgs> => ast::AsmLine::Lns(ast::Labels::WLabel(l), i, v),
-    <i:Instruction> <v:VecArgs>                => ast::AsmLine::Ins(i, v),
-    <l:NUM> ":"                                => ast::AsmLine::Lab(ast::Labels::NLabel(l)),
-    <l:WLabel> ":"                             => ast::AsmLine::Lab(ast::Labels::WLabel(l)),
+    <l:Label> <i:Instruction> <v:VecArgs>  => ast::AsmLine::Lns(l, i, v),
+    <i:Instruction> <v:VecArgs>            => ast::AsmLine::Ins(i, v),
+    <l:Label>                              => ast::AsmLine::Lab(l),
 };
