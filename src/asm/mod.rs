@@ -202,7 +202,7 @@ fn lut_to_binary(inst: &str, args: Vec<ast::Args>, inst_encode: opcode::InstEnc,
                         "JALR" => {
                             if is_label(&args[2]) {
                                 // TODO: deal with labels
-                                let lab = extract_label(args[2].clone());
+                                let lab = extract_label(&args[2]);
                                 let lpos = find_label_position(lab, symbol, inst_pos);
                                 let imm = encode_relative_offset(inst_pos, lpos);
                             } else {
@@ -255,7 +255,7 @@ fn lut_to_binary(inst: &str, args: Vec<ast::Args>, inst_encode: opcode::InstEnc,
                     // encoding these quite right, but with the re-arranged
                     // order it seems to work.... ?
                     if is_label(&args[2]) {
-                        let lab = extract_label(args[2].clone());
+                        let lab = extract_label(&args[2]);
                         let lpos = find_label_position(lab, symbol, inst_pos);
                         let imm = encode_relative_offset(inst_pos, lpos);
 
@@ -314,7 +314,7 @@ fn lut_to_binary(inst: &str, args: Vec<ast::Args>, inst_encode: opcode::InstEnc,
                     //let imm = extract_imm(&args[1]);
                     //ret |= select_and_shift(imm, 19, 0, 12);
                     if is_label(&args[1]) {
-                        let lab = extract_label(args[1].clone());
+                        let lab = extract_label(&args[1]);
                         let lpos = find_label_position(lab, symbol, inst_pos);
                         let imm = encode_relative_offset(inst_pos, lpos);
 
@@ -329,7 +329,7 @@ fn lut_to_binary(inst: &str, args: Vec<ast::Args>, inst_encode: opcode::InstEnc,
                 },
                 opcode::InstType::UJ => {
                     if is_label(&args[1]) {
-                        let lab = extract_label(args[1].clone());
+                        let lab = extract_label(&args[1]);
                         let lpos = find_label_position(lab, symbol, inst_pos);
                         let imm = encode_relative_offset(inst_pos, lpos);
 
@@ -417,10 +417,10 @@ fn extract_and_shift_register(arg: &ast::Args, shift: u32) -> u32 {
 }
 
 // TODO: should be able to use this without a clone
-fn extract_label<'input>(arg: ast::Args<'input>) -> ast::Labels<'input> {
-    match arg {
-        ast::Args::Lab(l) => {
-            l
+fn extract_label<'input>(arg: &ast::Args<'input>) -> ast::Labels<'input> {
+    match *arg {
+        ast::Args::Lab(ref l) => {
+            l.clone()
         },
         _ => panic!("Was a register or csr or num, expected Label"),
     }
