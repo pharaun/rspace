@@ -22,8 +22,8 @@ Dec: u32 = <s:NUM> => u32::from_str(s).unwrap();
 Hex: u32 = <s:HEX> => u32::from_str_radix(&s[2..], 16).unwrap();
 
 // Register == letter + digits
-pub Register: &'input str = {
-    <n:Reg> => parse::map_reg(n),
+pub Register: ast::Reg = {
+    <n:Reg> => ast::Reg::from_str(n).unwrap(),
 };
 
 Reg: &'input str = <s:REG> => s;

@@ -1,5 +1,9 @@
 #[cfg(test)]
 mod op_tests {
+    // These allows since the tests are from 3rd party
+    #![allow(non_snake_case)]
+    #![allow(overflowing_literals)]
+
     use asm;
     use super::*;
     use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};

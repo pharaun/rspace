@@ -404,12 +404,13 @@ fn extract_imm(arg: &ast::Args) -> u32 {
     }
 }
 
+// TODO: should be able to do without a clone?
 fn extract_and_shift_register(arg: &ast::Args, shift: u32) -> u32 {
     match *arg {
-        ast::Args::Reg(r) => {
-            // Map x0..x31 -> 0..31
-            // TODO: for now just drop the x from the registers
-            r[1..].parse::<u32>().unwrap() << shift
+        ast::Args::Reg(ref r) => {
+            // Map the asm::ast::Reg to 0..31 and shift
+            let val: u32 = r.clone().into();
+            val << shift
         },
         _ => panic!("Was a num or csr or label, expected register"),
     }
