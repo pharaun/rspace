@@ -4,6 +4,7 @@ use twiddle::Twiddle;
 
 pub mod parse;
 pub mod ast;
+pub mod lexer;
 
 
 // TODO: Code quality improvement
