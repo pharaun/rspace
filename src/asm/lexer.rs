@@ -1,3 +1,7 @@
+use std::str::Chars;
+use std::iter::Peekable;
+
+
 #[derive(Debug, PartialEq)]
 enum Token <'input> {
     Str(&'input str),
@@ -23,14 +27,62 @@ enum Ast <'input> {
 }
 
 
-
-fn str_lex(input: &str) -> Vec<Token> {
-    let mut ret: Vec<Token> = Vec::new();
-
-
-    ret
+// Lexer
+struct Lexer<'a> {
+    input_iter: Peekable<Chars<'a>>,
 }
 
+impl<'a> Lexer<'a> {
+    pub fn new(input: &'a str) -> Lexer<'a> {
+        Lexer { input_iter: input.chars().peekable() }
+    }
+
+    fn read_char(&mut self) -> Option<char> {
+        self.input_iter.next()
+    }
+
+    fn peek_char(&mut self) -> Option<&char> {
+        self.input_iter.peek()
+    }
+
+    fn skip_whitespace(&mut self) {
+        while let Some(&c) = self.peek_char() {
+            if c.is_whitespace() {
+                let _ = self.read_char();
+            } else {
+                break;
+            }
+        }
+    }
+
+    pub fn next_token(&mut self) -> Option<Token> {
+        self.skip_whitespace();
+        if let Some(c) = self.read_char() {
+            match c {
+                '/' => {
+                    if let Some(&'/') = self.peek_char() {
+                        let _ = self.read_char();
+                        // Comment, eat it
+                        None
+                    } else {
+                        self.next_token()
+                    }
+                },
+                ':' => Some(Token::Colon),
+                _ => None,
+//                    if Self::is_letter(c) {
+//                        Some(Self::lookup_keyword(self.read_identifier(c)))
+//                    } else if c.is_digit(10) {
+//                        Some(Token::Int(self.read_number(c)))
+//                    } else {
+//                        Some(Token::Illegal(c))
+//                    }
+            }
+        } else {
+            None
+        }
+    }
+}
 
 
 //pub fn parse_asm(input: &str) -> Vec<u32> {
@@ -70,22 +122,30 @@ pub mod lexer_token {
 
     #[test]
     fn test_line() {
-        let test = "la: addi x0 fp 1 -1 0xAF 2f asdf";
+        let input = "la: addi x0 fp 1 -1 0xAF 2f asdf // asdf";
+        let mut lexer = Lexer::new(input);
+
         let neg: i32 = -1;
-        let res = vec![
-            Token::Str("la"),
-            Token::Colon,
-            Token::Str("addi"),
-            Token::Str("x0"),
-            Token::Str("fp"),
-            Token::Num(1),
-            Token::Num(neg as u32),
-            Token::Num(0xAF),
-            Token::Str("2f"),
-            Token::Str("asdf"),
+        let expected = vec![
+            Some(Token::Str("la")),
+            Some(Token::Colon),
+            Some(Token::Str("addi")),
+            Some(Token::Str("x0")),
+            Some(Token::Str("fp")),
+            Some(Token::Num(1)),
+            Some(Token::Num(neg as u32)),
+            Some(Token::Num(0xAF)),
+            Some(Token::Str("2f")),
+            Some(Token::Str("asdf")),
+            None,
         ];
 
-        assert_eq!(res, str_lex(test));
+        // Assert
+        for e in expected.iter() {
+            let t = &lexer.next_token();
+            println!("expected {:?}, lexed {:?} ", e, t);
+            assert_eq!(e, t);
+        }
     }
 
     fn test_multiline() {
