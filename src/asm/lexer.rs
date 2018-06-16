@@ -3,27 +3,10 @@ use std::iter::Peekable;
 
 
 #[derive(Debug, PartialEq)]
-enum Token <'input> {
-    Str(&'input str),
+enum Token {
+    Str(String),
     Num(u32), // Only decimals or hex
     Colon,
-}
-
-// TODO: add data/memory labels
-#[derive(Debug, PartialEq)]
-enum LabelType { Global, Local }
-
-#[derive(Debug, PartialEq)]
-enum Arg <'input> {
-    Num(u32),
-    Label(&'input str, LabelType),
-    Str(&'input str), // For now - Reg or CSR
-}
-
-#[derive(Debug, PartialEq)]
-enum Ast <'input> {
-    Label(&'input str, LabelType),
-    Inst(&'input str, Vec<Arg <'input>>),
 }
 
 
@@ -37,6 +20,10 @@ impl<'a> Lexer<'a> {
         Lexer { input_iter: input.chars().peekable() }
     }
 
+    fn discard_char(&mut self) {
+        let _ = self.input_iter.next();
+    }
+
     fn read_char(&mut self) -> Option<char> {
         self.input_iter.next()
     }
@@ -48,11 +35,48 @@ impl<'a> Lexer<'a> {
     fn skip_whitespace(&mut self) {
         while let Some(&c) = self.peek_char() {
             if c.is_whitespace() {
-                let _ = self.read_char();
+                self.discard_char();
             } else {
                 break;
             }
         }
+    }
+
+    fn skip_till_eol(&mut self) {
+        while let Some(&c) = self.peek_char() {
+            match c {
+                '\n' => break,
+                _ => self.discard_char(),
+            }
+        }
+    }
+
+    fn read_ident(&mut self, c: char) -> String {
+        let mut ident = String::new();
+        ident.push(c);
+
+        while let Some(&c) = self.peek_char() {
+            if c.is_alphanumeric() {
+                ident.push(self.read_char().unwrap());
+            } else {
+                break;
+            }
+        }
+        ident
+    }
+
+    fn read_digits(&mut self, c: char, radix: u32) -> u32 {
+        let mut digits = String::new();
+        digits.push(c);
+
+        while let Some(&c) = self.peek_char() {
+            if c.is_digit(radix) {
+                digits.push(self.read_char().unwrap());
+            } else {
+                break;
+            }
+        }
+        u32::from_str_radix(&digits, radix).unwrap()
     }
 
     pub fn next_token(&mut self) -> Option<Token> {
@@ -61,22 +85,32 @@ impl<'a> Lexer<'a> {
             match c {
                 '/' => {
                     if let Some(&'/') = self.peek_char() {
-                        let _ = self.read_char();
                         // Comment, eat it
-                        None
-                    } else {
+                        self.skip_till_eol();
                         self.next_token()
+                    } else {
+                        panic!("Comment - Illegal");
                     }
                 },
                 ':' => Some(Token::Colon),
-                _ => None,
-//                    if Self::is_letter(c) {
-//                        Some(Self::lookup_keyword(self.read_identifier(c)))
-//                    } else if c.is_digit(10) {
-//                        Some(Token::Int(self.read_number(c)))
-//                    } else {
-//                        Some(Token::Illegal(c))
-//                    }
+                '-' => Some(Token::Num((self.read_digits('0', 10) as i32 * -1) as u32)),
+
+                // Possibly Hex
+                '0' => if let Some(&'x') = self.peek_char() {
+                    self.discard_char();
+                    Some(Token::Num(self.read_digits('0', 16)))
+                } else {
+                    Some(Token::Num(self.read_digits('0', 10)))
+                },
+                _ => {
+                    if c.is_alphabetic() {
+                        Some(Token::Str(self.read_ident(c)))
+                    } else if c.is_digit(10) {
+                        Some(Token::Num(self.read_digits(c, 10)))
+                    } else {
+                        None
+                    }
+                }
             }
         } else {
             None
@@ -84,38 +118,14 @@ impl<'a> Lexer<'a> {
     }
 }
 
+impl<'a> Iterator for Lexer<'a> {
+    type Item = Token;
+    fn next(&mut self) -> Option<Token> {
+        self.next_token()
+    }
+}
 
-//pub fn parse_asm(input: &str) -> Vec<u32> {
-//    // First pass -> Vec<(u32, or entry to retrify on 2nd pass (for labels))>
-//    let mut first_pass: Vec<ast::AsmLine> = Vec::new();
-//
-//    // This symbol table will be a list of (label, location)
-//    // Will handle duplicate entries by just listing it
-//    let mut position: usize = 0; // Per u32 word
-//    let mut label_acc: Vec<ast::Labels> = Vec::new();
-//    let mut symbol_table: Vec<(ast::Labels, usize)> = Vec::new();
-//
-//    // Assembly output
-//    // Second pass -> Vec<u32>
-//    let mut second_pass: Vec<u32> = Vec::new();
-//
-//    for line in input.lines() {
-//        let line = line.trim();
-//        let line = match line.find(r#"//"#) {
-//            Some(x) => &line[..x],
-//            None => line,
-//        };
-//
-//        if !line.is_empty() {
-//            // 2. parse it via lalrpop (parse_AsmLine)
-//            let parse = parse::parse_AsmLine(line);
-//
-//            }
-//        }
-//    }
-//}
-
-
+// TODO: add tests to handle parse fail for hex+numbers and have it fall back to str (to handle the 2f case possibly)
 #[cfg(test)]
 pub mod lexer_token {
     use super::*;
@@ -127,16 +137,19 @@ pub mod lexer_token {
 
         let neg: i32 = -1;
         let expected = vec![
-            Some(Token::Str("la")),
+            Some(Token::Str("la".to_string())),
             Some(Token::Colon),
-            Some(Token::Str("addi")),
-            Some(Token::Str("x0")),
-            Some(Token::Str("fp")),
+            Some(Token::Str("addi".to_string())),
+            Some(Token::Str("x0".to_string())),
+            Some(Token::Str("fp".to_string())),
             Some(Token::Num(1)),
             Some(Token::Num(neg as u32)),
             Some(Token::Num(0xAF)),
-            Some(Token::Str("2f")),
-            Some(Token::Str("asdf")),
+            // TODO: Do we want this block to specifically be a string?
+            Some(Token::Num(2)),
+            Some(Token::Str("f".to_string())),
+            // End
+            Some(Token::Str("asdf".to_string())),
             None,
         ];
 
@@ -148,17 +161,58 @@ pub mod lexer_token {
         }
     }
 
+    #[test]
     fn test_multiline() {
-        let test = r#"
-la:
-    addi x1 x1 1
-lb: addi x2 x2 2
-    addi x3 x3 3
-        "#;
+        let input = "addi x0\naddi x1\n";
+        let mut lexer = Lexer::new(input);
 
+        let expected = vec![
+            Some(Token::Str("addi".to_string())),
+            Some(Token::Str("x0".to_string())),
+            Some(Token::Str("addi".to_string())),
+            Some(Token::Str("x1".to_string())),
+            None,
+        ];
+
+        // Assert
+        for e in expected.iter() {
+            let t = &lexer.next_token();
+            println!("expected {:?}, lexed {:?} ", e, t);
+            assert_eq!(e, t);
+        }
     }
-
 }
+
+
+
+// TODO: add data/memory labels
+#[derive(Debug, PartialEq)]
+enum LabelType { Global, Local }
+
+#[derive(Debug, PartialEq)]
+enum Arg {
+    Num(u32),
+    Label(String, LabelType),
+    Str(String), // For now - Reg or CSR
+}
+
+#[derive(Debug, PartialEq)]
+enum Ast {
+    Label(String, LabelType),
+    Inst(String, Vec<Arg>),
+}
+
+
+#[cfg(test)]
+pub mod parser_ast {
+    use super::*;
+
+    #[test]
+    fn test_line() {
+        let input = "la: addi x0 fp 1 -1 0xAF 2f asdf // asdf";
+    }
+}
+
 
 //use std::str::FromStr;
 //use asm::parse;
