@@ -132,12 +132,14 @@ pub mod lexer_token {
 
     #[test]
     fn test_line() {
-        let input = "la: addi x0 fp 1 -1 0xAF 2f asdf // asdf";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf // asdf";
         let mut lexer = Lexer::new(input);
 
         let neg: i32 = -1;
         let expected = vec![
             Some(Token::Str("la".to_string())),
+            Some(Token::Colon),
+            Some(Token::Num(2)),
             Some(Token::Colon),
             Some(Token::Str("addi".to_string())),
             Some(Token::Str("x0".to_string())),
@@ -197,10 +199,64 @@ enum Arg {
 }
 
 #[derive(Debug, PartialEq)]
-enum Ast {
+enum PToken {
     Label(String, LabelType),
     Inst(String, Vec<Arg>),
 }
+
+
+// Parser
+struct Parser<'a> {
+    input_iter: Peekable<Lexer<'a>>,
+}
+
+
+impl<'a> Parser<'a> {
+    pub fn new(input: Lexer<'a>) -> Parser<'a> {
+        Parser { input_iter: input.peekable() }
+    }
+
+    fn discard_token(&mut self) {
+        let _ = self.input_iter.next();
+    }
+
+    fn read_token(&mut self) -> Option<Token> {
+        self.input_iter.next()
+    }
+
+    fn peek_token(&mut self) -> Option<&Token> {
+        self.input_iter.peek()
+    }
+
+    pub fn next_token(&mut self) -> Option<PToken> {
+        if let Some(t) = self.read_token() {
+            match t {
+                Token::Str(s) => {
+                    if let Some(&Token::Colon) = self.peek_token() {
+                        // Is a Global Label
+                        self.discard_token();
+                        Some(PToken::Label(s, LabelType::Global))
+                    } else {
+                        None
+                    }
+                },
+                Token::Num(n) => {
+                    if let Some(&Token::Colon) = self.peek_token() {
+                        // Is a Local Label
+                        self.discard_token();
+                        Some(PToken::Label(n.to_string(), LabelType::Local))
+                    } else {
+                        None
+                    }
+                },
+                Token::Colon => panic!("Should not see a colon"),
+            }
+        } else {
+            None
+        }
+    }
+}
+
 
 
 #[cfg(test)]
@@ -209,7 +265,32 @@ pub mod parser_ast {
 
     #[test]
     fn test_line() {
-        let input = "la: addi x0 fp 1 -1 0xAF 2f asdf // asdf";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf // asdf";
+        let mut parser = Parser::new(Lexer::new(input));
+
+        let neg: i32 = -1;
+        let expected = vec![
+            Some(PToken::Label("la".to_string(), LabelType::Global)),
+            Some(PToken::Label("2".to_string(), LabelType::Local)),
+            Some(PToken::Inst("addi".to_string(), vec![
+                Arg::Str("x0".to_string()),
+                Arg::Str("fp".to_string()),
+                Arg::Num(1),
+                Arg::Num(neg as u32),
+                Arg::Num(0xAF),
+                // Should have more data here
+                Arg::Label("2f".to_string(), LabelType::Local),
+                Arg::Str("asdf".to_string()),
+            ])),
+            None,
+        ];
+
+        // Assert
+        for e in expected.iter() {
+            let t = &parser.next_token();
+            println!("expected {:?}, parsed {:?} ", e, t);
+            assert_eq!(e, t);
+        }
     }
 }
 
