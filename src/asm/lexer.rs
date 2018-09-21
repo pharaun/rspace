@@ -7,17 +7,19 @@ enum Token {
     Str(String),
     Num(u32), // Only decimals or hex
     Colon,
+    Newline,
 }
 
 
 // Lexer
 struct Lexer<'a> {
     input_iter: Peekable<Chars<'a>>,
+    eof_newline: bool,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Lexer<'a> {
-        Lexer { input_iter: input.chars().peekable() }
+        Lexer { input_iter: input.chars().peekable(), eof_newline: false}
     }
 
     fn discard_char(&mut self) {
@@ -32,12 +34,22 @@ impl<'a> Lexer<'a> {
         self.input_iter.peek()
     }
 
+    // Dont skip newlines
     fn skip_whitespace(&mut self) {
         while let Some(&c) = self.peek_char() {
-            if c.is_whitespace() {
+            if c.is_whitespace() && c != '\n' {
                 self.discard_char();
             } else {
                 break;
+            }
+        }
+    }
+
+    fn skip_newline(&mut self) {
+        while let Some(&c) = self.peek_char() {
+            match c {
+                '\n' => self.discard_char(),
+                _ => break,
             }
         }
     }
@@ -92,6 +104,16 @@ impl<'a> Lexer<'a> {
                         panic!("Comment - Illegal");
                     }
                 },
+                '\n' => {
+                    // Ingest multiple newlines
+                    self.skip_newline();
+
+                    if let None = self.peek_char() {
+                        // Will EOF, set eof_newline to true so we don't duplicate newline
+                        self.eof_newline = true;
+                    }
+                    Some(Token::Newline)
+                },
                 ':' => Some(Token::Colon),
                 '-' => Some(Token::Num((self.read_digits('0', 10) as i32 * -1) as u32)),
 
@@ -108,12 +130,18 @@ impl<'a> Lexer<'a> {
                     } else if c.is_digit(10) {
                         Some(Token::Num(self.read_digits(c, 10)))
                     } else {
-                        None
+                        panic!("Isn't an alphabetic or digits")
                     }
                 }
             }
         } else {
-            None
+            // Always emit a newline before the eof (unless one was already emitted)
+            if !self.eof_newline {
+                self.eof_newline = true;
+                Some(Token::Newline)
+            } else {
+                None
+            }
         }
     }
 }
@@ -132,7 +160,7 @@ pub mod lexer_token {
 
     #[test]
     fn test_line() {
-        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf // asdf";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf // Comments";
         let mut lexer = Lexer::new(input);
 
         let neg: i32 = -1;
@@ -147,11 +175,13 @@ pub mod lexer_token {
             Some(Token::Num(1)),
             Some(Token::Num(neg as u32)),
             Some(Token::Num(0xAF)),
-            // TODO: Do we want this block to specifically be a string?
+            // TODO: Do we want this block to specifically be a string? (i think we do since no
+            // whitespace info in parser)
             Some(Token::Num(2)),
             Some(Token::Str("f".to_string())),
-            // End
             Some(Token::Str("asdf".to_string())),
+            // Comments are discarded
+            Some(Token::Newline),
             None,
         ];
 
@@ -165,14 +195,41 @@ pub mod lexer_token {
 
     #[test]
     fn test_multiline() {
-        let input = "addi x0\naddi x1\n";
+        let input = "addi x0\nla:\n\naddi x1";
         let mut lexer = Lexer::new(input);
 
         let expected = vec![
             Some(Token::Str("addi".to_string())),
             Some(Token::Str("x0".to_string())),
+            Some(Token::Newline),
+            Some(Token::Str("la".to_string())),
+            Some(Token::Colon),
+            Some(Token::Newline),
             Some(Token::Str("addi".to_string())),
             Some(Token::Str("x1".to_string())),
+            // Always have a newline before EOF
+            Some(Token::Newline),
+            None,
+        ];
+
+        // Assert
+        for e in expected.iter() {
+            let t = &lexer.next_token();
+            println!("expected {:?}, lexed {:?} ", e, t);
+            assert_eq!(e, t);
+        }
+    }
+
+    #[test]
+    fn test_eof_newline() {
+        let input = "addi x1\n";
+        let mut lexer = Lexer::new(input);
+
+        let expected = vec![
+            Some(Token::Str("addi".to_string())),
+            Some(Token::Str("x1".to_string())),
+            // Always have exactly one newline before EOF
+            Some(Token::Newline),
             None,
         ];
 
@@ -230,26 +287,36 @@ impl<'a> Parser<'a> {
 
     pub fn next_token(&mut self) -> Option<PToken> {
         if let Some(t) = self.read_token() {
-            match t {
-                Token::Str(s) => {
-                    if let Some(&Token::Colon) = self.peek_token() {
+            // Check if its a label
+            if let Some(&Token::Colon) = self.peek_token() {
+                match t {
+                    Token::Str(s) => {
                         // Is a Global Label
                         self.discard_token();
                         Some(PToken::Label(s, LabelType::Global))
-                    } else {
-                        None
-                    }
-                },
-                Token::Num(n) => {
-                    if let Some(&Token::Colon) = self.peek_token() {
+                    },
+                    Token::Num(n) => {
                         // Is a Local Label
                         self.discard_token();
                         Some(PToken::Label(n.to_string(), LabelType::Local))
-                    } else {
-                        None
-                    }
-                },
-                Token::Colon => panic!("Should not see a colon"),
+                    },
+                    Token::Colon => panic!("Should not see a colon"),
+                    Token::Newline => panic!("Should not see a newline"),
+                }
+            } else {
+                match t {
+                    Token::Str(s) => {
+                        // Instruction
+
+                        // Should be reading tokens .... till some limit (new line, or eof?)
+
+                        Some(PToken::Inst(s, Vec::new()))
+                    },
+                    // We skip newline here its only required when handling PToken::Inst
+                    Token::Newline => self.next_token(),
+                    Token::Num(_) => panic!("Should not see a number outside of a instruction"),
+                    Token::Colon => panic!("Should not see a colon outside of a label"),
+                }
             }
         } else {
             None
@@ -265,7 +332,7 @@ pub mod parser_ast {
 
     #[test]
     fn test_line() {
-        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf // asdf";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf // Comments";
         let mut parser = Parser::new(Lexer::new(input));
 
         let neg: i32 = -1;
