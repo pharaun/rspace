@@ -309,6 +309,11 @@ impl<'a> Parser<'a> {
                         // Instruction
 
                         // Should be reading tokens .... till some limit (new line, or eof?)
+                        // Should ? do some sort of basic instruction validation here possibly (ie
+                        // args count)
+                        // Later on would need (ie in the assemblier stage) code to handle labels
+                        // vs numbers/etc when one or the other is expected (particularly for
+                        // addresses/variables)
 
                         Some(PToken::Inst(s, Vec::new()))
                     },
