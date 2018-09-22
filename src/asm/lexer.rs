@@ -1,10 +1,15 @@
 use std::str::Chars;
 use std::iter::Peekable;
 
+// Use the reg and csr func here for now
+use asm::ast;
+use std::str::FromStr;
+
 
 #[derive(Debug, PartialEq)]
 enum Token {
     Str(String),
+    Label(String), // Only support local labels for now
     Num(u32), // Only decimals or hex
     Colon,
     Newline,
@@ -91,6 +96,30 @@ impl<'a> Lexer<'a> {
         u32::from_str_radix(&digits, radix).unwrap()
     }
 
+    fn read_digits_or_label(&mut self, c: char) -> Token {
+        let mut label = false;
+        let mut maybe_digits = String::new();
+        maybe_digits.push(c);
+
+        while let Some(&c) = self.peek_char() {
+            if c.is_digit(10) {
+                maybe_digits.push(self.read_char().unwrap());
+            } else if (c == 'f') || (c == 'b') {
+                maybe_digits.push(self.read_char().unwrap());
+                label = true;
+                break;
+            } else {
+                break;
+            }
+        }
+
+        if label {
+            Token::Label(maybe_digits)
+        } else {
+            Token::Num(u32::from_str_radix(&maybe_digits, 10).unwrap())
+        }
+    }
+
     pub fn next_token(&mut self) -> Option<Token> {
         self.skip_whitespace();
         if let Some(c) = self.read_char() {
@@ -122,13 +151,13 @@ impl<'a> Lexer<'a> {
                     self.discard_char();
                     Some(Token::Num(self.read_digits('0', 16)))
                 } else {
-                    Some(Token::Num(self.read_digits('0', 10)))
+                    Some(self.read_digits_or_label('0'))
                 },
                 _ => {
                     if c.is_alphabetic() {
                         Some(Token::Str(self.read_ident(c)))
                     } else if c.is_digit(10) {
-                        Some(Token::Num(self.read_digits(c, 10)))
+                        Some(self.read_digits_or_label(c))
                     } else {
                         panic!("Isn't an alphabetic or digits")
                     }
@@ -153,7 +182,6 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
-// TODO: add tests to handle parse fail for hex+numbers and have it fall back to str (to handle the 2f case possibly)
 #[cfg(test)]
 pub mod lexer_token {
     use super::*;
@@ -175,10 +203,7 @@ pub mod lexer_token {
             Some(Token::Num(1)),
             Some(Token::Num(neg as u32)),
             Some(Token::Num(0xAF)),
-            // TODO: Do we want this block to specifically be a string? (i think we do since no
-            // whitespace info in parser)
-            Some(Token::Num(2)),
-            Some(Token::Str("f".to_string())),
+            Some(Token::Label("2f".to_string())),
             Some(Token::Str("asdf".to_string())),
             // Comments are discarded
             Some(Token::Newline),
@@ -252,7 +277,8 @@ enum LabelType { Global, Local }
 enum Arg {
     Num(u32),
     Label(String, LabelType),
-    Str(String), // For now - Reg or CSR
+    Reg(ast::Reg),
+    Csr(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -285,6 +311,17 @@ impl<'a> Parser<'a> {
         self.input_iter.peek()
     }
 
+    fn collect_till_eol(&mut self) -> Vec<Token> {
+        let mut args = Vec::new();
+        while let Some(t) = self.read_token() {
+            match t {
+                Token::Newline => break,
+                _ => args.push(t),
+            }
+        }
+        args
+    }
+
     pub fn next_token(&mut self) -> Option<PToken> {
         if let Some(t) = self.read_token() {
             // Check if its a label
@@ -302,11 +339,32 @@ impl<'a> Parser<'a> {
                     },
                     Token::Colon => panic!("Should not see a colon"),
                     Token::Newline => panic!("Should not see a newline"),
+                    Token::Label(_) => panic!("Should not see a local label outside of a instruction"),
                 }
             } else {
                 match t {
                     Token::Str(s) => {
                         // Instruction
+                        let mut args = Vec::new();
+
+                        for t in self.collect_till_eol() {
+                            match t {
+                                Token::Str(s) => {
+                                    // Check if CSRR or registers
+                                    if ast::is_csr(&s) {
+                                        args.push(Arg::Csr(s));
+                                    } else if let Result::Ok(r) = ast::Reg::from_str(&s) {
+                                        args.push(Arg::Reg(r));
+                                    } else {
+                                        // Global Label
+                                        args.push(Arg::Label(s, LabelType::Global));
+                                    }
+                                },
+                                Token::Num(i) => args.push(Arg::Num(i)),
+                                Token::Label(s) => args.push(Arg::Label(s, LabelType::Local)),
+                                _ => panic!("Shouldn't see Colon or Newline here"),
+                            }
+                        }
 
                         // Should be reading tokens .... till some limit (new line, or eof?)
                         // Should ? do some sort of basic instruction validation here possibly (ie
@@ -314,13 +372,13 @@ impl<'a> Parser<'a> {
                         // Later on would need (ie in the assemblier stage) code to handle labels
                         // vs numbers/etc when one or the other is expected (particularly for
                         // addresses/variables)
-
-                        Some(PToken::Inst(s, Vec::new()))
+                        Some(PToken::Inst(s, args))
                     },
                     // We skip newline here its only required when handling PToken::Inst
                     Token::Newline => self.next_token(),
                     Token::Num(_) => panic!("Should not see a number outside of a instruction"),
                     Token::Colon => panic!("Should not see a colon outside of a label"),
+                    Token::Label(_) => panic!("Should not see a local label outside of a instruction"),
                 }
             }
         } else {
@@ -337,7 +395,7 @@ pub mod parser_ast {
 
     #[test]
     fn test_line() {
-        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf // Comments";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf CYCLE // Comments";
         let mut parser = Parser::new(Lexer::new(input));
 
         let neg: i32 = -1;
@@ -345,14 +403,15 @@ pub mod parser_ast {
             Some(PToken::Label("la".to_string(), LabelType::Global)),
             Some(PToken::Label("2".to_string(), LabelType::Local)),
             Some(PToken::Inst("addi".to_string(), vec![
-                Arg::Str("x0".to_string()),
-                Arg::Str("fp".to_string()),
+                Arg::Reg(ast::Reg::X0),
+                Arg::Reg(ast::Reg::X8),
                 Arg::Num(1),
                 Arg::Num(neg as u32),
                 Arg::Num(0xAF),
                 // Should have more data here
                 Arg::Label("2f".to_string(), LabelType::Local),
-                Arg::Str("asdf".to_string()),
+                Arg::Label("asdf".to_string(), LabelType::Global),
+                Arg::Csr("CYCLE".to_string()),
             ])),
             None,
         ];
@@ -365,82 +424,3 @@ pub mod parser_ast {
         }
     }
 }
-
-
-//use std::str::FromStr;
-//use asm::parse;
-//use asm::ast;
-//
-//grammar;
-//
-//match {
-//    r"(zero|ra|[sgtf]p|[tsax][0-9]+)"   => REG,
-//} else {
-//    r"-?[0-9]+"                         => NUM,
-//    r"0x[0-9A-F-a-f]+"                  => HEX,
-//    r"[0-9]+[BFbf]"                     => NUMLAB,
-//    r"[A-Za-z.]+"                       => STR,
-//    _
-//}
-//
-//// number == digits + Ox{digits} (does not handle negative number) unsigned int32/64) (later can
-////                              handle negative by converting it to 2's compat and  storing it as unsigned)
-//pub Number = { Dec, Hex };
-//
-//Dec: u32 = <s:NUM> => u32::from_str(s).unwrap();
-//Hex: u32 = <s:HEX> => u32::from_str_radix(&s[2..], 16).unwrap();
-//
-//// Register == letter + digits
-//pub Register: ast::Reg = {
-//    <n:Reg> => ast::Reg::from_str(n).unwrap(),
-//};
-//
-//Reg: &'input str = <s:REG> => s;
-//
-//
-//// args = register | number | csr | label
-//pub Arguments: ast::Args <'input> = {
-//    <n:Register> => ast::Args::Reg(n),
-//    <n:Number>   => ast::Args::Num(n),
-//    <n:LLabel>   => ast::Args::Lab(ast::Labels::NLabel(n)),
-//    <n:Str>      => {
-//        // Parse CSR else panic
-//        if parse::is_csr(n) {
-//            ast::Args::Csr(n)
-//        } else {
-//            ast::Args::Lab(ast::Labels::WLabel(n))
-//        }
-//    },
-//};
-//
-//Str: &'input str = <s:STR> => s;
-//LLabel: &'input str = <s:NUMLAB> => s;
-//WLabel: &'input str = <s:STR> => s;
-//
-//// [0-4] args
-//pub VecArgs: Vec<ast::Args <'input>> = {
-//    <Arguments*>
-//};
-//
-//// Instruction == letter + .
-//Instruction: &'input str = <s:STR> => s;
-//
-//// Non Instruction Labels
-//pub Label: ast::Labels <'input> = {
-//    <l:NUM> ":"     => ast::Labels::NLabel(l),
-//    <l:WLabel> ":"  => ast::Labels::WLabel(l),
-//};
-//
-//// Asm Line = Instruction [0-4] args
-//// TODO:
-////  gcc as assemblier uses a slightly different syntax:
-////      - add x0, x1, x3
-////      - lw x0, 0x0(x3)
-////      - sw x0, 0x0(x3)
-////      - csr{rw, rs, rc} a0, cycle, x0
-////      - csr{rw, rs, rc}i a1, sscratch, 1
-//pub AsmLine: ast::AsmLine <'input> = {
-//    <l:Label> <i:Instruction> <v:VecArgs>  => ast::AsmLine::Lns(l, i, v),
-//    <i:Instruction> <v:VecArgs>            => ast::AsmLine::Ins(i, v),
-//    <l:Label>                              => ast::AsmLine::Lab(l),
-//};
