@@ -2,9 +2,9 @@ use vm::opcode;
 
 use twiddle::Twiddle;
 
-pub mod parse;
 pub mod ast;
 pub mod lexer;
+pub mod parser;
 
 
 // TODO: Code quality improvement
@@ -15,6 +15,8 @@ pub mod lexer;
 // 4. Fourth pass: rectify the inst into u32 + attribute memory location for labels
 // 5. Fifth pass: Find where to put data, and then rectify reference to data/memory locations.
 pub fn parse_asm(input: &str) -> Vec<u32> {
+    let mut parser = parser::Parser::new(lexer::Lexer::new(input));
+
     // First pass -> Vec<(u32, or entry to retrify on 2nd pass (for labels))>
     let mut first_pass: Vec<ast::AsmLine> = Vec::new();
 

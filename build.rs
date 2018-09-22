@@ -1,4 +1,3 @@
-extern crate lalrpop;
 extern crate phf_codegen;
 
 use std::fs;
@@ -8,14 +7,6 @@ use std::path::Path;
 use std::env;
 
 fn main() {
-    // lalrpop processing
-    lalrpop::Configuration::new()
-        .use_cargo_dir_conventions()
-        .process_file("src/asm/parse.lalrpop")
-        .unwrap();
-
-	println!("cargo:rerun-if-changed=src/asm/parse.lalrpop");
-
     // phf_codegen for opcodes
 	let path = Path::new(&env::var("OUT_DIR").unwrap()).join("opcode.rs");
     fs::create_dir("codegen").unwrap_or_else(|why| {
