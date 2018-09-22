@@ -216,7 +216,7 @@ pub mod lexer_token {
 
     #[test]
     fn test_multiline() {
-        let input = "addi x0\nla:\n\naddi x1";
+        let input = "addi x0\n\\ Comments\nla:\n\naddi x1";
         let mut lexer = Lexer::new(input);
 
         let expected = vec![
