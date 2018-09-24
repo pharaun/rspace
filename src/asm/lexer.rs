@@ -155,6 +155,7 @@ impl<'a> Lexer<'a> {
                     } else if c.is_digit(10) {
                         Some(self.read_digits_or_label(c))
                     } else {
+                        // Would break if '2f'
                         panic!("Isn't an alphabetic or digits")
                     }
                 }
@@ -184,7 +185,7 @@ pub mod lexer_token {
 
     #[test]
     fn test_line() {
-        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf // Comments";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b asdf // Comments";
         let mut lexer = Lexer::new(input);
 
         let neg: i32 = -1;
@@ -200,6 +201,7 @@ pub mod lexer_token {
             Some(Token::Num(neg as u32)),
             Some(Token::Num(0xAF)),
             Some(Token::Label("2f".to_string())),
+            Some(Token::Label("2b".to_string())),
             Some(Token::Str("asdf".to_string())),
             // Comments are discarded
             Some(Token::Newline),
@@ -216,7 +218,8 @@ pub mod lexer_token {
 
     #[test]
     fn test_multiline() {
-        let input = "addi x0\n\\ Comments\nla:\n\naddi x1";
+        //let input = "addi x0\n\\ Comments\nla:\n\naddi x1";
+        let input = "addi x0\nla:\n\naddi x1";
         let mut lexer = Lexer::new(input);
 
         let expected = vec![
