@@ -8,6 +8,10 @@ use vm::opcode;
 use asm::ast;
 use std::str::FromStr;
 
+// TODO:
+// 1. newtype imm
+// 2. combo imm/label (common case)
+// 3. Clean up VToken ie do RegRegReg for RInst, RegImmCsr for IInst for eg
 
 //#[derive(Debug, PartialEq)]
 //pub enum Arg {
