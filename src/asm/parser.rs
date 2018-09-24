@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 
 // TODO: add data/memory labels
+// TODO: better way to do labels? (def duplicated)
 #[derive(Debug, PartialEq, Clone)]
 pub enum LabelType { Global, Local }
 
@@ -21,6 +22,7 @@ pub enum Arg {
 #[derive(Debug, PartialEq)]
 pub enum PToken {
     Label(String, LabelType),
+    // TODO:: upper case the instructions
     Inst(String, Vec<Arg>),
 }
 
