@@ -18,70 +18,28 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
     let mut parser = parser::Parser::new(lexer::Lexer::new(input));
 
     // First pass -> Vec<(u32, or entry to retrify on 2nd pass (for labels))>
-    let mut first_pass: Vec<ast::AsmLine> = Vec::new();
+    let mut first_pass: Vec<parser::PToken> = Vec::new();
 
     // This symbol table will be a list of (label, location)
-    // Will handle duplicate entries by just listing it
     let mut position: usize = 0; // Per u32 word
-    let mut label_acc: Vec<ast::Labels> = Vec::new();
-    let mut symbol_table: Vec<(ast::Labels, usize)> = Vec::new();
+    let mut symbol_table: Vec<(parser::PToken, usize)> = Vec::new();
 
     // Assembly output
     // Second pass -> Vec<u32>
     let mut second_pass: Vec<u32> = Vec::new();
 
-    for line in input.lines() {
-        let line = line.trim();
-        let line = match line.find(r#"//"#) {
-            Some(x) => &line[..x],
-            None => line,
-        };
+    for token in parser {
+        match token {
+            l@parser::PToken::Label(_, _) => {
+                // Put labels onto symbol list
+                symbol_table.push((l, position));
+            },
+            i@parser::PToken::Inst(_, _) => {
+                first_pass.push(i);
 
-        if !line.is_empty() {
-            // 2. parse it via lalrpop (parse_AsmLine)
-            let parse = parse::parse_AsmLine(line);
-
-            match parse {
-                Err(x) => {
-                    println!("{:?}", line);
-                    println!("{:?}", x);
-                },
-                Ok(asmline) => {
-                    match asmline {
-                        ast::AsmLine::Lab(l) => {
-                            // We see a label, accumulate it till we get an asm line to attribute it to
-                            label_acc.push(l);
-                        },
-                        ast::AsmLine::Lns(l, inst, args) => {
-                            // We see a label, accumulate + handle it
-                            label_acc.push(l);
-
-                            // Put labels onto symbol list
-                            while let Some(la) = label_acc.pop() {
-                                symbol_table.push((la, position));
-                            }
-
-                            // Process instruction
-                            first_pass.push(ast::AsmLine::Ins(inst, args));
-
-                            // Inc line pointer
-                            position += 1;
-                        },
-                        ast::AsmLine::Ins(inst, args) => {
-                            // Check if there's any accumulated label, and if so put onto symbol list
-                            while let Some(la) = label_acc.pop() {
-                                symbol_table.push((la, position));
-                            }
-
-                            // Process instruction
-                            first_pass.push(ast::AsmLine::Ins(inst, args));
-
-                            // Inc line pointer
-                            position += 1;
-                        },
-                    }
-                },
-            }
+                // Inc line pointer
+                position += 1;
+            },
         }
     }
 
@@ -92,13 +50,14 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
     // Start second pass
     position = 0; // Per u32 word
     first_pass.reverse(); // Since we pop from end, reverse order
-    while let Some(ast::AsmLine::Ins(inst, args)) = first_pass.pop() {
+    while let Some(parser::PToken::Inst(inst, args)) = first_pass.pop() {
         let upper_inst = &inst.to_uppercase();
 
         // 3. lookup if in the opcode lookup table
         match opcode::lookup(upper_inst) {
             // 4. if not (macro/etc, panic for now)
             None => println!("Skipping for now - {:?}", inst),
+
             // 5. if so proceed below
             Some(x) => {
                 let binary_line = lut_to_binary(upper_inst, args, x, &symbol_table, position);
@@ -125,7 +84,7 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
 // TODO: support labeled memory location, for now only branches + jumps (need more support)
 // Don't know how to figure out if i should generate a relative or an absolute address, branches are always relative to the inst
 // supporting those for now, the jalr/auipc/lui/jal i can't figure out yet
-fn lut_to_binary(inst: &str, args: Vec<ast::Args>, inst_encode: opcode::InstEnc, symbol: &Vec<(ast::Labels, usize)>, inst_pos: usize) -> u32 {
+fn lut_to_binary(inst: &str, args: Vec<parser::Arg>, inst_encode: opcode::InstEnc, symbol: &Vec<(parser::PToken, usize)>, inst_pos: usize) -> u32 {
     let mut ret: u32 = 0x0;
 
     // Opcode
@@ -381,10 +340,11 @@ fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
     ((imm & u32::mask(hi..lo)) >> lo) << shift
 }
 
-fn extract_csr(arg: &ast::Args) -> u32 {
+fn extract_csr(arg: &parser::Arg) -> u32 {
     match *arg {
-        ast::Args::Csr(n) => {
-            match n {
+        parser::Arg::Csr(ref n) => {
+            // TODO: non ideal but we're slicing a String to &'a str
+            match &n[..] {
                 "CYCLE" => 0xC00,
                 "CYCLEH" => 0xC80,
                 "TIME" => 0xC01,
@@ -398,9 +358,9 @@ fn extract_csr(arg: &ast::Args) -> u32 {
     }
 }
 
-fn extract_imm(arg: &ast::Args) -> u32 {
+fn extract_imm(arg: &parser::Arg) -> u32 {
     match *arg {
-        ast::Args::Num(n) => {
+        parser::Arg::Num(n) => {
             n
         },
         _ => panic!("Was a register or csr or label, expected Num"),
@@ -408,9 +368,9 @@ fn extract_imm(arg: &ast::Args) -> u32 {
 }
 
 // TODO: should be able to do without a clone?
-fn extract_and_shift_register(arg: &ast::Args, shift: u32) -> u32 {
+fn extract_and_shift_register(arg: &parser::Arg, shift: u32) -> u32 {
     match *arg {
-        ast::Args::Reg(ref r) => {
+        parser::Arg::Reg(ref r) => {
             // Map the asm::ast::Reg to 0..31 and shift
             let val: u32 = r.clone().into();
             val << shift
@@ -419,25 +379,23 @@ fn extract_and_shift_register(arg: &ast::Args, shift: u32) -> u32 {
     }
 }
 
-// TODO: should be able to use this without a clone
-fn extract_label<'input>(arg: &ast::Args<'input>) -> ast::Labels<'input> {
+fn extract_label(arg: &parser::Arg) -> parser::PToken {
     match *arg {
-        ast::Args::Lab(ref l) => {
-            l.clone()
-        },
-        _ => panic!("Was a register or csr or num, expected Label"),
+        parser::Arg::Label(ref l, ref lt) => parser::PToken::Label(l.clone(), lt.clone()),
+        _ => panic!("Was not a label"),
     }
 }
 
-fn is_label(arg: &ast::Args) -> bool {
+fn is_label(arg: &parser::Arg) -> bool {
     match *arg {
-        ast::Args::Lab(_) => true,
+        parser::Arg::Label(_, _) => true,
         _ => false,
     }
 }
 
 // TODO: this is kinda a poor quality function, need to redo it
-fn find_label_position<'input>(lab: ast::Labels<'input>, symbol: &Vec<(ast::Labels, usize)>, inst_pos: usize) -> usize {
+// TODO: we need to break out the Label out of the PToken to its own type
+fn find_label_position(lab: parser::PToken, symbol: &Vec<(parser::PToken, usize)>, inst_pos: usize) -> usize {
 //    println!("");
 //    println!("Label to look up: {:?}", lab);
 //    println!("Instruction Position: {:?}", inst_pos);
@@ -450,10 +408,11 @@ fn find_label_position<'input>(lab: ast::Labels<'input>, symbol: &Vec<(ast::Labe
     //      Assume no duplicate word label (should not happen, integrity check the symbol table)
     //      linear scan till you find the matching word label
     match lab {
-        ast::Labels::WLabel(l) => {
+        parser::PToken::Label(ref l, parser::LabelType::Global) => {
+            // Global aka word label
             for val in symbol.iter() {
                 match val {
-                    &(ast::Labels::WLabel(sl), spos) => {
+                    &(parser::PToken::Label(ref sl, parser::LabelType::Global), spos) => {
                         if sl == l {
                             //println!("Label Position: {:?}", spos);
                             return spos
@@ -464,8 +423,9 @@ fn find_label_position<'input>(lab: ast::Labels<'input>, symbol: &Vec<(ast::Labe
             }
             panic!("Did not find the label in the symbol table!")
         },
-        ast::Labels::NLabel(l) => {
-            let mut s = String::from(l);
+        parser::PToken::Label(ref l, parser::LabelType::Local) => {
+            // Local, aka numberical
+            let mut s = l.clone();
 
             let dir = s.pop().unwrap();
             let num = &s;
@@ -475,7 +435,7 @@ fn find_label_position<'input>(lab: ast::Labels<'input>, symbol: &Vec<(ast::Labe
                     // Forward
                     for val in symbol.iter() {
                         match val {
-                            &(ast::Labels::NLabel(sl), spos) => {
+                            &(parser::PToken::Label(ref sl, parser::LabelType::Local), spos) => {
                                 if (sl == num) & (spos >= inst_pos) {
                                     //println!("Label Position: {:?}", spos);
                                     return spos
@@ -490,7 +450,7 @@ fn find_label_position<'input>(lab: ast::Labels<'input>, symbol: &Vec<(ast::Labe
                     // Backward
                     for val in symbol.iter().rev() {
                         match val {
-                            &(ast::Labels::NLabel(sl), spos) => {
+                            &(parser::PToken::Label(ref sl, parser::LabelType::Local), spos) => {
                                 if (sl == num) & (spos <= inst_pos) {
                                     //println!("Label Position: {:?}", spos);
                                     return spos
@@ -504,6 +464,7 @@ fn find_label_position<'input>(lab: ast::Labels<'input>, symbol: &Vec<(ast::Labe
                 _ => panic!("Invalid identifer, should be b or f for NLabel"),
             }
         },
+        _ => panic!("Got an PToken::Inst, this is bad"),
     }
 }
 

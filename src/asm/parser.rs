@@ -1,4 +1,3 @@
-use std::str::Chars;
 use std::iter::Peekable;
 use asm::lexer;
 
@@ -8,7 +7,7 @@ use std::str::FromStr;
 
 
 // TODO: add data/memory labels
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LabelType { Global, Local }
 
 #[derive(Debug, PartialEq)]
@@ -125,6 +124,12 @@ impl<'a> Parser<'a> {
     }
 }
 
+impl<'a> Iterator for Parser<'a> {
+    type Item = PToken;
+    fn next(&mut self) -> Option<PToken> {
+        self.next_token()
+    }
+}
 
 
 #[cfg(test)]
