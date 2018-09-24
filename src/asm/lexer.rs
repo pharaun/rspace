@@ -15,12 +15,12 @@ pub enum Token {
 // Lexer
 pub struct Lexer<'a> {
     input_iter: Peekable<Chars<'a>>,
-    eof_newline: bool,
+    emit_newline: bool,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Lexer<'a> {
-        Lexer { input_iter: input.chars().peekable(), eof_newline: false}
+        Lexer { input_iter: input.chars().peekable(), emit_newline: false}
     }
 
     fn discard_char(&mut self) {
@@ -55,13 +55,14 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn skip_till_eol(&mut self) {
+    fn skip_till_and_eat_eol(&mut self) {
         while let Some(&c) = self.peek_char() {
             match c {
                 '\n' => break,
                 _ => self.discard_char(),
             }
         }
+        self.skip_newline();
     }
 
     fn read_ident(&mut self, c: char) -> String {
@@ -123,7 +124,7 @@ impl<'a> Lexer<'a> {
                 '/' => {
                     if let Some(&'/') = self.peek_char() {
                         // Comment, eat it
-                        self.skip_till_eol();
+                        self.skip_till_and_eat_eol();
                         self.next_token()
                     } else {
                         panic!("Comment - Illegal");
@@ -135,7 +136,7 @@ impl<'a> Lexer<'a> {
 
                     if let None = self.peek_char() {
                         // Will EOF, set eof_newline to true so we don't duplicate newline
-                        self.eof_newline = true;
+                        self.emit_newline = true;
                     }
                     Some(Token::Newline)
                 },
@@ -155,15 +156,15 @@ impl<'a> Lexer<'a> {
                     } else if c.is_digit(10) {
                         Some(self.read_digits_or_label(c))
                     } else {
-                        // Would break if '2f'
+                        println!("Unknown characters: {:?}", c);
                         panic!("Isn't an alphabetic or digits")
                     }
                 }
             }
         } else {
             // Always emit a newline before the eof (unless one was already emitted)
-            if !self.eof_newline {
-                self.eof_newline = true;
+            if !self.emit_newline {
+                self.emit_newline = true;
                 Some(Token::Newline)
             } else {
                 None
@@ -218,8 +219,7 @@ pub mod lexer_token {
 
     #[test]
     fn test_multiline() {
-        //let input = "addi x0\n\\ Comments\nla:\n\naddi x1";
-        let input = "addi x0\nla:\n\naddi x1";
+        let input = "addi x0\n// Comments\n\nla:\naddi x1\n\n\naddi x2";
         let mut lexer = Lexer::new(input);
 
         let expected = vec![
@@ -231,6 +231,9 @@ pub mod lexer_token {
             Some(Token::Newline),
             Some(Token::Str("addi".to_string())),
             Some(Token::Str("x1".to_string())),
+            Some(Token::Newline),
+            Some(Token::Str("addi".to_string())),
+            Some(Token::Str("x2".to_string())),
             // Always have a newline before EOF
             Some(Token::Newline),
             None,
