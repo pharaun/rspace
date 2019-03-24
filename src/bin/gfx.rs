@@ -565,7 +565,7 @@ fn handle_events(events_loop: &mut glium::glutin::EventsLoop, mut input: InputSt
     events_loop.poll_events(|event| {
         match event {
             Event::WindowEvent {
-                event: WindowEvent::CloseRequested, ..
+                event: WindowEvent::Closed, ..
             } => closed = true,
 
             Event::WindowEvent {
