@@ -83,12 +83,22 @@ impl<'a> Cleaner<'a> {
 
     pub fn next_token(&mut self) -> Option<CToken> {
         if let Some(t) = self.read_token() {
-            // Steps:
-            // 0. forward labels
-            // 1. upper the inst
-            // 2. lookup the inst, if not found (macros/not supported, skip for now)
-            // 3. validate the inst
-            None
+            match t {
+                // 0. Forward labels
+                parser::PToken::Label(s, lt) => Some(CToken::Label(s, lt)),
+                parser::PToken::Inst(s, args) => {
+                    // 1. upper inst
+                    // 2. lookup inst (if not found error out)
+                    // 3. pick apropos cleaned type (for the assembler) depending on inst+context
+                    None
+                    //pub enum Arg {
+                    //    Num(u32),
+                    //    Label(String, LabelType),
+                    //    Reg(ast::Reg),
+                    //    Csr(String),
+                    //}
+                },
+            }
         } else {
             None
         }
