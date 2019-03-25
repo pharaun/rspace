@@ -5,6 +5,8 @@ use asm::lexer;
 use asm::ast;
 use std::str::FromStr;
 
+// TODO: identify data/mem label
+// TODO: parse macro definition and usage here
 
 // TODO: add data/memory labels
 // TODO: better way to do labels? (def duplicated)
