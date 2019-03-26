@@ -343,18 +343,7 @@ fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
 
 fn extract_csr(arg: &parser::Arg) -> u32 {
     match *arg {
-        parser::Arg::Csr(ref n) => {
-            // TODO: non ideal but we're slicing a String to &'a str
-            match &n[..] {
-                "CYCLE" => 0xC00,
-                "CYCLEH" => 0xC80,
-                "TIME" => 0xC01,
-                "TIMEH" => 0xC81,
-                "INSTRET" => 0xC02,
-                "INSTRETH" => 0xC82,
-                _ => panic!("New type of csr"),
-            }
-        },
+        parser::Arg::Csr(ref n) => n.clone().into(),
         _ => panic!("Was a register or num or label, expected csr"),
     }
 }

@@ -10,18 +10,10 @@ use std::str::FromStr;
 
 // TODO:
 // 1. newtype im
-// 2. newtype csr
 // 3. this is a final step before assembler (it cleans up the stream for the assembler)
 //      - prior stage handles macro expansion
 //      - assembler handles label lookup
 
-//#[derive(Debug, PartialEq)]
-//pub enum Arg {
-//    Num(u32),
-//    Label(String, LabelType),
-//    Reg(ast::Reg),
-//    Csr(String),
-//}
 #[derive(Debug, PartialEq)]
 pub enum CImmLabel {
     Label(String, parser::LabelType),
@@ -42,11 +34,11 @@ pub enum CToken {
 
     // Inst, rd, imm, csr
     // 3 length
-    RegImmCsr(String, ast::Reg, u32, String),
+    RegImmCsr(String, ast::Reg, u32, ast::Csr),
 
     // Inst, rd, rs, csr
     // 3 length
-    RegRegCsr(String, ast::Reg, ast::Reg, String),
+    RegRegCsr(String, ast::Reg, ast::Reg, ast::Csr),
 
     // Inst, rd, (imm/label)
     // 2 length

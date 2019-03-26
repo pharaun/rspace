@@ -18,7 +18,7 @@ pub enum Arg {
     Num(u32),
     Label(String, LabelType),
     Reg(ast::Reg),
-    Csr(String),
+    Csr(ast::Csr),
 }
 
 #[derive(Debug, PartialEq)]
@@ -92,8 +92,8 @@ impl<'a> Parser<'a> {
                             match t {
                                 lexer::Token::Str(s) => {
                                     // Check if CSRR or registers
-                                    if ast::is_csr(&s) {
-                                        args.push(Arg::Csr(s));
+                                    if let Result::Ok(c) = ast::Csr::from_str(&s) {
+                                        args.push(Arg::Csr(c));
                                     } else if let Result::Ok(r) = ast::Reg::from_str(&s) {
                                         args.push(Arg::Reg(r));
                                     } else {
@@ -158,7 +158,7 @@ pub mod parser_ast {
                 // Should have more data here
                 Arg::Label("2f".to_string(), LabelType::Local),
                 Arg::Label("asdf".to_string(), LabelType::Global),
-                Arg::Csr("CYCLE".to_string()),
+                Arg::Csr(ast::Csr::CYCLE),
             ])),
             None,
         ];

@@ -6,12 +6,11 @@ pub enum Labels <'input> {
     WLabel(&'input str),
 }
 
-// TODO: convert Reg + Csrs to enum or something
 #[derive(Debug,Clone)]
 pub enum Args <'input> {
     Num(u32),
     Reg(Reg),
-    Csr(&'input str),
+    Csr(Csr),
     Lab(Labels<'input>),
 }
 
@@ -22,14 +21,45 @@ pub enum AsmLine <'input> {
     Lns(Labels<'input>, &'input str, Vec<Args <'input>>),
 }
 
-pub fn is_csr(csr: &str) -> bool {
-    match csr {
-        "CYCLE"   | "CYCLEH"    => true,
-        "TIME"    | "TIMEH"     => true,
-        "INSTRET" | "INSTRETH"  => true,
-        _                       => false,
+#[derive(Debug, Clone, PartialEq)]
+pub enum Csr {
+    CYCLE, CYCLEH,
+    TIME, TIMEH,
+    INSTRET, INSTRETH
+}
+
+impl From<Csr> for u32 {
+    fn from(original: Csr) -> u32 {
+        match original {
+            Csr::CYCLE => 0xC00,
+            Csr::CYCLEH => 0xC80,
+            Csr::TIME => 0xC01,
+            Csr::TIMEH => 0xC81,
+            Csr::INSTRET => 0xC02,
+            Csr::INSTRETH => 0xC82,
+        }
     }
 }
+
+impl FromStr for Csr {
+    type Err = ParseCsrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "CYCLE"     => Ok(Csr::CYCLE),
+            "CYCLEH"    => Ok(Csr::CYCLEH),
+            "TIME"      => Ok(Csr::TIME),
+            "TIMEH"     => Ok(Csr::TIMEH),
+            "INSTRET"   => Ok(Csr::INSTRET),
+            "INSTRETH"  => Ok(Csr::INSTRETH),
+            _           => Err(ParseCsrError { _priv: () }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseCsrError { _priv: () }
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Reg {
