@@ -78,22 +78,71 @@ impl<'a> Cleaner<'a> {
             match t {
                 // 0. Forward labels
                 parser::PToken::Label(s, lt) => Some(CToken::Label(s, lt)),
-                parser::PToken::Inst(s, args) => {
+                // TODO: find better way to handle ownership instead of mut the vec to claim ownership
+                parser::PToken::Inst(s, mut args) => {
                     // 1. upper inst
+                    let inst = s.to_ascii_uppercase();
+
                     // 2. lookup inst (if not found error out)
-                    // 3. pick apropos cleaned type (for the assembler) depending on inst+context
-                    None
-                    //pub enum Arg {
-                    //    Num(u32),
-                    //    Label(String, LabelType),
-                    //    Reg(ast::Reg),
-                    //    Csr(String),
-                    //}
+                    match opcode::lookup(&inst) {
+                        None => {
+                            panic!("Failed to find - {:?}", inst);
+                        },
+                        Some(x) => {
+                            // 3. pick apropos cleaned type (for the assembler) depending on inst+context
+                            match x.encoding {
+                                opcode::InstType::R => {
+                                    if args.len() != 3 {
+                                        panic!("R type inst: {:?} arg: {:?}", inst, args);
+                                    }
+                                    Some(CToken::RegRegReg(
+                                        inst,
+                                        extract_reg(args.remove(0)),
+                                        extract_reg(args.remove(0)),
+                                        extract_reg(args.remove(0))
+                                    ))
+                                },
+                                opcode::InstType::I => None,
+                                opcode::InstType::S => None,
+                                opcode::InstType::SB => None,
+                                opcode::InstType::U => None,
+                                opcode::InstType::UJ => None,
+                            }
+                        },
+                    }
                 },
             }
         } else {
             None
         }
+    }
+}
+
+fn extract_num(arg: parser::Arg) -> u32 {
+    match arg {
+        parser::Arg::Num(n) => n,
+        _ => panic!("Expected a Num, got {:?}", arg),
+    }
+}
+
+fn extract_label(arg: parser::Arg) -> (String, parser::LabelType) {
+    match arg {
+        parser::Arg::Label(l, lt) => (l, lt),
+        _ => panic!("Expected a Label, got {:?}", arg),
+    }
+}
+
+fn extract_reg(arg: parser::Arg) -> ast::Reg {
+    match arg {
+        parser::Arg::Reg(n) => n,
+        _ => panic!("Expected a Reg, got {:?}", arg),
+    }
+}
+
+fn extract_csr(arg: parser::Arg) -> ast::Csr {
+    match arg {
+        parser::Arg::Csr(n) => n,
+        _ => panic!("Expected a Csr, got {:?}", arg),
     }
 }
 
@@ -117,7 +166,7 @@ pub mod cleaner_ast {
         let expected = vec![
             Some(CToken::Label("la".to_string(), parser::LabelType::Global)),
             Some(CToken::Label("2".to_string(), parser::LabelType::Local)),
-            Some(CToken::RegRegReg("ADDI".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
+            Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
             None,
         ];
 
