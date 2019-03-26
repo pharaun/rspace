@@ -102,7 +102,38 @@ impl<'a> Cleaner<'a> {
                                         extract_reg(args.remove(0))
                                     ))
                                 },
-                                opcode::InstType::I => None,
+                                opcode::InstType::I => {
+                                    match &inst[..] {
+                                        "FENCE" | "FENCE.I" | "ECALL" | "EBREAK" => {
+                                            Some(CToken::Custom(inst, args))
+                                        },
+                                        "CSRRWI" | "CSRRSI" | "CSRRCI" => {
+                                            if args.len() != 3 {
+                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
+                                            }
+                                            Some(CToken::RegImmCsr(
+                                                inst,
+                                                extract_reg(args.remove(0)),
+                                                extract_imm(args.remove(0)),
+                                                extract_csr(args.remove(0))
+                                            ))
+                                        },
+                                        "CSRRW" | "CSRRS" | "CSRRC" => {
+                                            if args.len() != 3 {
+                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
+                                            }
+                                            Some(CToken::RegRegCsr(
+                                                inst,
+                                                extract_reg(args.remove(0)),
+                                                extract_reg(args.remove(0)),
+                                                extract_csr(args.remove(0))
+                                            ))
+                                        },
+                                        _ => {
+                                            None
+                                        },
+                                    }
+                                },
                                 opcode::InstType::S => None,
                                 opcode::InstType::SB => None,
                                 opcode::InstType::U => None,
@@ -118,7 +149,7 @@ impl<'a> Cleaner<'a> {
     }
 }
 
-fn extract_num(arg: parser::Arg) -> u32 {
+fn extract_imm(arg: parser::Arg) -> u32 {
     match arg {
         parser::Arg::Num(n) => n,
         _ => panic!("Expected a Num, got {:?}", arg),
@@ -158,23 +189,81 @@ impl<'a> Iterator for Cleaner<'a> {
 pub mod cleaner_ast {
     use super::*;
 
-    #[test]
-    fn test_R_inst() {
-        let input = "la: 2: add x0 x1 x2 // Comments";
+    fn assert_eq(input: &str, expected: Vec<Option<CToken>>) {
         let mut cleaner = Cleaner::new(parser::Parser::new(lexer::Lexer::new(input)));
 
-        let expected = vec![
-            Some(CToken::Label("la".to_string(), parser::LabelType::Global)),
-            Some(CToken::Label("2".to_string(), parser::LabelType::Local)),
-            Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
-            None,
-        ];
-
-        // Assert
         for e in expected.iter() {
             let t = &cleaner.next_token();
             println!("expected {:?}, parsed {:?} ", e, t);
             assert_eq!(e, t);
         }
+    }
+
+    #[test]
+    fn test_labels() {
+        let input = "la: 2: // Comments";
+
+        let expected = vec![
+            Some(CToken::Label("la".to_string(), parser::LabelType::Global)),
+            Some(CToken::Label("2".to_string(), parser::LabelType::Local)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegRegReg_inst() {
+        let input = "add x0 x1 x2";
+
+        let expected = vec![
+            Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_Custom_inst() {
+        let input = "fence\n fence.i\n ecall\n ebreak";
+
+        let expected = vec![
+            Some(CToken::Custom("FENCE".to_string(), Vec::new())),
+            Some(CToken::Custom("FENCE.I".to_string(), Vec::new())),
+            Some(CToken::Custom("ECALL".to_string(), Vec::new())),
+            Some(CToken::Custom("EBREAK".to_string(), Vec::new())),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegImmCsr_inst() {
+        let input = "csrrwi x0 33 CYCLE\n csrrsi x1 11 CYCLEH\n csrrci x2 22 TIME";
+
+        let expected = vec![
+            Some(CToken::RegImmCsr("CSRRWI".to_string(), ast::Reg::X0, 33, ast::Csr::CYCLE)),
+            Some(CToken::RegImmCsr("CSRRSI".to_string(), ast::Reg::X1, 11, ast::Csr::CYCLEH)),
+            Some(CToken::RegImmCsr("CSRRCI".to_string(), ast::Reg::X2, 22, ast::Csr::TIME)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegRegCsr_inst() {
+        let input = "csrrw x0 x1 CYCLE\n csrrs x1 x2 CYCLEH\n csrrc x2 x3 TIME";
+
+        let expected = vec![
+            Some(CToken::RegRegCsr("CSRRW".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Csr::CYCLE)),
+            Some(CToken::RegRegCsr("CSRRS".to_string(), ast::Reg::X1, ast::Reg::X2, ast::Csr::CYCLEH)),
+            Some(CToken::RegRegCsr("CSRRC".to_string(), ast::Reg::X2, ast::Reg::X3, ast::Csr::TIME)),
+            None,
+        ];
+
+        assert_eq(input, expected);
     }
 }
