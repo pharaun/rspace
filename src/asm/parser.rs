@@ -170,4 +170,26 @@ pub mod parser_ast {
             assert_eq!(e, t);
         }
     }
+
+    #[test]
+    fn test_fencei_line() {
+        let input = "la: 2: fence.i x0";
+        let mut parser = Parser::new(lexer::Lexer::new(input));
+
+        let expected = vec![
+            Some(PToken::Label("la".to_string(), LabelType::Global)),
+            Some(PToken::Label("2".to_string(), LabelType::Local)),
+            Some(PToken::Inst("fence.i".to_string(), vec![
+                Arg::Reg(ast::Reg::X0),
+            ])),
+            None,
+        ];
+
+        // Assert
+        for e in expected.iter() {
+            let t = &parser.next_token();
+            println!("expected {:?}, parsed {:?} ", e, t);
+            assert_eq!(e, t);
+        }
+    }
 }

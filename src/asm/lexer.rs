@@ -72,6 +72,9 @@ impl<'a> Lexer<'a> {
         while let Some(&c) = self.peek_char() {
             if c.is_alphanumeric() {
                 ident.push(self.read_char().unwrap());
+            // Allow . in ident name for fence.i
+            } else if c == '.' {
+                ident.push(self.read_char().unwrap());
             } else {
                 break;
             }
@@ -255,6 +258,26 @@ pub mod lexer_token {
         let expected = vec![
             Some(Token::Str("addi".to_string())),
             Some(Token::Str("x1".to_string())),
+            // Always have exactly one newline before EOF
+            Some(Token::Newline),
+            None,
+        ];
+
+        // Assert
+        for e in expected.iter() {
+            let t = &lexer.next_token();
+            println!("expected {:?}, lexed {:?} ", e, t);
+            assert_eq!(e, t);
+        }
+    }
+
+    #[test]
+    fn test_dot_asm() {
+        let input = "fence.i\n";
+        let mut lexer = Lexer::new(input);
+
+        let expected = vec![
+            Some(Token::Str("fence.i".to_string())),
             // Always have exactly one newline before EOF
             Some(Token::Newline),
             None,
