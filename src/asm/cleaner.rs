@@ -28,10 +28,6 @@ pub enum CToken {
     // 3 length
     RegRegReg(String, ast::Reg, ast::Reg, ast::Reg),
 
-    // Inst, rd, rs, (imm/label)
-    // 3 length
-    RegRegIL(String, ast::Reg, ast::Reg, CImmLabel),
-
     // Inst, rd, imm, csr
     // 3 length
     RegImmCsr(String, ast::Reg, u32, ast::Csr),
@@ -40,13 +36,26 @@ pub enum CToken {
     // 3 length
     RegRegCsr(String, ast::Reg, ast::Reg, ast::Csr),
 
-    // Inst, rd, (imm/label)
-    // 2 length
-    RegIL(String, ast::Reg, CImmLabel),
+    // Inst, rd, rs1, shamt
+    // 3 length
+    RegRegShamt(String, ast::Reg, ast::Reg, u32),
+
+    // Inst, rd, rs1, imm
+    // 3 length
+    RegRegImm(String, ast::Reg, ast::Reg, u32),
+
+    // Inst, rd, rs, (imm/label)
+    // 3 length
+    RegRegIL(String, ast::Reg, ast::Reg, CImmLabel),
 
     // Custom inst + macros?
     // FENCE, FENCE.I, ECALL, EBREAK
     Custom(String, Vec<parser::Arg>),
+
+
+    // Inst, rd, (imm/label)
+    // 2 length
+    RegIL(String, ast::Reg, CImmLabel),
 }
 
 
@@ -129,8 +138,38 @@ impl<'a> Cleaner<'a> {
                                                 extract_csr(args.remove(0))
                                             ))
                                         },
+                                        "SLLI" | "SRLI" | "SRAI" => {
+                                            if args.len() != 3 {
+                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
+                                            }
+                                            Some(CToken::RegRegShamt(
+                                                inst,
+                                                extract_reg(args.remove(0)),
+                                                extract_reg(args.remove(0)),
+                                                extract_imm(args.remove(0))
+                                            ))
+                                        },
+                                        "JALR" => {
+                                            if args.len() != 3 {
+                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
+                                            }
+                                            Some(CToken::RegRegIL(
+                                                inst,
+                                                extract_reg(args.remove(0)),
+                                                extract_reg(args.remove(0)),
+                                                extract_imm_label(args.remove(0))
+                                            ))
+                                        },
                                         _ => {
-                                            None
+                                            if args.len() != 3 {
+                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
+                                            }
+                                            Some(CToken::RegRegImm(
+                                                inst,
+                                                extract_reg(args.remove(0)),
+                                                extract_reg(args.remove(0)),
+                                                extract_imm(args.remove(0))
+                                            ))
                                         },
                                     }
                                 },
@@ -156,13 +195,6 @@ fn extract_imm(arg: parser::Arg) -> u32 {
     }
 }
 
-fn extract_label(arg: parser::Arg) -> (String, parser::LabelType) {
-    match arg {
-        parser::Arg::Label(l, lt) => (l, lt),
-        _ => panic!("Expected a Label, got {:?}", arg),
-    }
-}
-
 fn extract_reg(arg: parser::Arg) -> ast::Reg {
     match arg {
         parser::Arg::Reg(n) => n,
@@ -174,6 +206,14 @@ fn extract_csr(arg: parser::Arg) -> ast::Csr {
     match arg {
         parser::Arg::Csr(n) => n,
         _ => panic!("Expected a Csr, got {:?}", arg),
+    }
+}
+
+fn extract_imm_label(arg: parser::Arg) -> CImmLabel {
+    match arg {
+        parser::Arg::Num(n)         => CImmLabel::Imm(n),
+        parser::Arg::Label(l, lt)   => CImmLabel::Label(l, lt),
+        _ => panic!("Expected a ImmLabel, got {:?}", arg),
     }
 }
 
@@ -261,6 +301,61 @@ pub mod cleaner_ast {
             Some(CToken::RegRegCsr("CSRRW".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Csr::CYCLE)),
             Some(CToken::RegRegCsr("CSRRS".to_string(), ast::Reg::X1, ast::Reg::X2, ast::Csr::CYCLEH)),
             Some(CToken::RegRegCsr("CSRRC".to_string(), ast::Reg::X2, ast::Reg::X3, ast::Csr::TIME)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegRegShamt_inst() {
+        let input = "slli x0 x1 11\n srli x1 x2 22\n srai x2 x3 33";
+
+        let expected = vec![
+            Some(CToken::RegRegShamt("SLLI".to_string(), ast::Reg::X0, ast::Reg::X1, 11)),
+            Some(CToken::RegRegShamt("SRLI".to_string(), ast::Reg::X1, ast::Reg::X2, 22)),
+            Some(CToken::RegRegShamt("SRAI".to_string(), ast::Reg::X2, ast::Reg::X3, 33)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegRegIL_inst() {
+        let input = "jalr x0 x1 11\n jalr x1 x2 2f\n jalr x2 x3 asdf";
+
+        let expected = vec![
+            Some(CToken::RegRegIL(
+                "JALR".to_string(),
+                ast::Reg::X0,
+                ast::Reg::X1,
+                CImmLabel::Imm(11)
+            )),
+            Some(CToken::RegRegIL(
+                "JALR".to_string(),
+                ast::Reg::X1,
+                ast::Reg::X2,
+                CImmLabel::Label("2f".to_string(), parser::LabelType::Local)
+            )),
+            Some(CToken::RegRegIL(
+                "JALR".to_string(),
+                ast::Reg::X2,
+                ast::Reg::X3,
+                CImmLabel::Label("asdf".to_string(), parser::LabelType::Global)
+            )),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegRegImm_inst() {
+        let input = "addi x0 x1 11";
+
+        let expected = vec![
+            Some(CToken::RegRegImm("ADDI".to_string(), ast::Reg::X0, ast::Reg::X1, 11)),
             None,
         ];
 
