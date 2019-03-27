@@ -50,7 +50,7 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
 
     // Start second pass
     position = 0; // Per u32 word
-    while let Some(token) = first_pass.remove(0) {
+    while let token = first_pass.remove(0) {
 
         //let binary_line = lut_to_binary(upper_inst, args, x, &symbol_table, position);
         let binary_line = lut_to_binary(token, &symbol_table, position);
@@ -76,8 +76,8 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
 // Don't know how to figure out if i should generate a relative or an absolute address, branches are always relative to the inst
 // supporting those for now, the jalr/auipc/lui/jal i can't figure out yet
 //fn lut_to_binary(inst: &str, args: Vec<parser::Arg>, inst_encode: opcode::InstEnc, symbol: &Vec<(parser::PToken, usize)>, inst_pos: usize) -> u32 {
-fn lut_to_binary(token: &cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>, inst_pos: usize) -> u32 {
-    let inst_encode = cleaner::lookup(token);
+fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>, inst_pos: usize) -> u32 {
+    let inst_encode = cleaner::lookup(&token);
     let mut ret: u32 = 0x0;
 
     // Opcode
@@ -93,7 +93,7 @@ fn lut_to_binary(token: &cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>
     match token {
         // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
         // func7,   rs2,   rs1, func3,   rd, opcode
-        cleaner::CToken::RegRegReg(_, rd rs1 rs2) => {
+        cleaner::CToken::RegRegReg(_, rd, rs1, rs2) => {
             ret |= extract_and_shift_register(&rd,  7);
             ret |= extract_and_shift_register(&rs1, 15);
             ret |= extract_and_shift_register(&rs2, 20);

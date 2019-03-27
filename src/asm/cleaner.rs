@@ -266,9 +266,28 @@ fn extract_imm_label(arg: parser::Arg) -> CImmLabel {
     }
 }
 
-// TODO: implement
-pub lookup(inst: CToken) -> Option<opcode::InstEnc> {
-    None
+fn llookup(inst: &str) -> opcode::InstEnc {
+    match opcode::lookup(&inst) {
+        None    => panic!("Failed to find - {:?}", inst),
+        Some(x) => x,
+    }
+}
+
+pub fn lookup(inst: &CToken) -> opcode::InstEnc {
+    match inst {
+        CToken::RegRegReg(i, _, _, _)       => llookup(&i),
+        CToken::RegImmCsr(i, _, _, _)       => llookup(&i),
+        CToken::RegRegCsr(i, _, _, _)       => llookup(&i),
+        CToken::RegRegShamt(i, _, _, _)     => llookup(&i),
+        CToken::RegRegImm(i, _, _, _)       => llookup(&i),
+        CToken::RegRegImmStore(i, _, _, _)  => llookup(&i),
+        CToken::RegRegIL(i, _, _, _)        => llookup(&i),
+        CToken::RegRegILBranch(i, _, _, _)  => llookup(&i),
+        CToken::RegIL(i, _, _)              => llookup(&i),
+        CToken::RegILShuffle(i, _, _)       => llookup(&i),
+        CToken::Custom(i, _)                => llookup(&i),
+        CToken::Label(_, _)                 => panic!("Got a Label, this is bad"),
+    }
 }
 
 impl<'a> Iterator for Cleaner<'a> {
