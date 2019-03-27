@@ -50,7 +50,8 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
 
     // Start second pass
     position = 0; // Per u32 word
-    while let token = first_pass.remove(0) {
+    first_pass.reverse(); // Since we pop from end, reverse order
+    while let Some(token) = first_pass.pop() {
 
         //let binary_line = lut_to_binary(upper_inst, args, x, &symbol_table, position);
         let binary_line = lut_to_binary(token, &symbol_table, position);
