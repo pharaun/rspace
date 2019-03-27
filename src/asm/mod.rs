@@ -91,6 +91,8 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
 
     // 6. i think a good step will be to use the data in the LUT to construct a binary line (u32)
     match token {
+        cleaner::CToken::Label(_, _) => panic!("Should not reach label in asm lut"),
+
         // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
         // func7,   rs2,   rs1, func3,   rd, opcode
         cleaner::CToken::RegRegReg(_, rd, rs1, rs2) => {
@@ -102,7 +104,7 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         // 31-20, 19-15, 14-12, 11-7, 6-0
         //   imm,   rs1, func3,   rd, opcode
         cleaner::CToken::Custom(inst, _) => {
-            match inst {
+            match &inst[..] {
                 "FENCE" => {
                     // Default settings with all flags toggled (just hardcode for now)
                     ret |= select_and_shift(0b11111111, 7, 0, 20);
@@ -123,7 +125,7 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
 
             ret |= select_and_shift(imm, 5, 0, 15);
 
-            let csrreg = extract_csr(&csr);
+            let csrreg = extract_csr(csr);
             ret |= csrreg << 20;
         },
 
@@ -141,7 +143,7 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
             ret |= extract_and_shift_register(rd,  7);
             ret |= extract_and_shift_register(rs1, 15);
 
-            let csrreg = extract_csr(&csr);
+            let csrreg = extract_csr(csr);
             ret |= csrreg << 20;
         },
 
@@ -320,11 +322,8 @@ fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
     ((imm & u32::mask(hi..lo)) >> lo) << shift
 }
 
-fn extract_csr(arg: &parser::Arg) -> u32 {
-    match *arg {
-        parser::Arg::Csr(ref n) => n.clone().into(),
-        _ => panic!("Was a register or num or label, expected csr"),
-    }
+fn extract_csr(arg: ast::Csr) -> u32 {
+    arg.clone().into()
 }
 
 // TODO: should be able to do without a clone?
