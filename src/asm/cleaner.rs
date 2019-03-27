@@ -266,6 +266,11 @@ fn extract_imm_label(arg: parser::Arg) -> CImmLabel {
     }
 }
 
+// TODO: implement
+pub lookup(inst: CToken) -> Option<opcode::InstEnc> {
+    None
+}
+
 impl<'a> Iterator for Cleaner<'a> {
     type Item = CToken;
     fn next(&mut self) -> Option<CToken> {
