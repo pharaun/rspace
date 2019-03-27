@@ -153,9 +153,9 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
             ret |= extract_and_shift_register(rs1, 15);
 
             // TODO: deal with labels
-            //let lab = extract_label(&args[2]);
-            //let lpos = find_label_position(lab, symbol, inst_pos);
-            //let imm = encode_relative_offset(inst_pos, lpos);
+            let lab = extract_label(l, lt);
+            let lpos = find_label_position(lab, symbol, inst_pos);
+            let imm = encode_relative_offset(inst_pos, lpos);
         },
 
         cleaner::CToken::RegRegIL(_, rd, rs1, cleaner::CImmLabel::Imm(imm)) => {
@@ -204,18 +204,18 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
             ret |= extract_and_shift_register(rs1, 15);
             ret |= extract_and_shift_register(rs2, 20);
 
-            //let lab = extract_label(&args[2]);
-            //let lpos = find_label_position(lab, symbol, inst_pos);
-            //let imm = encode_relative_offset(inst_pos, lpos);
+            let lab = extract_label(l, lt);
+            let lpos = find_label_position(lab, symbol, inst_pos);
+            let imm = encode_relative_offset(inst_pos, lpos);
 
-            //// imm[11]
-            //ret |= select_and_shift(imm, 11, 11, 7);
-            //// imm[4:1]
-            //ret |= select_and_shift(imm, 4, 1, 8);
-            //// imm[10:5]
-            //ret |= select_and_shift(imm, 10, 5, 25);
-            //// imm[12]
-            //ret |= select_and_shift(imm, 12, 12, 31);
+            // imm[11]
+            ret |= select_and_shift(imm, 11, 11, 7);
+            // imm[4:1]
+            ret |= select_and_shift(imm, 4, 1, 8);
+            // imm[10:5]
+            ret |= select_and_shift(imm, 10, 5, 25);
+            // imm[12]
+            ret |= select_and_shift(imm, 12, 12, 31);
         },
 
         cleaner::CToken::RegRegILBranch(_, rs1, rs2, cleaner::CImmLabel::Imm(imm)) => {
@@ -256,12 +256,12 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         cleaner::CToken::RegIL(_, rd, cleaner::CImmLabel::Label(l, lt)) => {
             ret |= extract_and_shift_register(rd, 7);
 
-            //let lab = extract_label(&args[1]);
-            //let lpos = find_label_position(lab, symbol, inst_pos);
-            //let imm = encode_relative_offset(inst_pos, lpos);
+            let lab = extract_label(l, lt);
+            let lpos = find_label_position(lab, symbol, inst_pos);
+            let imm = encode_relative_offset(inst_pos, lpos);
 
-            //ret |= select_and_shift(imm, 19, 0, 12);
-            ////ret |= select_and_shift(imm, 31, 12, 12);
+            ret |= select_and_shift(imm, 19, 0, 12);
+            //ret |= select_and_shift(imm, 31, 12, 12);
         },
 
         cleaner::CToken::RegIL(_, rd, cleaner::CImmLabel::Imm(imm)) => {
@@ -275,18 +275,18 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         cleaner::CToken::RegILShuffle(_, rd, cleaner::CImmLabel::Label(l, lt)) => {
             ret |= extract_and_shift_register(rd, 7);
 
-            //let lab = extract_label(&args[1]);
-            //let lpos = find_label_position(lab, symbol, inst_pos);
-            //let imm = encode_relative_offset(inst_pos, lpos);
+            let lab = extract_label(l, lt);
+            let lpos = find_label_position(lab, symbol, inst_pos);
+            let imm = encode_relative_offset(inst_pos, lpos);
 
-            //// imm[19:12]
-            //ret |= select_and_shift(imm, 19, 12, 0);
-            //// imm[11]
-            //ret |= select_and_shift(imm, 11, 11, 20);
-            //// imm[10:1]
-            //ret |= select_and_shift(imm, 10, 1, 21);
-            //// imm[20]
-            //ret |= select_and_shift(imm, 20, 20, 31);
+            // imm[19:12]
+            ret |= select_and_shift(imm, 19, 12, 0);
+            // imm[11]
+            ret |= select_and_shift(imm, 11, 11, 20);
+            // imm[10:1]
+            ret |= select_and_shift(imm, 10, 1, 21);
+            // imm[20]
+            ret |= select_and_shift(imm, 20, 20, 31);
         },
 
         cleaner::CToken::RegILShuffle(_, rd, cleaner::CImmLabel::Imm(imm)) => {
@@ -334,23 +334,13 @@ fn extract_and_shift_register(arg: ast::Reg, shift: u32) -> u32 {
     val << shift
 }
 
-fn extract_label(arg: &parser::Arg) -> parser::PToken {
-    match *arg {
-        parser::Arg::Label(ref l, ref lt) => parser::PToken::Label(l.clone(), lt.clone()),
-        _ => panic!("Was not a label"),
-    }
-}
-
-fn is_label(arg: &parser::Arg) -> bool {
-    match *arg {
-        parser::Arg::Label(_, _) => true,
-        _ => false,
-    }
+fn extract_label(l: String, lt: parser::LabelType) -> cleaner::CToken {
+    cleaner::CToken::Label(l.clone(), lt.clone())
 }
 
 // TODO: this is kinda a poor quality function, need to redo it
 // TODO: we need to break out the Label out of the PToken to its own type
-fn find_label_position(lab: parser::PToken, symbol: &Vec<(parser::PToken, usize)>, inst_pos: usize) -> usize {
+fn find_label_position(lab: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>, inst_pos: usize) -> usize {
 //    println!("");
 //    println!("Label to look up: {:?}", lab);
 //    println!("Instruction Position: {:?}", inst_pos);
@@ -363,11 +353,11 @@ fn find_label_position(lab: parser::PToken, symbol: &Vec<(parser::PToken, usize)
     //      Assume no duplicate word label (should not happen, integrity check the symbol table)
     //      linear scan till you find the matching word label
     match lab {
-        parser::PToken::Label(ref l, parser::LabelType::Global) => {
+        cleaner::CToken::Label(ref l, parser::LabelType::Global) => {
             // Global aka word label
             for val in symbol.iter() {
                 match val {
-                    &(parser::PToken::Label(ref sl, parser::LabelType::Global), spos) => {
+                    &(cleaner::CToken::Label(ref sl, parser::LabelType::Global), spos) => {
                         if sl == l {
                             //println!("Label Position: {:?}", spos);
                             return spos
@@ -378,7 +368,7 @@ fn find_label_position(lab: parser::PToken, symbol: &Vec<(parser::PToken, usize)
             }
             panic!("Did not find the label in the symbol table!")
         },
-        parser::PToken::Label(ref l, parser::LabelType::Local) => {
+        cleaner::CToken::Label(ref l, parser::LabelType::Local) => {
             // Local, aka numberical
             let mut s = l.clone();
 
@@ -390,7 +380,7 @@ fn find_label_position(lab: parser::PToken, symbol: &Vec<(parser::PToken, usize)
                     // Forward
                     for val in symbol.iter() {
                         match val {
-                            &(parser::PToken::Label(ref sl, parser::LabelType::Local), spos) => {
+                            &(cleaner::CToken::Label(ref sl, parser::LabelType::Local), spos) => {
                                 if (sl == num) & (spos >= inst_pos) {
                                     //println!("Label Position: {:?}", spos);
                                     return spos
@@ -405,7 +395,7 @@ fn find_label_position(lab: parser::PToken, symbol: &Vec<(parser::PToken, usize)
                     // Backward
                     for val in symbol.iter().rev() {
                         match val {
-                            &(parser::PToken::Label(ref sl, parser::LabelType::Local), spos) => {
+                            &(cleaner::CToken::Label(ref sl, parser::LabelType::Local), spos) => {
                                 if (sl == num) & (spos <= inst_pos) {
                                     //println!("Label Position: {:?}", spos);
                                     return spos
