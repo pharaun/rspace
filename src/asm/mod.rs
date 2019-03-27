@@ -94,9 +94,9 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
         // func7,   rs2,   rs1, func3,   rd, opcode
         cleaner::CToken::RegRegReg(_, rd, rs1, rs2) => {
-            ret |= extract_and_shift_register(&rd,  7);
-            ret |= extract_and_shift_register(&rs1, 15);
-            ret |= extract_and_shift_register(&rs2, 20);
+            ret |= extract_and_shift_register(rd,  7);
+            ret |= extract_and_shift_register(rs1, 15);
+            ret |= extract_and_shift_register(rs2, 20);
         },
 
         // 31-20, 19-15, 14-12, 11-7, 6-0
@@ -119,37 +119,35 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         },
 
         cleaner::CToken::RegImmCsr(_, rd, imm, csr) => {
-            ret |= extract_and_shift_register(&rd,  7);
+            ret |= extract_and_shift_register(rd,  7);
 
-            let imm2  = extract_imm(&imm);
-            ret |= select_and_shift(imm2, 5, 0, 15);
+            ret |= select_and_shift(imm, 5, 0, 15);
 
             let csrreg = extract_csr(&csr);
             ret |= csrreg << 20;
         },
 
         cleaner::CToken::RegRegShamt(_, rd, rs1, imm) => {
-            ret |= extract_and_shift_register(&rd,  7);
-            ret |= extract_and_shift_register(&rs1, 15);
+            ret |= extract_and_shift_register(rd,  7);
+            ret |= extract_and_shift_register(rs1, 15);
 
             // TODO: deal with imm
-            let imm2  = extract_imm(&imm);
             // shamt[4:0]
-            ret |= select_and_shift(imm2, 4, 0, 20);
+            ret |= select_and_shift(imm, 4, 0, 20);
             // imm[11:5] - taken care by func7
         },
 
         cleaner::CToken::RegRegCsr(_, rd, rs1, csr) => {
-            ret |= extract_and_shift_register(&rd,  7);
-            ret |= extract_and_shift_register(&rs1, 15);
+            ret |= extract_and_shift_register(rd,  7);
+            ret |= extract_and_shift_register(rs1, 15);
 
             let csrreg = extract_csr(&csr);
             ret |= csrreg << 20;
         },
 
         cleaner::CToken::RegRegIL(_, rd, rs1, cleaner::CImmLabel::Label(l, lt)) => {
-            ret |= extract_and_shift_register(&rd,  7);
-            ret |= extract_and_shift_register(&rs1, 15);
+            ret |= extract_and_shift_register(rd,  7);
+            ret |= extract_and_shift_register(rs1, 15);
 
             // TODO: deal with labels
             //let lab = extract_label(&args[2]);
@@ -158,44 +156,41 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         },
 
         cleaner::CToken::RegRegIL(_, rd, rs1, cleaner::CImmLabel::Imm(imm)) => {
-            ret |= extract_and_shift_register(&rd,  7);
-            ret |= extract_and_shift_register(&rs1, 15);
+            ret |= extract_and_shift_register(rd,  7);
+            ret |= extract_and_shift_register(rs1, 15);
 
             // TODO: deal with imm
             // TODO: design a function for dealing with imm (takes a list of range + shift)
             // for extracting bytes and shifting em to relevant spot plus dealing with sign
             // extend as needed
-            let imm2  = extract_imm(&imm);
             // imm[11:0]
-            ret |= select_and_shift(imm2, 11, 0, 20);
+            ret |= select_and_shift(imm, 11, 0, 20);
         },
 
         cleaner::CToken::RegRegImm(_, rd, rs1, imm) => {
-            ret |= extract_and_shift_register(&rd,  7);
-            ret |= extract_and_shift_register(&rs1, 15);
+            ret |= extract_and_shift_register(rd,  7);
+            ret |= extract_and_shift_register(rs1, 15);
 
             // TODO: to support addi for 'la'
             // TODO: deal with imm
             // TODO: design a function for dealing with imm (takes a list of range + shift)
             // for extracting bytes and shifting em to relevant spot plus dealing with sign
             // extend as needed
-            let imm2  = extract_imm(&imm);
             // imm[11:0]
-            ret |= select_and_shift(imm2, 11, 0, 20);
+            ret |= select_and_shift(imm, 11, 0, 20);
         },
 
         // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
         //   imm,   rs2,   rs1, func3,  imm, opcode
         cleaner::CToken::RegRegImmStore(_, rs1, rs2, imm) => {
-            ret |= extract_and_shift_register(&rs1, 15);
-            ret |= extract_and_shift_register(&rs2, 20);
+            ret |= extract_and_shift_register(rs1, 15);
+            ret |= extract_and_shift_register(rs2, 20);
 
             // TODO: deal with imm
-            let imm2  = extract_imm(&imm);
             // imm[4:0]
-            ret |= select_and_shift(imm2, 4, 0, 7);
+            ret |= select_and_shift(imm, 4, 0, 7);
             // imm[11:5]
-            ret |= select_and_shift(imm2, 11, 5, 25);
+            ret |= select_and_shift(imm, 11, 5, 25);
         },
 
         // TODO: objdump shows bne/beq swapped and so on
@@ -203,8 +198,8 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         // encoding these quite right, but with the re-arranged
         // order it seems to work.... ?
         cleaner::CToken::RegRegILBranch(_, rs1, rs2, cleaner::CImmLabel::Label(l, lt)) => {
-            ret |= extract_and_shift_register(&rs1, 15);
-            ret |= extract_and_shift_register(&rs2, 20);
+            ret |= extract_and_shift_register(rs1, 15);
+            ret |= extract_and_shift_register(rs2, 20);
 
             //let lab = extract_label(&args[2]);
             //let lpos = find_label_position(lab, symbol, inst_pos);
@@ -221,19 +216,18 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         },
 
         cleaner::CToken::RegRegILBranch(_, rs1, rs2, cleaner::CImmLabel::Imm(imm)) => {
-            ret |= extract_and_shift_register(&rs1, 15);
-            ret |= extract_and_shift_register(&rs2, 20);
+            ret |= extract_and_shift_register(rs1, 15);
+            ret |= extract_and_shift_register(rs2, 20);
 
             // TODO: deal with imm
-            let imm2  = extract_imm(&imm);
             // imm[11]
-            ret |= select_and_shift(imm2, 11, 11, 7);
+            ret |= select_and_shift(imm, 11, 11, 7);
             // imm[4:1]
-            ret |= select_and_shift(imm2, 4, 1, 8);
+            ret |= select_and_shift(imm, 4, 1, 8);
             // imm[10:5]
-            ret |= select_and_shift(imm2, 10, 5, 25);
+            ret |= select_and_shift(imm, 10, 5, 25);
             // imm[12]
-            ret |= select_and_shift(imm2, 12, 12, 31);
+            ret |= select_and_shift(imm, 12, 12, 31);
         },
 
         // 31-12, 11-7, 6-0
@@ -255,10 +249,9 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         // TODO: Add `li x1 0xff` and `la x1 symbol` which makes this nicer (takes the
         // value and symbol and split it into upper 20 and lower 12 bits and load it)
         // TODO: deal with imm
-        //let imm = extract_imm(&args[1]);
         //ret |= select_and_shift(imm, 19, 0, 12);
         cleaner::CToken::RegIL(_, rd, cleaner::CImmLabel::Label(l, lt)) => {
-            ret |= extract_and_shift_register(&rd, 7);
+            ret |= extract_and_shift_register(rd, 7);
 
             //let lab = extract_label(&args[1]);
             //let lpos = find_label_position(lab, symbol, inst_pos);
@@ -269,16 +262,15 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         },
 
         cleaner::CToken::RegIL(_, rd, cleaner::CImmLabel::Imm(imm)) => {
-            ret |= extract_and_shift_register(&rd, 7);
+            ret |= extract_and_shift_register(rd, 7);
 
             // TODO: this relative offset doesn't work for LUI, we want to see label, get the value from that and store that
-            let imm2 = extract_imm(&imm);
-            ret |= select_and_shift(imm2, 19, 0, 12);
-            //ret |= select_and_shift(imm2, 31, 12, 12);
+            ret |= select_and_shift(imm, 19, 0, 12);
+            //ret |= select_and_shift(imm, 31, 12, 12);
         },
 
         cleaner::CToken::RegILShuffle(_, rd, cleaner::CImmLabel::Label(l, lt)) => {
-            ret |= extract_and_shift_register(&rd, 7);
+            ret |= extract_and_shift_register(rd, 7);
 
             //let lab = extract_label(&args[1]);
             //let lpos = find_label_position(lab, symbol, inst_pos);
@@ -295,18 +287,17 @@ fn lut_to_binary(token: cleaner::CToken, symbol: &Vec<(cleaner::CToken, usize)>,
         },
 
         cleaner::CToken::RegILShuffle(_, rd, cleaner::CImmLabel::Imm(imm)) => {
-            ret |= extract_and_shift_register(&rd, 7);
+            ret |= extract_and_shift_register(rd, 7);
 
             // TODO: deal with imm
-            let imm2 = extract_imm(&imm);
             // imm[19:12]
-            ret |= select_and_shift(imm2, 19, 12, 0);
+            ret |= select_and_shift(imm, 19, 12, 0);
             // imm[11]
-            ret |= select_and_shift(imm2, 11, 11, 20);
+            ret |= select_and_shift(imm, 11, 11, 20);
             // imm[10:1]
-            ret |= select_and_shift(imm2, 10, 1, 21);
+            ret |= select_and_shift(imm, 10, 1, 21);
             // imm[20]
-            ret |= select_and_shift(imm2, 20, 20, 31);
+            ret |= select_and_shift(imm, 20, 20, 31);
         },
     }
 
@@ -336,25 +327,11 @@ fn extract_csr(arg: &parser::Arg) -> u32 {
     }
 }
 
-fn extract_imm(arg: &parser::Arg) -> u32 {
-    match *arg {
-        parser::Arg::Num(n) => {
-            n
-        },
-        _ => panic!("Was a register or csr or label, expected Num"),
-    }
-}
-
 // TODO: should be able to do without a clone?
-fn extract_and_shift_register(arg: &parser::Arg, shift: u32) -> u32 {
-    match *arg {
-        parser::Arg::Reg(ref r) => {
-            // Map the asm::ast::Reg to 0..31 and shift
-            let val: u32 = r.clone().into();
-            val << shift
-        },
-        _ => panic!("Was a num or csr or label, expected register"),
-    }
+fn extract_and_shift_register(arg: ast::Reg, shift: u32) -> u32 {
+    // Map the asm::ast::Reg to 0..31 and shift
+    let val: u32 = arg.clone().into();
+    val << shift
 }
 
 fn extract_label(arg: &parser::Arg) -> parser::PToken {
