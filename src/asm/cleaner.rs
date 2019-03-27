@@ -44,18 +44,29 @@ pub enum CToken {
     // 3 length
     RegRegImm(String, ast::Reg, ast::Reg, u32),
 
+    // Inst, rd, rs1, imm
+    // 3 length
+    RegRegImmStore(String, ast::Reg, ast::Reg, u32),
+
+    // Inst, rd, rs1, imm
+    // 3 length
+    RegRegILBranch(String, ast::Reg, ast::Reg, CImmLabel),
+
     // Inst, rd, rs, (imm/label)
     // 3 length
     RegRegIL(String, ast::Reg, ast::Reg, CImmLabel),
 
-    // Custom inst + macros?
-    // FENCE, FENCE.I, ECALL, EBREAK
-    Custom(String, Vec<parser::Arg>),
-
-
     // Inst, rd, (imm/label)
     // 2 length
     RegIL(String, ast::Reg, CImmLabel),
+
+    // Inst, rd, (imm/label)
+    // 2 length
+    RegILShuffle(String, ast::Reg, CImmLabel),
+
+    // Custom inst + macros?
+    // FENCE, FENCE.I, ECALL, EBREAK
+    Custom(String, Vec<parser::Arg>),
 }
 
 
@@ -173,10 +184,48 @@ impl<'a> Cleaner<'a> {
                                         },
                                     }
                                 },
-                                opcode::InstType::S => None,
-                                opcode::InstType::SB => None,
-                                opcode::InstType::U => None,
-                                opcode::InstType::UJ => None,
+                                opcode::InstType::S => {
+                                    if args.len() != 3 {
+                                        panic!("S type inst: {:?} arg: {:?}", inst, args);
+                                    }
+                                    Some(CToken::RegRegImmStore(
+                                        inst,
+                                        extract_reg(args.remove(0)),
+                                        extract_reg(args.remove(0)),
+                                        extract_imm(args.remove(0))
+                                    ))
+                                },
+                                opcode::InstType::SB => {
+                                    if args.len() != 3 {
+                                        panic!("SB type inst: {:?} arg: {:?}", inst, args);
+                                    }
+                                    Some(CToken::RegRegILBranch(
+                                        inst,
+                                        extract_reg(args.remove(0)),
+                                        extract_reg(args.remove(0)),
+                                        extract_imm_label(args.remove(0))
+                                    ))
+                                },
+                                opcode::InstType::U => {
+                                    if args.len() != 2 {
+                                        panic!("U type inst: {:?} arg: {:?}", inst, args);
+                                    }
+                                    Some(CToken::RegIL(
+                                        inst,
+                                        extract_reg(args.remove(0)),
+                                        extract_imm_label(args.remove(0))
+                                    ))
+                                },
+                                opcode::InstType::UJ => {
+                                    if args.len() != 2 {
+                                        panic!("UJ type inst: {:?} arg: {:?}", inst, args);
+                                    }
+                                    Some(CToken::RegILShuffle(
+                                        inst,
+                                        extract_reg(args.remove(0)),
+                                        extract_imm_label(args.remove(0))
+                                    ))
+                                },
                             }
                         },
                     }
@@ -356,6 +405,99 @@ pub mod cleaner_ast {
 
         let expected = vec![
             Some(CToken::RegRegImm("ADDI".to_string(), ast::Reg::X0, ast::Reg::X1, 11)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegRegImmStore_inst() {
+        let input = "sw x0 x1 11";
+
+        let expected = vec![
+            Some(CToken::RegRegImmStore("SW".to_string(), ast::Reg::X0, ast::Reg::X1, 11)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegRegILBranch_inst() {
+        let input = "bne x0 x1 11\n bne x1 x2 2f\n bne x2 x3 asdf";
+
+        let expected = vec![
+            Some(CToken::RegRegILBranch(
+                "BNE".to_string(),
+                ast::Reg::X0,
+                ast::Reg::X1,
+                CImmLabel::Imm(11)
+            )),
+            Some(CToken::RegRegILBranch(
+                "BNE".to_string(),
+                ast::Reg::X1,
+                ast::Reg::X2,
+                CImmLabel::Label("2f".to_string(), parser::LabelType::Local)
+            )),
+            Some(CToken::RegRegILBranch(
+                "BNE".to_string(),
+                ast::Reg::X2,
+                ast::Reg::X3,
+                CImmLabel::Label("asdf".to_string(), parser::LabelType::Global)
+            )),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegIL_inst() {
+        let input = "lui x0 11\n lui x1 2f\n lui x2 asdf";
+
+        let expected = vec![
+            Some(CToken::RegIL(
+                "LUI".to_string(),
+                ast::Reg::X0,
+                CImmLabel::Imm(11)
+            )),
+            Some(CToken::RegIL(
+                "LUI".to_string(),
+                ast::Reg::X1,
+                CImmLabel::Label("2f".to_string(), parser::LabelType::Local)
+            )),
+            Some(CToken::RegIL(
+                "LUI".to_string(),
+                ast::Reg::X2,
+                CImmLabel::Label("asdf".to_string(), parser::LabelType::Global)
+            )),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_RegILShuffle_inst() {
+        let input = "jal x0 11\n jal x1 2f\n jal x2 asdf";
+
+        let expected = vec![
+            Some(CToken::RegILShuffle(
+                "JAL".to_string(),
+                ast::Reg::X0,
+                CImmLabel::Imm(11)
+            )),
+            Some(CToken::RegILShuffle(
+                "JAL".to_string(),
+                ast::Reg::X1,
+                CImmLabel::Label("2f".to_string(), parser::LabelType::Local)
+            )),
+            Some(CToken::RegILShuffle(
+                "JAL".to_string(),
+                ast::Reg::X2,
+                CImmLabel::Label("asdf".to_string(), parser::LabelType::Global)
+            )),
             None,
         ];
 
