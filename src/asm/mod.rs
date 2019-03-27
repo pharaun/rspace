@@ -324,18 +324,17 @@ fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
 }
 
 fn extract_csr(arg: ast::Csr) -> u32 {
-    arg.clone().into()
+    arg.into()
 }
 
-// TODO: should be able to do without a clone?
 fn extract_and_shift_register(arg: ast::Reg, shift: u32) -> u32 {
     // Map the asm::ast::Reg to 0..31 and shift
-    let val: u32 = arg.clone().into();
+    let val: u32 = arg.into();
     val << shift
 }
 
 fn extract_label(l: String, lt: parser::LabelType) -> cleaner::CToken {
-    cleaner::CToken::Label(l.clone(), lt.clone())
+    cleaner::CToken::Label(l, lt)
 }
 
 // TODO: this is kinda a poor quality function, need to redo it
