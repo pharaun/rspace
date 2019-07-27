@@ -48,7 +48,7 @@ pub enum CToken {
     // 3 length
     RegRegImmStore(String, ast::Reg, ast::Reg, u32),
 
-    // Inst, rd, rs1, imm
+    // Inst, rd, rs1, (imm/label)?
     // 3 length
     RegRegILBranch(String, ast::Reg, ast::Reg, CImmLabel),
 
@@ -63,10 +63,6 @@ pub enum CToken {
     // Inst, rd, (imm/label)
     // 2 length
     RegILShuffle(String, ast::Reg, CImmLabel),
-
-    // Custom inst + macros?
-    // FENCE, FENCE.I, ECALL, EBREAK
-    Custom(String, Vec<parser::Arg>),
 }
 
 
@@ -125,7 +121,8 @@ impl<'a> Cleaner<'a> {
                                 opcode::InstType::I => {
                                     match &inst[..] {
                                         "FENCE" | "FENCE.I" | "ECALL" | "EBREAK" => {
-                                            Some(CToken::Custom(inst, args))
+                                            print!("Skipping unsupported instruction: {}", inst);
+                                            self.next_token()
                                         },
                                         "CSRRWI" | "CSRRSI" | "CSRRCI" => {
                                             if args.len() != 3 {
@@ -266,30 +263,6 @@ fn extract_imm_label(arg: parser::Arg) -> CImmLabel {
     }
 }
 
-fn llookup(inst: &str) -> opcode::InstEnc {
-    match opcode::lookup(&inst) {
-        None    => panic!("Failed to find - {:?}", inst),
-        Some(x) => x,
-    }
-}
-
-pub fn lookup(inst: &CToken) -> opcode::InstEnc {
-    match inst {
-        CToken::RegRegReg(i, _, _, _)       => llookup(&i),
-        CToken::RegImmCsr(i, _, _, _)       => llookup(&i),
-        CToken::RegRegCsr(i, _, _, _)       => llookup(&i),
-        CToken::RegRegShamt(i, _, _, _)     => llookup(&i),
-        CToken::RegRegImm(i, _, _, _)       => llookup(&i),
-        CToken::RegRegImmStore(i, _, _, _)  => llookup(&i),
-        CToken::RegRegIL(i, _, _, _)        => llookup(&i),
-        CToken::RegRegILBranch(i, _, _, _)  => llookup(&i),
-        CToken::RegIL(i, _, _)              => llookup(&i),
-        CToken::RegILShuffle(i, _, _)       => llookup(&i),
-        CToken::Custom(i, _)                => llookup(&i),
-        CToken::Label(_, _)                 => panic!("Got a Label, this is bad"),
-    }
-}
-
 impl<'a> Iterator for Cleaner<'a> {
     type Item = CToken;
     fn next(&mut self) -> Option<CToken> {
@@ -331,21 +304,6 @@ pub mod cleaner_ast {
 
         let expected = vec![
             Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
-            None,
-        ];
-
-        assert_eq(input, expected);
-    }
-
-    #[test]
-    fn test_Custom_inst() {
-        let input = "fence\n fence.i\n ecall\n ebreak";
-
-        let expected = vec![
-            Some(CToken::Custom("FENCE".to_string(), Vec::new())),
-            Some(CToken::Custom("FENCE.I".to_string(), Vec::new())),
-            Some(CToken::Custom("ECALL".to_string(), Vec::new())),
-            Some(CToken::Custom("EBREAK".to_string(), Vec::new())),
             None,
         ];
 
