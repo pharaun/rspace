@@ -125,8 +125,7 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
     }
 }
 
-// TODO: push the local label type parser upstream
-fn find_label(name: &String, label_type: parser::LabelType, symbol: &Vec<((String, parser::LabelType), usize)>, inst_pos: usize) -> usize {
+fn find_label(name: &String, label_type: parser::InstLabelType, symbol: &Vec<((String, parser::LabelType), usize)>, inst_pos: usize) -> usize {
     // Decode the type of Label it is (is it a word or a numberic label)
     // If word, proceed, but if numberic,
     //      parse the letter after (b or f) for backward or forward numberic ref
@@ -135,7 +134,7 @@ fn find_label(name: &String, label_type: parser::LabelType, symbol: &Vec<((Strin
     //      Assume no duplicate word label (should not happen, integrity check the symbol table)
     //      linear scan till you find the matching word label
     match label_type {
-        parser::LabelType::Global => {
+        parser::InstLabelType::Global => {
             // Word label
             for val in symbol.iter() {
                 match val {
@@ -149,43 +148,33 @@ fn find_label(name: &String, label_type: parser::LabelType, symbol: &Vec<((Strin
             }
             panic!("Did not find {} global label in the table", name)
         },
-        parser::LabelType::Local => {
-            // Local, aka numberical
-            let mut s = name.clone();
-            let dir = s.pop().unwrap();
-            let s = &s;
-
-            match dir {
-                'f' => {
-                    // Forward
-                    for val in symbol.iter() {
-                        match val {
-                            &((ref sl, parser::LabelType::Local), spos) => {
-                                if (sl == s) & (spos >= inst_pos) {
-                                    return spos
-                                }
-                            },
-                            _ => (),
+        parser::InstLabelType::LocalForward => {
+            // Local Forward, aka numberical
+            for val in symbol.iter() {
+                match val {
+                    &((ref sl, parser::LabelType::Local), spos) => {
+                        if (sl == name) & (spos >= inst_pos) {
+                            return spos
                         }
-                    }
-                    panic!("Did not find {} local forward label in the table", name)
-                },
-                'b' => {
-                    // Backward
-                    for val in symbol.iter().rev() {
-                        match val {
-                            &((ref sl, parser::LabelType::Local), spos) => {
-                                if (sl == s) & (spos <= inst_pos) {
-                                    return spos
-                                }
-                            },
-                            _ => (),
-                        }
-                    }
-                    panic!("Did not find {} local backward label in the table", name)
-                },
-                _ => panic!("Invalid identifer {}, should be b or f", dir),
+                    },
+                    _ => (),
+                }
             }
+            panic!("Did not find {} local forward label in the table", name)
+        },
+        parser::InstLabelType::LocalBackward => {
+            // Local Backward, aka numberical
+            for val in symbol.iter().rev() {
+                match val {
+                    &((ref sl, parser::LabelType::Local), spos) => {
+                        if (sl == name) & (spos <= inst_pos) {
+                            return spos
+                        }
+                    },
+                    _ => (),
+                }
+            }
+            panic!("Did not find {} local backward label in the table", name)
         },
     }
 }

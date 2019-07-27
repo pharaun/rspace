@@ -13,10 +13,13 @@ use std::str::FromStr;
 #[derive(Debug, PartialEq, Clone)]
 pub enum LabelType { Global, Local }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum InstLabelType { Global, LocalBackward, LocalForward }
+
 #[derive(Debug, PartialEq)]
 pub enum Arg {
     Num(u32),
-    Label(String, LabelType),
+    Label(String, InstLabelType),
     Reg(ast::Reg),
     Csr(ast::Csr),
 }
@@ -80,7 +83,7 @@ impl<'a> Parser<'a> {
                     },
                     lexer::Token::Colon => panic!("Should not see a colon"),
                     lexer::Token::Newline => panic!("Should not see a newline"),
-                    lexer::Token::Label(_) => panic!("Should not see a local label outside of a instruction"),
+                    lexer::Token::Label(_, _) => panic!("Should not see a local label outside of a instruction"),
                 }
             } else {
                 match t {
@@ -98,11 +101,16 @@ impl<'a> Parser<'a> {
                                         args.push(Arg::Reg(r));
                                     } else {
                                         // Global Label
-                                        args.push(Arg::Label(s, LabelType::Global));
+                                        args.push(Arg::Label(s, InstLabelType::Global));
                                     }
                                 },
                                 lexer::Token::Num(i) => args.push(Arg::Num(i)),
-                                lexer::Token::Label(s) => args.push(Arg::Label(s, LabelType::Local)),
+                                lexer::Token::Label(s, lexer::TokenLabel::Forward) => {
+                                    args.push(Arg::Label(s, InstLabelType::LocalForward))
+                                },
+                                lexer::Token::Label(s, lexer::TokenLabel::Backward) => {
+                                    args.push(Arg::Label(s, InstLabelType::LocalBackward))
+                                },
                                 _ => panic!("Shouldn't see Colon or Newline here"),
                             }
                         }
@@ -119,7 +127,7 @@ impl<'a> Parser<'a> {
                     lexer::Token::Newline => self.next_token(),
                     lexer::Token::Num(_) => panic!("Should not see a number outside of a instruction"),
                     lexer::Token::Colon => panic!("Should not see a colon outside of a label"),
-                    lexer::Token::Label(_) => panic!("Should not see a local label outside of a instruction"),
+                    lexer::Token::Label(_, _) => panic!("Should not see a local label outside of a instruction"),
                 }
             }
         } else {
@@ -142,7 +150,7 @@ pub mod parser_ast {
 
     #[test]
     fn test_line() {
-        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f asdf CYCLE // Comments";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b asdf CYCLE // Comments";
         let mut parser = Parser::new(lexer::Lexer::new(input));
 
         let neg: i32 = -1;
@@ -156,8 +164,9 @@ pub mod parser_ast {
                 Arg::Num(neg as u32),
                 Arg::Num(0xAF),
                 // Should have more data here
-                Arg::Label("2f".to_string(), LabelType::Local),
-                Arg::Label("asdf".to_string(), LabelType::Global),
+                Arg::Label("2".to_string(), InstLabelType::LocalForward),
+                Arg::Label("2".to_string(), InstLabelType::LocalBackward),
+                Arg::Label("asdf".to_string(), InstLabelType::Global),
                 Arg::Csr(ast::Csr::CYCLE),
             ])),
             None,

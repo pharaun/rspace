@@ -1,16 +1,17 @@
 use std::str::Chars;
 use std::iter::Peekable;
 
+#[derive(Debug, PartialEq)]
+pub enum TokenLabel { Forward, Backward }
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
     Str(String),
-    Label(String), // Only support local labels for now
+    Label(String, TokenLabel), // Only support local labels for now
     Num(u32), // Only decimals or hex
     Colon,
     Newline,
 }
-
 
 // Lexer
 pub struct Lexer<'a> {
@@ -97,26 +98,29 @@ impl<'a> Lexer<'a> {
     }
 
     fn read_digits_or_label(&mut self, c: char) -> Token {
-        let mut label = false;
+        let mut label = None;
         let mut maybe_digits = String::new();
         maybe_digits.push(c);
 
         while let Some(&c) = self.peek_char() {
             if c.is_digit(10) {
                 maybe_digits.push(self.read_char().unwrap());
-            } else if (c == 'f') || (c == 'b') {
-                maybe_digits.push(self.read_char().unwrap());
-                label = true;
+            } else if c == 'f' {
+                self.discard_char();
+                label = Some(TokenLabel::Forward);
+                break;
+            } else if c == 'b' {
+                self.discard_char();
+                label = Some(TokenLabel::Backward);
                 break;
             } else {
                 break;
             }
         }
 
-        if label {
-            Token::Label(maybe_digits)
-        } else {
-            Token::Num(u32::from_str_radix(&maybe_digits, 10).unwrap())
+        match label {
+            Some(l) => Token::Label(maybe_digits, l),
+            None    => Token::Num(u32::from_str_radix(&maybe_digits, 10).unwrap()),
         }
     }
 
@@ -204,8 +208,8 @@ pub mod lexer_token {
             Some(Token::Num(1)),
             Some(Token::Num(neg as u32)),
             Some(Token::Num(0xAF)),
-            Some(Token::Label("2f".to_string())),
-            Some(Token::Label("2b".to_string())),
+            Some(Token::Label("2".to_string(), TokenLabel::Forward)),
+            Some(Token::Label("2".to_string(), TokenLabel::Backward)),
             Some(Token::Str("asdf".to_string())),
             // Comments are discarded
             Some(Token::Newline),

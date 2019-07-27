@@ -13,7 +13,7 @@ use asm::ast;
 
 #[derive(Debug, PartialEq)]
 pub enum CImmLabel {
-    Label(String, parser::LabelType),
+    Label(String, parser::InstLabelType),
     Imm(u32),
 }
 
@@ -262,6 +262,7 @@ impl<'a> Iterator for Cleaner<'a> {
 
 #[cfg(test)]
 pub mod cleaner_ast {
+    use asm::lexer;
     use super::*;
 
     fn assert_eq(input: &str, expected: Vec<Option<CToken>>) {
@@ -343,7 +344,7 @@ pub mod cleaner_ast {
 
     #[test]
     fn test_RegRegIL_inst() {
-        let input = "jalr x0 x1 11\n jalr x1 x2 2f\n jalr x2 x3 asdf";
+        let input = "jalr x0 x1 11\n jalr x1 x2 2f\n jalr x2 x3 2b\njalr x3 x4 asdf";
 
         let expected = vec![
             Some(CToken::RegRegIL(
@@ -356,13 +357,19 @@ pub mod cleaner_ast {
                 "JALR".to_string(),
                 ast::Reg::X1,
                 ast::Reg::X2,
-                CImmLabel::Label("2f".to_string(), parser::LabelType::Local)
+                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalForward)
             )),
             Some(CToken::RegRegIL(
                 "JALR".to_string(),
                 ast::Reg::X2,
                 ast::Reg::X3,
-                CImmLabel::Label("asdf".to_string(), parser::LabelType::Global)
+                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalBackward)
+            )),
+            Some(CToken::RegRegIL(
+                "JALR".to_string(),
+                ast::Reg::X3,
+                ast::Reg::X4,
+                CImmLabel::Label("asdf".to_string(), parser::InstLabelType::Global)
             )),
             None,
         ];
@@ -396,7 +403,7 @@ pub mod cleaner_ast {
 
     #[test]
     fn test_RegRegILBranch_inst() {
-        let input = "bne x0 x1 11\n bne x1 x2 2f\n bne x2 x3 asdf";
+        let input = "bne x0 x1 11\n bne x1 x2 2f\n bne x2 x3 2b\n bne x3 x4 asdf";
 
         let expected = vec![
             Some(CToken::RegRegILBranch(
@@ -409,13 +416,19 @@ pub mod cleaner_ast {
                 "BNE".to_string(),
                 ast::Reg::X1,
                 ast::Reg::X2,
-                CImmLabel::Label("2f".to_string(), parser::LabelType::Local)
+                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalForward)
             )),
             Some(CToken::RegRegILBranch(
                 "BNE".to_string(),
                 ast::Reg::X2,
                 ast::Reg::X3,
-                CImmLabel::Label("asdf".to_string(), parser::LabelType::Global)
+                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalBackward)
+            )),
+            Some(CToken::RegRegILBranch(
+                "BNE".to_string(),
+                ast::Reg::X3,
+                ast::Reg::X4,
+                CImmLabel::Label("asdf".to_string(), parser::InstLabelType::Global)
             )),
             None,
         ];
@@ -425,7 +438,7 @@ pub mod cleaner_ast {
 
     #[test]
     fn test_RegIL_inst() {
-        let input = "lui x0 11\n lui x1 2f\n lui x2 asdf";
+        let input = "lui x0 11\n lui x1 2f\n lui x2 2b\n lui x3 asdf";
 
         let expected = vec![
             Some(CToken::RegIL(
@@ -436,12 +449,17 @@ pub mod cleaner_ast {
             Some(CToken::RegIL(
                 "LUI".to_string(),
                 ast::Reg::X1,
-                CImmLabel::Label("2f".to_string(), parser::LabelType::Local)
+                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalForward)
             )),
             Some(CToken::RegIL(
                 "LUI".to_string(),
                 ast::Reg::X2,
-                CImmLabel::Label("asdf".to_string(), parser::LabelType::Global)
+                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalBackward)
+            )),
+            Some(CToken::RegIL(
+                "LUI".to_string(),
+                ast::Reg::X3,
+                CImmLabel::Label("asdf".to_string(), parser::InstLabelType::Global)
             )),
             None,
         ];
@@ -451,7 +469,7 @@ pub mod cleaner_ast {
 
     #[test]
     fn test_RegILShuffle_inst() {
-        let input = "jal x0 11\n jal x1 2f\n jal x2 asdf";
+        let input = "jal x0 11\n jal x1 2f\n jal x2 2b\n jal x3 asdf";
 
         let expected = vec![
             Some(CToken::RegILShuffle(
@@ -462,12 +480,17 @@ pub mod cleaner_ast {
             Some(CToken::RegILShuffle(
                 "JAL".to_string(),
                 ast::Reg::X1,
-                CImmLabel::Label("2f".to_string(), parser::LabelType::Local)
+                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalForward)
             )),
             Some(CToken::RegILShuffle(
                 "JAL".to_string(),
                 ast::Reg::X2,
-                CImmLabel::Label("asdf".to_string(), parser::LabelType::Global)
+                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalBackward)
+            )),
+            Some(CToken::RegILShuffle(
+                "JAL".to_string(),
+                ast::Reg::X3,
+                CImmLabel::Label("asdf".to_string(), parser::InstLabelType::Global)
             )),
             None,
         ];
