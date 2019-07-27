@@ -1,12 +1,9 @@
-use std::iter::Peekable;
-use asm::lexer;
 use asm::parser;
 
 use vm::opcode;
 
 // Use the reg and csr func here for now
 use asm::ast;
-use std::str::FromStr;
 
 // TODO:
 // 1. newtype im
@@ -68,25 +65,17 @@ pub enum CToken {
 
 // Cleaner
 pub struct Cleaner<'a> {
-    input_iter: Peekable<parser::Parser<'a>>,
+    input_iter: parser::Parser<'a>,
 }
 
 
 impl<'a> Cleaner<'a> {
     pub fn new(input: parser::Parser<'a>) -> Cleaner<'a> {
-        Cleaner { input_iter: input.peekable() }
-    }
-
-    fn discard_token(&mut self) {
-        let _ = self.input_iter.next();
+        Cleaner { input_iter: input }
     }
 
     fn read_token(&mut self) -> Option<parser::PToken> {
         self.input_iter.next()
-    }
-
-    fn peek_token(&mut self) -> Option<&parser::PToken> {
-        self.input_iter.peek()
     }
 
     pub fn next_token(&mut self) -> Option<CToken> {

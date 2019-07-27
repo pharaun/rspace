@@ -22,7 +22,7 @@ pub enum AToken {
 // TODO: support labeled memory location, for now only branches + jumps (need more support)
 // Don't know how to figure out if i should generate a relative or an absolute address, branches are always relative to the inst
 // supporting those for now, the jalr/auipc/lui/jal i can't figure out yet
-pub fn symbol_table_expansion<'a>(mut input: cleaner::Cleaner<'a>) -> Vec<AToken> {
+pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
     // First pass caches the output from cleaner
     let mut first_pass: Vec<cleaner::CToken> = Vec::new();
 

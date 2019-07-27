@@ -17,7 +17,7 @@ pub mod labeler;
 // 4. Fourth pass: rectify the inst into u32 + attribute memory location for labels
 // 5. Fifth pass: Find where to put data, and then rectify reference to data/memory locations.
 pub fn parse_asm(input: &str) -> Vec<u32> {
-    let mut parser_iter = cleaner::Cleaner::new(parser::Parser::new(lexer::Lexer::new(input)));
+    let parser_iter = cleaner::Cleaner::new(parser::Parser::new(lexer::Lexer::new(input)));
     let mut parser = labeler::symbol_table_expansion(parser_iter);
 
     // Bytecode output
@@ -49,23 +49,20 @@ fn lut_to_binary(token: labeler::AToken) -> u32 {
         // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
         // func7,   rs2,   rs1, func3,   rd, opcode
         labeler::AToken::RegRegReg(_, rd, rs1, rs2) => {
-            ret |= extract_and_shift_register(rd,  7);
-            ret |= extract_and_shift_register(rs1, 15);
-            ret |= extract_and_shift_register(rs2, 20);
+            ret |= extract_and_shift(rd,  7);
+            ret |= extract_and_shift(rs1, 15);
+            ret |= extract_and_shift(rs2, 20);
         },
 
         labeler::AToken::RegImmCsr(_, rd, imm, csr) => {
-            ret |= extract_and_shift_register(rd,  7);
-
+            ret |= extract_and_shift(rd,  7);
             ret |= select_and_shift(imm, 5, 0, 15);
-
-            let csrreg = extract_csr(csr);
-            ret |= csrreg << 20;
+            ret |= extract_and_shift(csr, 20);
         },
 
         labeler::AToken::RegRegShamt(_, rd, rs1, imm) => {
-            ret |= extract_and_shift_register(rd,  7);
-            ret |= extract_and_shift_register(rs1, 15);
+            ret |= extract_and_shift(rd,  7);
+            ret |= extract_and_shift(rs1, 15);
 
             // TODO: deal with imm
             // shamt[4:0]
@@ -74,16 +71,14 @@ fn lut_to_binary(token: labeler::AToken) -> u32 {
         },
 
         labeler::AToken::RegRegCsr(_, rd, rs1, csr) => {
-            ret |= extract_and_shift_register(rd,  7);
-            ret |= extract_and_shift_register(rs1, 15);
-
-            let csrreg = extract_csr(csr);
-            ret |= csrreg << 20;
+            ret |= extract_and_shift(rd,  7);
+            ret |= extract_and_shift(rs1, 15);
+            ret |= extract_and_shift(csr, 20);
         },
 
         labeler::AToken::RegRegIL(_, rd, rs1, imm) => {
-            ret |= extract_and_shift_register(rd,  7);
-            ret |= extract_and_shift_register(rs1, 15);
+            ret |= extract_and_shift(rd,  7);
+            ret |= extract_and_shift(rs1, 15);
 
             // TODO: deal with imm
             // TODO: design a function for dealing with imm (takes a list of range + shift)
@@ -94,8 +89,8 @@ fn lut_to_binary(token: labeler::AToken) -> u32 {
         },
 
         labeler::AToken::RegRegImm(_, rd, rs1, imm) => {
-            ret |= extract_and_shift_register(rd,  7);
-            ret |= extract_and_shift_register(rs1, 15);
+            ret |= extract_and_shift(rd,  7);
+            ret |= extract_and_shift(rs1, 15);
 
             // TODO: to support addi for 'la'
             // TODO: deal with imm
@@ -109,8 +104,8 @@ fn lut_to_binary(token: labeler::AToken) -> u32 {
         // 31-25, 24-20, 19-15, 14-12, 11-7, 6-0
         //   imm,   rs2,   rs1, func3,  imm, opcode
         labeler::AToken::RegRegImmStore(_, rs1, rs2, imm) => {
-            ret |= extract_and_shift_register(rs1, 15);
-            ret |= extract_and_shift_register(rs2, 20);
+            ret |= extract_and_shift(rs1, 15);
+            ret |= extract_and_shift(rs2, 20);
 
             // TODO: deal with imm
             // imm[4:0]
@@ -124,8 +119,8 @@ fn lut_to_binary(token: labeler::AToken) -> u32 {
         // encoding these quite right, but with the re-arranged
         // order it seems to work.... ?
         labeler::AToken::RegRegILBranch(_, rs1, rs2, imm) => {
-            ret |= extract_and_shift_register(rs1, 15);
-            ret |= extract_and_shift_register(rs2, 20);
+            ret |= extract_and_shift(rs1, 15);
+            ret |= extract_and_shift(rs2, 20);
 
             // TODO: deal with imm
             // imm[11]
@@ -159,7 +154,7 @@ fn lut_to_binary(token: labeler::AToken) -> u32 {
         // TODO: deal with imm
         //ret |= select_and_shift(imm, 19, 0, 12);
         labeler::AToken::RegIL(_, rd, imm) => {
-            ret |= extract_and_shift_register(rd, 7);
+            ret |= extract_and_shift(rd, 7);
 
             // TODO: this relative offset doesn't work for LUI, we want to see label, get the value from that and store that
             ret |= select_and_shift(imm, 19, 0, 12);
@@ -167,7 +162,7 @@ fn lut_to_binary(token: labeler::AToken) -> u32 {
         },
 
         labeler::AToken::RegILShuffle(_, rd, imm) => {
-            ret |= extract_and_shift_register(rd, 7);
+            ret |= extract_and_shift(rd, 7);
 
             // TODO: deal with imm
             // imm[19:12]
@@ -200,21 +195,9 @@ fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
     ((imm & u32::mask(hi..lo)) >> lo) << shift
 }
 
-fn extract_csr(arg: ast::Csr) -> u32 {
-    arg.into()
-}
-
-fn extract_and_shift_register(arg: ast::Reg, shift: u32) -> u32 {
-    // Map the asm::ast::Reg to 0..31 and shift
+fn extract_and_shift<T: std::convert::Into<u32>>(arg: T, shift: usize) -> u32 {
     let val: u32 = arg.into();
     val << shift
-}
-
-fn llookup(inst: &str) -> opcode::InstEnc {
-    match opcode::lookup(&inst) {
-        None    => panic!("Failed to find - {:?}", inst),
-        Some(x) => x,
-    }
 }
 
 fn lookup(inst: &labeler::AToken) -> opcode::InstEnc {
@@ -229,5 +212,12 @@ fn lookup(inst: &labeler::AToken) -> opcode::InstEnc {
         labeler::AToken::RegRegILBranch(i, _, _, _)  => llookup(&i),
         labeler::AToken::RegIL(i, _, _)              => llookup(&i),
         labeler::AToken::RegILShuffle(i, _, _)       => llookup(&i),
+    }
+}
+
+fn llookup(inst: &str) -> opcode::InstEnc {
+    match opcode::lookup(&inst) {
+        None    => panic!("Failed to find - {:?}", inst),
+        Some(x) => x,
     }
 }
