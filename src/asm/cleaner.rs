@@ -11,6 +11,11 @@ use asm::ast;
 //      - prior stage handles macro expansion
 //      - assembler handles label lookup
 
+// TODO: Find a way to better clarify the type of AddrRef
+// 1. relative to the instruction (ie jump back 10 whatever)
+// 2. relative to pc (ie auipc)
+// 3. absolute addressing
+// 4. memref (content of what was at that address at assembly time) (Restricted to only data label?)
 #[derive(Debug, PartialEq)]
 pub enum CImmRef {
     // TODO: MemRef(String),

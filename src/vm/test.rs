@@ -481,12 +481,67 @@ mod op_tests {
         }
     }
 
+    mod load_op_tests {
+        use super::*;
+
+        include!("../../test-rv32im/lw.rs");
+        //include!("../../test-rv32im/lh.rs");
+        //include!("../../test-rv32im/lhu.rs");
+        //include!("../../test-rv32im/lb.rs");
+        //include!("../../test-rv32im/lhu.rs");
+
+        fn TEST_LD_OP(_test: u8, op: &str, res: u32, off: u32, base: &str) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    &format!(
+                        // TODO: implement support for `la` alias
+                        "jal x0 test\n
+                        tdat:\n
+                        tdat1: 0x00ff00ff\n
+                        tdat2: 0xff00ff00\n
+                        tdat3: 0x0ff00ff0\n
+                        tdat4: 0xf00ff00f\n
+                        test:\n
+                        lui x1 {}\n
+                        addi x1 x1 {}\n
+                        {} x2 x1 0x{:08x}",
+                        base, // TODO: May need to shift this for lui (due to mips)
+                        base,
+                        op,
+                        off
+                    )
+                )
+            );
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[2], res);
+        }
+
+        fn TEST_LD_DEST_BYPASS(test: u8, _n: u32, op: &str, res: u32, off: u32, base: &str) {
+            TEST_LD_OP(test, op, res, off, base);
+        }
+
+        fn TEST_LD_SRC1_BYPASS(test: u8, _n: u32, op: &str, res: u32, off: u32, base: &str) {
+            TEST_LD_OP(test, op, res, off, base);
+        }
+
+        fn TEST_NEGATIVE_BASE() {
+        }
+
+        fn TEST_UNALIGNED_BASE() {
+        }
+    }
+
+
         // AUIPC
         // JALR
         // STORE
-        // LOADs
         // Lower Priority:
-        // SYNCH (fence)
         // COUNTERS (CSR)
+        // SYNCH (fence)
         // SYSTEM (scall/sbreak)/(ebreak/ecall)
 }
