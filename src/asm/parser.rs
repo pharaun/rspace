@@ -5,30 +5,28 @@ use asm::lexer;
 use asm::ast;
 use std::str::FromStr;
 
-// TODO: identify data/mem label
 // TODO: parse macro definition and usage here
 
-// TODO: add data/memory labels
-// TODO: better way to do labels? (def duplicated)
 #[derive(Debug, PartialEq, Clone)]
 pub enum LabelType { Global, Local }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum InstLabelType { Global, LocalBackward, LocalForward }
+pub enum AddrRefType { Global, LocalBackward, LocalForward }
 
 #[derive(Debug, PartialEq)]
 pub enum Arg {
     Num(u32),
-    Label(String, InstLabelType),
     Reg(ast::Reg),
     Csr(ast::Csr),
+    AddrRef(String, AddrRefType),
+    MemRef(String),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum PToken {
     Label(String, LabelType),
-    // TODO:: upper case the instructions
     Inst(String, Vec<Arg>),
+    Data(u32),
 }
 
 
@@ -83,7 +81,8 @@ impl<'a> Parser<'a> {
                     },
                     lexer::Token::Colon => panic!("Should not see a colon"),
                     lexer::Token::Newline => panic!("Should not see a newline"),
-                    lexer::Token::Label(_, _) => panic!("Should not see a local label outside of a instruction"),
+                    lexer::Token::AddrRef(_, _) => panic!("Should not see an addref outside of a instruction"),
+                    lexer::Token::MemRef(_) => panic!("Should not see a memref outside of a instruction"),
                 }
             } else {
                 match t {
@@ -101,17 +100,21 @@ impl<'a> Parser<'a> {
                                         args.push(Arg::Reg(r));
                                     } else {
                                         // Global Label
-                                        args.push(Arg::Label(s, InstLabelType::Global));
+                                        args.push(Arg::AddrRef(s, AddrRefType::Global));
                                     }
                                 },
                                 lexer::Token::Num(i) => args.push(Arg::Num(i)),
-                                lexer::Token::Label(s, lexer::TokenLabel::Forward) => {
-                                    args.push(Arg::Label(s, InstLabelType::LocalForward))
+                                lexer::Token::AddrRef(s, lexer::AddrRefType::Forward) => {
+                                    args.push(Arg::AddrRef(s, AddrRefType::LocalForward))
                                 },
-                                lexer::Token::Label(s, lexer::TokenLabel::Backward) => {
-                                    args.push(Arg::Label(s, InstLabelType::LocalBackward))
+                                lexer::Token::AddrRef(s, lexer::AddrRefType::Backward) => {
+                                    args.push(Arg::AddrRef(s, AddrRefType::LocalBackward))
                                 },
-                                _ => panic!("Shouldn't see Colon or Newline here"),
+                                lexer::Token::MemRef(s) => {
+                                    args.push(Arg::MemRef(s))
+                                },
+                                lexer::Token::Colon => panic!("Should not see a colon"),
+                                lexer::Token::Newline => panic!("Should not see a newline"),
                             }
                         }
 
@@ -121,13 +124,16 @@ impl<'a> Parser<'a> {
                         // Later on would need (ie in the assemblier stage) code to handle labels
                         // vs numbers/etc when one or the other is expected (particularly for
                         // addresses/variables)
-                        Some(PToken::Inst(s, args))
+                        Some(PToken::Inst(s.to_ascii_uppercase(), args))
                     },
                     // We skip newline here its only required when handling PToken::Inst
                     lexer::Token::Newline => self.next_token(),
-                    lexer::Token::Num(_) => panic!("Should not see a number outside of a instruction"),
+                    // To allow for raw data we allow Num outside of instruction
+                    lexer::Token::Num(n) => Some(PToken::Data(n)),
+
                     lexer::Token::Colon => panic!("Should not see a colon outside of a label"),
-                    lexer::Token::Label(_, _) => panic!("Should not see a local label outside of a instruction"),
+                    lexer::Token::AddrRef(_, _) => panic!("Should not see an addref outside of a instruction"),
+                    lexer::Token::MemRef(_) => panic!("Should not see a memref outside of a instruction"),
                 }
             }
         } else {
@@ -150,25 +156,27 @@ pub mod parser_ast {
 
     #[test]
     fn test_line() {
-        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b asdf CYCLE // Comments";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b asdf CYCLE [qwer]\n 0xDE // Comments";
         let mut parser = Parser::new(lexer::Lexer::new(input));
 
         let neg: i32 = -1;
         let expected = vec![
             Some(PToken::Label("la".to_string(), LabelType::Global)),
             Some(PToken::Label("2".to_string(), LabelType::Local)),
-            Some(PToken::Inst("addi".to_string(), vec![
+            Some(PToken::Inst("ADDI".to_string(), vec![
                 Arg::Reg(ast::Reg::X0),
                 Arg::Reg(ast::Reg::X8),
                 Arg::Num(1),
                 Arg::Num(neg as u32),
                 Arg::Num(0xAF),
                 // Should have more data here
-                Arg::Label("2".to_string(), InstLabelType::LocalForward),
-                Arg::Label("2".to_string(), InstLabelType::LocalBackward),
-                Arg::Label("asdf".to_string(), InstLabelType::Global),
+                Arg::AddrRef("2".to_string(), AddrRefType::LocalForward),
+                Arg::AddrRef("2".to_string(), AddrRefType::LocalBackward),
+                Arg::AddrRef("asdf".to_string(), AddrRefType::Global),
                 Arg::Csr(ast::Csr::CYCLE),
+                Arg::MemRef("qwer".to_string()),
             ])),
+            Some(PToken::Data(0xDE)),
             None,
         ];
 
@@ -188,7 +196,7 @@ pub mod parser_ast {
         let expected = vec![
             Some(PToken::Label("la".to_string(), LabelType::Global)),
             Some(PToken::Label("2".to_string(), LabelType::Local)),
-            Some(PToken::Inst("fence.i".to_string(), vec![
+            Some(PToken::Inst("FENCE.I".to_string(), vec![
                 Arg::Reg(ast::Reg::X0),
             ])),
             None,

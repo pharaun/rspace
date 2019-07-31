@@ -25,7 +25,10 @@ pub fn parse_asm(input: &str) -> Vec<u32> {
 
     parser.reverse(); // Since we pop from end, reverse order
     while let Some(token) = parser.pop() {
-        bytecode.push(lut_to_binary(token));
+        match token {
+            labeler::AToken::Data(n) => bytecode.push(n),
+            _ => bytecode.push(lut_to_binary(token)),
+        }
     }
 
     bytecode
@@ -174,6 +177,8 @@ fn lut_to_binary(token: labeler::AToken) -> u32 {
             // imm[20]
             ret |= select_and_shift(imm, 20, 20, 31);
         },
+
+        labeler::AToken::Data(_) => panic!("Shouldn't happen"),
     }
 
     // 7. check if its an instruction that needs additional/special processing, if so do the deed
@@ -212,6 +217,7 @@ fn lookup(inst: &labeler::AToken) -> opcode::InstEnc {
         labeler::AToken::RegRegILBranch(i, _, _, _)  => llookup(&i),
         labeler::AToken::RegIL(i, _, _)              => llookup(&i),
         labeler::AToken::RegILShuffle(i, _, _)       => llookup(&i),
+        labeler::AToken::Data(_)                     => panic!("Shouldn't happen"),
     }
 }
 

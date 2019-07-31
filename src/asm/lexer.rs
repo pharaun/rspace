@@ -2,15 +2,18 @@ use std::str::Chars;
 use std::iter::Peekable;
 
 #[derive(Debug, PartialEq)]
-pub enum TokenLabel { Forward, Backward }
+pub enum AddrRefType { Forward, Backward }
 
+// Plain label == AddrRef
+// [label] == MemRef
 #[derive(Debug, PartialEq)]
 pub enum Token {
     Str(String),
-    Label(String, TokenLabel), // Only support local labels for now
     Num(u32), // Only decimals or hex
     Colon,
     Newline,
+    MemRef(String), // Only global labels can be a memref
+    AddrRef(String, AddrRefType), // Only support local labels for now
 }
 
 // Lexer
@@ -83,6 +86,24 @@ impl<'a> Lexer<'a> {
         ident
     }
 
+    fn read_memref(&mut self) -> String {
+        let mut memref = String::new();
+
+        while let Some(&c) = self.peek_char() {
+            if c.is_alphanumeric() {
+                memref.push(self.read_char().unwrap());
+            // When find ']' the memref is closed
+            } else if c == ']' {
+                self.discard_char();
+                break;
+            } else {
+                // We found something else, this is bad
+                panic!("Found {}, should be alphanumeric or a ]", c);
+            }
+        }
+        memref
+    }
+
     fn read_digits(&mut self, c: char, radix: u32) -> u32 {
         let mut digits = String::new();
         digits.push(c);
@@ -107,11 +128,11 @@ impl<'a> Lexer<'a> {
                 maybe_digits.push(self.read_char().unwrap());
             } else if c == 'f' {
                 self.discard_char();
-                label = Some(TokenLabel::Forward);
+                label = Some(AddrRefType::Forward);
                 break;
             } else if c == 'b' {
                 self.discard_char();
-                label = Some(TokenLabel::Backward);
+                label = Some(AddrRefType::Backward);
                 break;
             } else {
                 break;
@@ -119,7 +140,7 @@ impl<'a> Lexer<'a> {
         }
 
         match label {
-            Some(l) => Token::Label(maybe_digits, l),
+            Some(l) => Token::AddrRef(maybe_digits, l),
             None    => Token::Num(u32::from_str_radix(&maybe_digits, 10).unwrap()),
         }
     }
@@ -149,6 +170,7 @@ impl<'a> Lexer<'a> {
                 },
                 ':' => Some(Token::Colon),
                 '-' => Some(Token::Num((self.read_digits('0', 10) as i32 * -1) as u32)),
+                '[' => Some(Token::MemRef(self.read_memref())),
 
                 // Possibly Hex
                 '0' => if let Some(&'x') = self.peek_char() {
@@ -193,7 +215,7 @@ pub mod lexer_token {
 
     #[test]
     fn test_line() {
-        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b asdf // Comments";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b asdf [qwer] // Comments";
         let mut lexer = Lexer::new(input);
 
         let neg: i32 = -1;
@@ -208,9 +230,10 @@ pub mod lexer_token {
             Some(Token::Num(1)),
             Some(Token::Num(neg as u32)),
             Some(Token::Num(0xAF)),
-            Some(Token::Label("2".to_string(), TokenLabel::Forward)),
-            Some(Token::Label("2".to_string(), TokenLabel::Backward)),
+            Some(Token::AddrRef("2".to_string(), AddrRefType::Forward)),
+            Some(Token::AddrRef("2".to_string(), AddrRefType::Backward)),
             Some(Token::Str("asdf".to_string())),
+            Some(Token::MemRef("qwer".to_string())),
             // Comments are discarded
             Some(Token::Newline),
             None,

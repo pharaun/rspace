@@ -2,6 +2,10 @@ use asm::cleaner;
 use asm::ast;
 use asm::parser;
 
+// TODO: not sure if this is the stage where i want to handle data labels
+// (ie copying the value in a label to a instruction) and/or emitting the raw
+// u32 unit of data to be embedded into the assembly output
+
 // This handles the symbol table lookup then emits the final ast
 // At this stage everything should be fully specified
 // (ie. ready to be encoded into bytecode)
@@ -17,6 +21,8 @@ pub enum AToken {
     RegRegIL(String, ast::Reg, ast::Reg, u32),
     RegIL(String, ast::Reg, u32),
     RegILShuffle(String, ast::Reg, u32),
+
+    Data(u32), // Raw assembly or data bits
 }
 
 // TODO: support labeled memory location, for now only branches + jumps (need more support)
@@ -72,6 +78,10 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
         cleaner::CToken::Label(_, _)
               => panic!("Should have been filtered out in first pass"),
 
+        // Copy the data bits over
+        cleaner::CToken::Data(n)
+              => AToken::Data(n),
+
         // Copy these token over
         cleaner::CToken::RegRegReg(s, rd, rs1, rs2)
               => AToken::RegRegReg(s, rd, rs1, rs2),
@@ -87,36 +97,36 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
               => AToken::RegRegImmStore(s, rs1, rs2, imm),
 
         // Handle the imm variants of these tokens
-        cleaner::CToken::RegRegIL(s, rd, rs1, cleaner::CImmLabel::Imm(imm))
+        cleaner::CToken::RegRegIL(s, rd, rs1, cleaner::CImmRef::Imm(imm))
               => AToken::RegRegIL(s, rd, rs1, imm),
-        cleaner::CToken::RegRegILBranch(s, rs1, rs2, cleaner::CImmLabel::Imm(imm))
+        cleaner::CToken::RegRegILBranch(s, rs1, rs2, cleaner::CImmRef::Imm(imm))
               => AToken::RegRegILBranch(s, rs1, rs2, imm),
-        cleaner::CToken::RegIL(s, rd, cleaner::CImmLabel::Imm(imm))
+        cleaner::CToken::RegIL(s, rd, cleaner::CImmRef::Imm(imm))
               => AToken::RegIL(s, rd, imm),
-        cleaner::CToken::RegILShuffle(s, rd, cleaner::CImmLabel::Imm(imm))
+        cleaner::CToken::RegILShuffle(s, rd, cleaner::CImmRef::Imm(imm))
               => AToken::RegILShuffle(s, rd, imm),
 
         // Handle the label variant of these tokens
-        cleaner::CToken::RegRegIL(s, rd, rs1, cleaner::CImmLabel::Label(l, lt)) => {
+        cleaner::CToken::RegRegIL(s, rd, rs1, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
             let imm = encode_relative_offset(inst_pos, pos);
 
             // TODO: deal with labels
             AToken::RegRegIL(s, rd, rs1, 999999)
         },
-        cleaner::CToken::RegRegILBranch(s, rs1, rs2, cleaner::CImmLabel::Label(l, lt)) => {
+        cleaner::CToken::RegRegILBranch(s, rs1, rs2, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
             let imm = encode_relative_offset(inst_pos, pos);
 
             AToken::RegRegILBranch(s, rs1, rs2, imm)
         },
-        cleaner::CToken::RegIL(s, rd, cleaner::CImmLabel::Label(l, lt)) => {
+        cleaner::CToken::RegIL(s, rd, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
             let imm = encode_relative_offset(inst_pos, pos);
 
             AToken::RegIL(s, rd, imm)
         },
-        cleaner::CToken::RegILShuffle(s, rd, cleaner::CImmLabel::Label(l, lt)) => {
+        cleaner::CToken::RegILShuffle(s, rd, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
             let imm = encode_relative_offset(inst_pos, pos);
 
@@ -125,7 +135,7 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
     }
 }
 
-fn find_label(name: &String, label_type: parser::InstLabelType, symbol: &Vec<((String, parser::LabelType), usize)>, inst_pos: usize) -> usize {
+fn find_label(name: &String, label_type: parser::AddrRefType, symbol: &Vec<((String, parser::LabelType), usize)>, inst_pos: usize) -> usize {
     // Decode the type of Label it is (is it a word or a numberic label)
     // If word, proceed, but if numberic,
     //      parse the letter after (b or f) for backward or forward numberic ref
@@ -134,7 +144,7 @@ fn find_label(name: &String, label_type: parser::InstLabelType, symbol: &Vec<((S
     //      Assume no duplicate word label (should not happen, integrity check the symbol table)
     //      linear scan till you find the matching word label
     match label_type {
-        parser::InstLabelType::Global => {
+        parser::AddrRefType::Global => {
             // Word label
             for val in symbol.iter() {
                 match val {
@@ -148,7 +158,7 @@ fn find_label(name: &String, label_type: parser::InstLabelType, symbol: &Vec<((S
             }
             panic!("Did not find {} global label in the table", name)
         },
-        parser::InstLabelType::LocalForward => {
+        parser::AddrRefType::LocalForward => {
             // Local Forward, aka numberical
             for val in symbol.iter() {
                 match val {
@@ -162,7 +172,7 @@ fn find_label(name: &String, label_type: parser::InstLabelType, symbol: &Vec<((S
             }
             panic!("Did not find {} local forward label in the table", name)
         },
-        parser::InstLabelType::LocalBackward => {
+        parser::AddrRefType::LocalBackward => {
             // Local Backward, aka numberical
             for val in symbol.iter().rev() {
                 match val {

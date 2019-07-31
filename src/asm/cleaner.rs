@@ -12,14 +12,19 @@ use asm::ast;
 //      - assembler handles label lookup
 
 #[derive(Debug, PartialEq)]
-pub enum CImmLabel {
-    Label(String, parser::InstLabelType),
+pub enum CImmRef {
+    // TODO: MemRef(String),
+    AddrRef(String, parser::AddrRefType),
     Imm(u32),
 }
 
+// TODO: implement support for MemRef here onward
 #[derive(Debug, PartialEq)]
 pub enum CToken {
     Label(String, parser::LabelType),
+
+    // Raw assembly or data bits
+    Data(u32),
 
     // Inst, rd, rs1, rs2
     // 3 length
@@ -47,19 +52,19 @@ pub enum CToken {
 
     // Inst, rd, rs1, (imm/label)?
     // 3 length
-    RegRegILBranch(String, ast::Reg, ast::Reg, CImmLabel),
+    RegRegILBranch(String, ast::Reg, ast::Reg, CImmRef),
 
     // Inst, rd, rs, (imm/label)
     // 3 length
-    RegRegIL(String, ast::Reg, ast::Reg, CImmLabel),
+    RegRegIL(String, ast::Reg, ast::Reg, CImmRef),
 
     // Inst, rd, (imm/label)
     // 2 length
-    RegIL(String, ast::Reg, CImmLabel),
+    RegIL(String, ast::Reg, CImmRef),
 
     // Inst, rd, (imm/label)
     // 2 length
-    RegILShuffle(String, ast::Reg, CImmLabel),
+    RegILShuffle(String, ast::Reg, CImmRef),
 }
 
 
@@ -81,13 +86,14 @@ impl<'a> Cleaner<'a> {
     pub fn next_token(&mut self) -> Option<CToken> {
         if let Some(t) = self.read_token() {
             match t {
-                // 0. Forward labels
+                // 0a. Forward labels
                 parser::PToken::Label(s, lt) => Some(CToken::Label(s, lt)),
-                // TODO: find better way to handle ownership instead of mut the vec to claim ownership
-                parser::PToken::Inst(s, mut args) => {
-                    // 1. upper inst
-                    let inst = s.to_ascii_uppercase();
 
+                // 0b. Forward data
+                parser::PToken::Data(n) => Some(CToken::Data(n)),
+
+                // TODO: find better way to handle ownership instead of mut the vec to claim ownership
+                parser::PToken::Inst(inst, mut args) => {
                     // 2. lookup inst (if not found error out)
                     match opcode::lookup(&inst) {
                         None => {
@@ -244,10 +250,10 @@ fn extract_csr(arg: parser::Arg) -> ast::Csr {
     }
 }
 
-fn extract_imm_label(arg: parser::Arg) -> CImmLabel {
+fn extract_imm_label(arg: parser::Arg) -> CImmRef {
     match arg {
-        parser::Arg::Num(n)         => CImmLabel::Imm(n),
-        parser::Arg::Label(l, lt)   => CImmLabel::Label(l, lt),
+        parser::Arg::Num(n)           => CImmRef::Imm(n),
+        parser::Arg::AddrRef(l, lt)   => CImmRef::AddrRef(l, lt),
         _ => panic!("Expected a ImmLabel, got {:?}", arg),
     }
 }
@@ -351,25 +357,25 @@ pub mod cleaner_ast {
                 "JALR".to_string(),
                 ast::Reg::X0,
                 ast::Reg::X1,
-                CImmLabel::Imm(11)
+                CImmRef::Imm(11)
             )),
             Some(CToken::RegRegIL(
                 "JALR".to_string(),
                 ast::Reg::X1,
                 ast::Reg::X2,
-                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalForward)
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
             )),
             Some(CToken::RegRegIL(
                 "JALR".to_string(),
                 ast::Reg::X2,
                 ast::Reg::X3,
-                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalBackward)
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
             )),
             Some(CToken::RegRegIL(
                 "JALR".to_string(),
                 ast::Reg::X3,
                 ast::Reg::X4,
-                CImmLabel::Label("asdf".to_string(), parser::InstLabelType::Global)
+                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
             )),
             None,
         ];
@@ -410,25 +416,25 @@ pub mod cleaner_ast {
                 "BNE".to_string(),
                 ast::Reg::X0,
                 ast::Reg::X1,
-                CImmLabel::Imm(11)
+                CImmRef::Imm(11)
             )),
             Some(CToken::RegRegILBranch(
                 "BNE".to_string(),
                 ast::Reg::X1,
                 ast::Reg::X2,
-                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalForward)
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
             )),
             Some(CToken::RegRegILBranch(
                 "BNE".to_string(),
                 ast::Reg::X2,
                 ast::Reg::X3,
-                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalBackward)
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
             )),
             Some(CToken::RegRegILBranch(
                 "BNE".to_string(),
                 ast::Reg::X3,
                 ast::Reg::X4,
-                CImmLabel::Label("asdf".to_string(), parser::InstLabelType::Global)
+                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
             )),
             None,
         ];
@@ -444,22 +450,22 @@ pub mod cleaner_ast {
             Some(CToken::RegIL(
                 "LUI".to_string(),
                 ast::Reg::X0,
-                CImmLabel::Imm(11)
+                CImmRef::Imm(11)
             )),
             Some(CToken::RegIL(
                 "LUI".to_string(),
                 ast::Reg::X1,
-                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalForward)
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
             )),
             Some(CToken::RegIL(
                 "LUI".to_string(),
                 ast::Reg::X2,
-                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalBackward)
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
             )),
             Some(CToken::RegIL(
                 "LUI".to_string(),
                 ast::Reg::X3,
-                CImmLabel::Label("asdf".to_string(), parser::InstLabelType::Global)
+                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
             )),
             None,
         ];
@@ -475,22 +481,22 @@ pub mod cleaner_ast {
             Some(CToken::RegILShuffle(
                 "JAL".to_string(),
                 ast::Reg::X0,
-                CImmLabel::Imm(11)
+                CImmRef::Imm(11)
             )),
             Some(CToken::RegILShuffle(
                 "JAL".to_string(),
                 ast::Reg::X1,
-                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalForward)
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
             )),
             Some(CToken::RegILShuffle(
                 "JAL".to_string(),
                 ast::Reg::X2,
-                CImmLabel::Label("2".to_string(), parser::InstLabelType::LocalBackward)
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
             )),
             Some(CToken::RegILShuffle(
                 "JAL".to_string(),
                 ast::Reg::X3,
-                CImmLabel::Label("asdf".to_string(), parser::InstLabelType::Global)
+                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
             )),
             None,
         ];
