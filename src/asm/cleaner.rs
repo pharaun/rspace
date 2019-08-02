@@ -24,6 +24,9 @@ pub enum CImmRef {
 }
 
 // TODO: implement support for MemRef here onward
+// TODO: implement some form of 'padder' either here or later on to ensure instructions
+// are always aligned to the u32 boundaries, even when data bits aren't
+// align(byte: u8) for alignment zero space padding
 #[derive(Debug, PartialEq)]
 pub enum CToken {
     Label(String, parser::LabelType),
@@ -74,6 +77,10 @@ pub enum CToken {
 
 
 // Cleaner
+// TODO: peek maybe? (need some way to identify and/or emit
+// additional steps (ie if we come off a data dump and have
+// unnatural alignment, we need to be able to emit some zero-padding
+// to let us back on u32 boundaries for instructions
 pub struct Cleaner<'a> {
     input_iter: parser::Parser<'a>,
 }

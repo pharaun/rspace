@@ -26,6 +26,10 @@ pub enum Arg {
 pub enum PToken {
     Label(String, LabelType),
     Inst(String, Vec<Arg>),
+    // TODO: improve the data support to be something like
+    // Data(type: [byte, half, word, etc...] directives, and then Vec<u32>)
+    // We can clean up the actual bytes later (ie if its bytes then it gets
+    // converted into Vec<u8>
     Data(u32),
 }
 
