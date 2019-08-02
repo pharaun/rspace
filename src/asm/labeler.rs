@@ -33,6 +33,8 @@ pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
     let mut first_pass: Vec<cleaner::CToken> = Vec::new();
 
     // Symbol table
+    // TODO: change this over to be byte addressable (not per u32 words)
+    // Make each instruction/etc emit their size to keep the byte offset correct
     let mut position: usize = 0; // Per u32 word
     let mut symbol_table: Vec<((String, parser::LabelType), usize)> = Vec::new();
 
@@ -91,12 +93,12 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
               => AToken::RegRegShamt(s, rd, rs1, imm),
         cleaner::CToken::RegRegCsr(s, rd, rs1, csr)
               => AToken::RegRegCsr(s, rd, rs1, csr),
-        cleaner::CToken::RegRegImm(s, rd, rs1, imm)
-              => AToken::RegRegImm(s, rd, rs1, imm),
         cleaner::CToken::RegRegImmStore(s, rs1, rs2, imm)
               => AToken::RegRegImmStore(s, rs1, rs2, imm),
 
         // Handle the imm variants of these tokens
+        cleaner::CToken::RegRegImm(s, rd, rs1, cleaner::CImmRef::Imm(imm))
+              => AToken::RegRegImm(s, rd, rs1, imm),
         cleaner::CToken::RegRegIL(s, rd, rs1, cleaner::CImmRef::Imm(imm))
               => AToken::RegRegIL(s, rd, rs1, imm),
         cleaner::CToken::RegRegILBranch(s, rs1, rs2, cleaner::CImmRef::Imm(imm))
@@ -107,6 +109,13 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
               => AToken::RegILShuffle(s, rd, imm),
 
         // Handle the label variant of these tokens
+        cleaner::CToken::RegRegImm(s, rd, rs1, cleaner::CImmRef::AddrRef(l, lt)) => {
+            // TODO: handle relative vs global for now hardcode global position?
+            let pos = find_label(&l, lt, symbol, inst_pos);
+            let imm = encode_global_offset(pos);
+
+            AToken::RegRegImm(s, rd, rs1, imm)
+        },
         cleaner::CToken::RegRegIL(s, rd, rs1, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
             let imm = encode_relative_offset(inst_pos, pos);
@@ -122,9 +131,14 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
         },
         cleaner::CToken::RegIL(s, rd, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
-            let imm = encode_relative_offset(inst_pos, pos);
+            //let imm = encode_relative_offset(inst_pos, pos);
+            let imm = encode_global_offset(pos);
 
-            AToken::RegIL(s, rd, imm)
+            // Since mips legacy shift the imm over 12 bit
+            // since it'll only take the lower 20 not the upper
+            // 20 inst, and use absolute addressing
+
+            AToken::RegIL(s, rd, imm >> 12)
         },
         cleaner::CToken::RegILShuffle(s, rd, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
@@ -199,4 +213,13 @@ fn encode_relative_offset(inst_pos: usize, label_pos: usize) -> u32 {
     let label_addr: i64 = (label_pos as i64) * 4;
     let offset = label_addr - inst_addr;
     offset as u32
+}
+
+fn encode_global_offset(label_pos: usize) -> u32 {
+    // TODO: hella truncation
+    // This assumes u32 sized instruction words, the pos are integer in block of u32
+    // If label pos is earlier than inst_pos its a negative offset
+    // and viceverse
+    // The address is in byte (hence u32 blocks)
+    (label_pos as u32) * 4
 }

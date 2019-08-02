@@ -481,14 +481,10 @@ mod op_tests {
         }
     }
 
-    mod load_op_tests {
+    mod lw_load_op_tests {
         use super::*;
 
         include!("../../test-rv32im/lw.rs");
-        //include!("../../test-rv32im/lh.rs");
-        //include!("../../test-rv32im/lhu.rs");
-        //include!("../../test-rv32im/lb.rs");
-        //include!("../../test-rv32im/lhu.rs");
 
         fn TEST_LD_OP(_test: u8, op: &str, res: u32, off: u32, base: &str) {
             // load the rom
@@ -506,7 +502,7 @@ mod op_tests {
                         lui x1 {}\n
                         addi x1 x1 {}\n
                         {} x2 x1 0x{:08x}",
-                        base, // TODO: May need to shift this for lui (due to mips)
+                        base,
                         base,
                         op,
                         off
@@ -529,14 +525,164 @@ mod op_tests {
             TEST_LD_OP(test, op, res, off, base);
         }
 
-        fn TEST_NEGATIVE_BASE() {
+        #[test]
+        fn test_lw_negative_base() {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    // TODO: implement support for `la` alias
+                    "lui x1 tdat\n
+                    addi x1 x1 tdat\n
+                    addi x1 x1 -32\n
+                    lw x2 x1 32\n
+                    jal x0 exit\n
+                    tdat:\n
+                    tdat1: 0x00ff00ff\n
+                    tdat2: 0xff00ff00\n
+                    tdat3: 0x0ff00ff0\n
+                    tdat4: 0xf00ff00f\n
+                    exit: add x0 x0 x0",
+                )
+            );
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[2], 0x00ff00ff);
         }
 
-        fn TEST_UNALIGNED_BASE() {
+        #[test]
+        fn test_lw_unaligned_base() {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    // TODO: implement support for `la` alias
+                    "lui x1 tdat\n
+                    addi x1 x1 tdat\n
+                    addi x1 x1 -3\n
+                    lw x2 x1 7\n
+                    jal x0 exit\n
+                    tdat:\n
+                    tdat1: 0x00ff00ff\n
+                    tdat2: 0xff00ff00\n
+                    tdat3: 0x0ff00ff0\n
+                    tdat4: 0xf00ff00f\n
+                    exit: add x0 x0 x0",
+                )
+            );
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[2], 0xff00ff00);
+        }
+    }
+
+    mod lh_load_op_tests {
+        use super::*;
+
+        include!("../../test-rv32im/lh.rs");
+
+        fn TEST_LD_OP(_test: u8, op: &str, res: u32, off: u32, base: &str) {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    &format!(
+                        // TODO: implement support for `la` alias
+                        "jal x0 test\n
+                        tdat:\n
+                        tdat1: 0x000000ff\n
+                        tdat2: 0x0000ff00\n
+                        tdat3: 0x00000ff0\n
+                        tdat4: 0x0000f00f\n
+                        test:\n
+                        lui x1 {}\n
+                        addi x1 x1 {}\n
+                        {} x2 x1 0x{:08x}",
+                        base,
+                        base,
+                        op,
+                        off
+                    )
+                )
+            );
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[2], res);
+        }
+
+        fn TEST_LD_DEST_BYPASS(test: u8, _n: u32, op: &str, res: u32, off: u32, base: &str) {
+            TEST_LD_OP(test, op, res, off, base);
+        }
+
+        fn TEST_LD_SRC1_BYPASS(test: u8, _n: u32, op: &str, res: u32, off: u32, base: &str) {
+            TEST_LD_OP(test, op, res, off, base);
+        }
+
+        #[ignore]
+        fn test_lh_negative_base() {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    // TODO: implement support for `la` alias
+                    "lui x1 tdat\n
+                    addi x1 x1 tdat\n
+                    addi x1 x1 -32\n
+                    lw x2 x1 32\n
+                    jal x0 exit\n
+                    tdat:\n
+                    tdat1: 0x000000ff\n
+                    tdat2: 0x0000ff00\n
+                    tdat3: 0x00000ff0\n
+                    tdat4: 0x0000f00f\n
+                    exit: add x0 x0 x0",
+                )
+            );
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[2], 0x000000ff);
+        }
+
+        #[ignore]
+        fn test_lh_unaligned_base() {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    // TODO: implement support for `la` alias
+                    "lui x1 tdat\n
+                    addi x1 x1 tdat\n
+                    addi x1 x1 -5\n
+                    lw x2 x1 7\n
+                    jal x0 exit\n
+                    tdat:\n
+                    tdat1: 0x000000ff\n
+                    tdat2: 0x0000ff00\n
+                    tdat3: 0x00000ff0\n
+                    tdat4: 0x0000f00f\n
+                    exit: add x0 x0 x0",
+                )
+            );
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[2], 0xffffff00);
         }
     }
 
 
+        //include!("../../test-rv32im/lhu.rs");
+        //include!("../../test-rv32im/lb.rs");
+        //include!("../../test-rv32im/lhu.rs");
         // AUIPC
         // JALR
         // STORE

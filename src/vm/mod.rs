@@ -224,47 +224,43 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::LOAD) => {
                     // LB
-                    // TODO: TEST
                     // TODO: abstract this to memory?
-                    let byte = self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize];
+                    let byte = self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize];
                     self.reg[rd] = sign_extend_8_to_32(byte as u32);
                 },
                 (        _, 0b001, opcode::LOAD) => {
                     // LH
-                    // TODO: TEST
                     // TODO: abstract this to memory?
                     let bytes: [u8; 2] = [
-                        self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize],
-                        self.mem[(self.reg[rs1] + sign_extend(inst, i_imm) + 1) as usize]
+                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize],
+                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 1) as usize]
                     ];
                     self.reg[rd] = sign_extend_16_to_32((bytes[0] as u32) | ((bytes[1] as u32) << 8));
                 },
                 (        _, 0b010, opcode::LOAD) => {
                     // LW
-                    // TODO: TEST
+                    // Negative offset makes this break
                     // TODO: abstract this to memory?
                     let bytes: [u8; 4] = [
-                        self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize],
-                        self.mem[(self.reg[rs1] + sign_extend(inst, i_imm) + 1) as usize],
-                        self.mem[(self.reg[rs1] + sign_extend(inst, i_imm) + 2) as usize],
-                        self.mem[(self.reg[rs1] + sign_extend(inst, i_imm) + 3) as usize]
+                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize],
+                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 1) as usize],
+                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 2) as usize],
+                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 3) as usize]
                     ];
                     self.reg[rd] = ((bytes[0] as u32)) | ((bytes[1] as u32) << 8) | ((bytes[2] as u32) << 16) | ((bytes[3] as u32) << 24);
                 },
                 (        _, 0b100, opcode::LOAD) => {
                     // LBU
-                    // TODO: TEST
                     // TODO: abstract this to memory?
-                    let byte = self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize];
+                    let byte = self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize];
                     self.reg[rd] = byte as u32;
                 },
                 (        _, 0b101, opcode::LOAD) => {
                     // LHU
-                    // TODO: TEST
                     // TODO: abstract this to memory?
                     let bytes: [u8; 2] = [
-                        self.mem[(self.reg[rs1] + sign_extend(inst, i_imm)) as usize],
-                        self.mem[(self.reg[rs1] + sign_extend(inst, i_imm) + 1) as usize]
+                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize],
+                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 1) as usize]
                     ];
                     self.reg[rd] = (bytes[0] as u32) | ((bytes[1] as u32) << 8);
                 },

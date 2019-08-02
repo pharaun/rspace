@@ -12,6 +12,8 @@ pub enum Token {
     Num(u32), // Only decimals or hex
     Colon,
     Newline,
+    // TODO: support data decl (.byte 0x08 0x08 0x08) for eg
+    //Dot,
     MemRef(String), // Only global labels can be a memref
     AddrRef(String, AddrRefType), // Only support local labels for now
 }

@@ -49,7 +49,7 @@ pub enum CToken {
 
     // Inst, rd, rs1, imm
     // 3 length
-    RegRegImm(String, ast::Reg, ast::Reg, u32),
+    RegRegImm(String, ast::Reg, ast::Reg, CImmRef),
 
     // Inst, rd, rs1, imm
     // 3 length
@@ -176,7 +176,7 @@ impl<'a> Cleaner<'a> {
                                                 inst,
                                                 extract_reg(args.remove(0)),
                                                 extract_reg(args.remove(0)),
-                                                extract_imm(args.remove(0))
+                                                extract_imm_label(args.remove(0))
                                             ))
                                         },
                                     }
@@ -390,10 +390,33 @@ pub mod cleaner_ast {
 
     #[test]
     fn test_RegRegImm_inst() {
-        let input = "addi x0 x1 11";
+        let input = "addi x0 x1 11\n addi x1 x2 2f\n addi x2 x3 2b\n addi x3 x4 asdf";
 
         let expected = vec![
-            Some(CToken::RegRegImm("ADDI".to_string(), ast::Reg::X0, ast::Reg::X1, 11)),
+            Some(CToken::RegRegImm(
+                "ADDI".to_string(),
+                ast::Reg::X0,
+                ast::Reg::X1,
+                CImmRef::Imm(11)
+            )),
+            Some(CToken::RegRegImm(
+                "ADDI".to_string(),
+                ast::Reg::X1,
+                ast::Reg::X2,
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
+            )),
+            Some(CToken::RegRegImm(
+                "ADDI".to_string(),
+                ast::Reg::X2,
+                ast::Reg::X3,
+                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
+            )),
+            Some(CToken::RegRegImm(
+                "ADDI".to_string(),
+                ast::Reg::X3,
+                ast::Reg::X4,
+                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
+            )),
             None,
         ];
 
