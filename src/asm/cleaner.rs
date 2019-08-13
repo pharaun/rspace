@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use asm::parser;
 
 use vm::opcode;
@@ -24,15 +26,15 @@ pub enum CImmRef {
 }
 
 // TODO: implement support for MemRef here onward
-// TODO: implement some form of 'padder' either here or later on to ensure instructions
-// are always aligned to the u32 boundaries, even when data bits aren't
-// align(byte: u8) for alignment zero space padding
 #[derive(Debug, PartialEq)]
 pub enum CToken {
     Label(String, parser::LabelType),
 
-    // Raw assembly or data bits
-    Data(u32),
+    // Padding (number of u8 padding bits needed to align to nearest u32 boundary)
+    Padding(usize),
+
+    // Data bits (or raw assembly)
+    ByteData(u8),
 
     // Inst, rd, rs1, rs2
     // 3 length
@@ -77,18 +79,30 @@ pub enum CToken {
 
 
 // Cleaner
-// TODO: peek maybe? (need some way to identify and/or emit
-// additional steps (ie if we come off a data dump and have
-// unnatural alignment, we need to be able to emit some zero-padding
-// to let us back on u32 boundaries for instructions
+//
+// Buffer is needed to allow us to handle padding to ensure that
+// instructions are always emitted on a u32 boundary.
+//
+// When we hit a label or data token, we accumulate them till we
+// see an instruction, then we emit a padding and record it into
+// the buffer.
+//
+// Then resume iteration by reading out of the buffer till empty.
 pub struct Cleaner<'a> {
     input_iter: parser::Parser<'a>,
+    buffer: VecDeque<CToken>,
+    buffer_idx: usize,
+    label_buffer: VecDeque<CToken>,
 }
-
 
 impl<'a> Cleaner<'a> {
     pub fn new(input: parser::Parser<'a>) -> Cleaner<'a> {
-        Cleaner { input_iter: input }
+        Cleaner {
+            input_iter: input,
+            buffer: VecDeque::new(),
+            buffer_idx: 0,
+            label_buffer: VecDeque::new(),
+        }
     }
 
     fn read_token(&mut self) -> Option<parser::PToken> {
@@ -96,149 +110,213 @@ impl<'a> Cleaner<'a> {
     }
 
     pub fn next_token(&mut self) -> Option<CToken> {
-        if let Some(t) = self.read_token() {
-            match t {
-                // 0a. Forward labels
-                parser::PToken::Label(s, lt) => Some(CToken::Label(s, lt)),
+        // 1. remove first element from buffer (pop_front)
+        if let Some(t) = self.buffer.pop_front() {
+            // 2. if Some(x), return the some x
+            Some(t)
+        } else {
+            // 3. if read_token is inst, pop it and process, and return that
+            // 4. if read_token is (label/num) -> accumulate label/num
+            if let Some(t) = self.read_token() {
+                match t {
+                    parser::PToken::Label(s, lt) => {
+                        // If label, we accumulate it into the label buffer
+                        self.label_buffer.push_back(CToken::Label(s, lt));
+                    },
+                    parser::PToken::Data(dt, n) => {
+                        // We check if there's anything in the label buffer,
+                        // if so, we push it now to master buffer, then process data
+                        // Append moves data out of label_buffer vs extend (which copies)
+                        self.buffer.append(&mut self.label_buffer);
 
-                // 0b. Forward data
-                parser::PToken::Data(n) => Some(CToken::Data(n)),
+                        // Actually process the data
+                        let byte_data = process_data(dt, n);
+                        self.buffer_idx += byte_data.len();
+                        self.buffer.extend(byte_data);
+                    },
+                    // 5. in accumulate label/num, accumulate token till hit a inst
+                    // 6. if hit inst, record padding, and then store the whole queue in buffer
+                    parser::PToken::Inst(inst, mut args) => {
+                        // Push a padding token to the buffer, and then append the
+                        // label buffer to the master buffer then exit to let the
+                        // instruction be handled after we drain the buffer
+                        self.buffer.push_back(CToken::Padding(self.buffer_idx % 4)); // 4x u8 in u32
+                        self.buffer.append(&mut self.label_buffer);
 
-                // TODO: find better way to handle ownership instead of mut the vec to claim ownership
-                parser::PToken::Inst(inst, mut args) => {
-                    // 2. lookup inst (if not found error out)
-                    match opcode::lookup(&inst) {
-                        None => {
-                            panic!("Failed to find - {:?}", inst);
+                        // Reset buffer_idx
+                        self.buffer_idx = 0;
+
+                        // Store the inst onto the buffer
+                        if let Some(pinst) = process_inst(inst, args) {
+                            self.buffer.push_back(pinst);
+                        }
+                    },
+                }
+
+                // 7. Goto 1
+                self.next_token()
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn process_inst(inst: String, mut args: Vec<parser::Arg>) -> Option<CToken> {
+    // 2. lookup inst (if not found error out)
+    match opcode::lookup(&inst) {
+        None => {
+            panic!("Failed to find - {:?}", inst);
+        },
+        Some(x) => {
+            // 3. pick apropos cleaned type (for the assembler) depending on inst+context
+            match x.encoding {
+                opcode::InstType::R => {
+                    if args.len() != 3 {
+                        panic!("R type inst: {:?} arg: {:?}", inst, args);
+                    }
+                    Some(CToken::RegRegReg(
+                        inst,
+                        extract_reg(args.remove(0)),
+                        extract_reg(args.remove(0)),
+                        extract_reg(args.remove(0))
+                    ))
+                },
+                opcode::InstType::I => {
+                    match &inst[..] {
+                        "FENCE" | "FENCE.I" | "ECALL" | "EBREAK" => {
+                            print!("Skipping unsupported instruction: {}", inst);
+                            None
                         },
-                        Some(x) => {
-                            // 3. pick apropos cleaned type (for the assembler) depending on inst+context
-                            match x.encoding {
-                                opcode::InstType::R => {
-                                    if args.len() != 3 {
-                                        panic!("R type inst: {:?} arg: {:?}", inst, args);
-                                    }
-                                    Some(CToken::RegRegReg(
-                                        inst,
-                                        extract_reg(args.remove(0)),
-                                        extract_reg(args.remove(0)),
-                                        extract_reg(args.remove(0))
-                                    ))
-                                },
-                                opcode::InstType::I => {
-                                    match &inst[..] {
-                                        "FENCE" | "FENCE.I" | "ECALL" | "EBREAK" => {
-                                            print!("Skipping unsupported instruction: {}", inst);
-                                            self.next_token()
-                                        },
-                                        "CSRRWI" | "CSRRSI" | "CSRRCI" => {
-                                            if args.len() != 3 {
-                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
-                                            }
-                                            Some(CToken::RegImmCsr(
-                                                inst,
-                                                extract_reg(args.remove(0)),
-                                                extract_imm(args.remove(0)),
-                                                extract_csr(args.remove(0))
-                                            ))
-                                        },
-                                        "CSRRW" | "CSRRS" | "CSRRC" => {
-                                            if args.len() != 3 {
-                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
-                                            }
-                                            Some(CToken::RegRegCsr(
-                                                inst,
-                                                extract_reg(args.remove(0)),
-                                                extract_reg(args.remove(0)),
-                                                extract_csr(args.remove(0))
-                                            ))
-                                        },
-                                        "SLLI" | "SRLI" | "SRAI" => {
-                                            if args.len() != 3 {
-                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
-                                            }
-                                            Some(CToken::RegRegShamt(
-                                                inst,
-                                                extract_reg(args.remove(0)),
-                                                extract_reg(args.remove(0)),
-                                                extract_imm(args.remove(0))
-                                            ))
-                                        },
-                                        "JALR" => {
-                                            if args.len() != 3 {
-                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
-                                            }
-                                            Some(CToken::RegRegIL(
-                                                inst,
-                                                extract_reg(args.remove(0)),
-                                                extract_reg(args.remove(0)),
-                                                extract_imm_label(args.remove(0))
-                                            ))
-                                        },
-                                        _ => {
-                                            if args.len() != 3 {
-                                                panic!("I type inst: {:?} arg: {:?}", inst, args);
-                                            }
-                                            Some(CToken::RegRegImm(
-                                                inst,
-                                                extract_reg(args.remove(0)),
-                                                extract_reg(args.remove(0)),
-                                                extract_imm_label(args.remove(0))
-                                            ))
-                                        },
-                                    }
-                                },
-                                opcode::InstType::S => {
-                                    if args.len() != 3 {
-                                        panic!("S type inst: {:?} arg: {:?}", inst, args);
-                                    }
-                                    Some(CToken::RegRegImmStore(
-                                        inst,
-                                        extract_reg(args.remove(0)),
-                                        extract_reg(args.remove(0)),
-                                        extract_imm(args.remove(0))
-                                    ))
-                                },
-                                opcode::InstType::SB => {
-                                    if args.len() != 3 {
-                                        panic!("SB type inst: {:?} arg: {:?}", inst, args);
-                                    }
-                                    Some(CToken::RegRegILBranch(
-                                        inst,
-                                        extract_reg(args.remove(0)),
-                                        extract_reg(args.remove(0)),
-                                        extract_imm_label(args.remove(0))
-                                    ))
-                                },
-                                opcode::InstType::U => {
-                                    if args.len() != 2 {
-                                        panic!("U type inst: {:?} arg: {:?}", inst, args);
-                                    }
-                                    Some(CToken::RegIL(
-                                        inst,
-                                        extract_reg(args.remove(0)),
-                                        extract_imm_label(args.remove(0))
-                                    ))
-                                },
-                                opcode::InstType::UJ => {
-                                    if args.len() != 2 {
-                                        panic!("UJ type inst: {:?} arg: {:?}", inst, args);
-                                    }
-                                    Some(CToken::RegILShuffle(
-                                        inst,
-                                        extract_reg(args.remove(0)),
-                                        extract_imm_label(args.remove(0))
-                                    ))
-                                },
+                        "CSRRWI" | "CSRRSI" | "CSRRCI" => {
+                            if args.len() != 3 {
+                                panic!("I type inst: {:?} arg: {:?}", inst, args);
                             }
+                            Some(CToken::RegImmCsr(
+                                inst,
+                                extract_reg(args.remove(0)),
+                                extract_imm(args.remove(0)),
+                                extract_csr(args.remove(0))
+                            ))
+                        },
+                        "CSRRW" | "CSRRS" | "CSRRC" => {
+                            if args.len() != 3 {
+                                panic!("I type inst: {:?} arg: {:?}", inst, args);
+                            }
+                            Some(CToken::RegRegCsr(
+                                inst,
+                                extract_reg(args.remove(0)),
+                                extract_reg(args.remove(0)),
+                                extract_csr(args.remove(0))
+                            ))
+                        },
+                        "SLLI" | "SRLI" | "SRAI" => {
+                            if args.len() != 3 {
+                                panic!("I type inst: {:?} arg: {:?}", inst, args);
+                            }
+                            Some(CToken::RegRegShamt(
+                                inst,
+                                extract_reg(args.remove(0)),
+                                extract_reg(args.remove(0)),
+                                extract_imm(args.remove(0))
+                            ))
+                        },
+                        "JALR" => {
+                            if args.len() != 3 {
+                                panic!("I type inst: {:?} arg: {:?}", inst, args);
+                            }
+                            Some(CToken::RegRegIL(
+                                inst,
+                                extract_reg(args.remove(0)),
+                                extract_reg(args.remove(0)),
+                                extract_imm_label(args.remove(0))
+                            ))
+                        },
+                        _ => {
+                            if args.len() != 3 {
+                                panic!("I type inst: {:?} arg: {:?}", inst, args);
+                            }
+                            Some(CToken::RegRegImm(
+                                inst,
+                                extract_reg(args.remove(0)),
+                                extract_reg(args.remove(0)),
+                                extract_imm_label(args.remove(0))
+                            ))
                         },
                     }
                 },
+                opcode::InstType::S => {
+                    if args.len() != 3 {
+                        panic!("S type inst: {:?} arg: {:?}", inst, args);
+                    }
+                    Some(CToken::RegRegImmStore(
+                        inst,
+                        extract_reg(args.remove(0)),
+                        extract_reg(args.remove(0)),
+                        extract_imm(args.remove(0))
+                    ))
+                },
+                opcode::InstType::SB => {
+                    if args.len() != 3 {
+                        panic!("SB type inst: {:?} arg: {:?}", inst, args);
+                    }
+                    Some(CToken::RegRegILBranch(
+                        inst,
+                        extract_reg(args.remove(0)),
+                        extract_reg(args.remove(0)),
+                        extract_imm_label(args.remove(0))
+                    ))
+                },
+                opcode::InstType::U => {
+                    if args.len() != 2 {
+                        panic!("U type inst: {:?} arg: {:?}", inst, args);
+                    }
+                    Some(CToken::RegIL(
+                        inst,
+                        extract_reg(args.remove(0)),
+                        extract_imm_label(args.remove(0))
+                    ))
+                },
+                opcode::InstType::UJ => {
+                    if args.len() != 2 {
+                        panic!("UJ type inst: {:?} arg: {:?}", inst, args);
+                    }
+                    Some(CToken::RegILShuffle(
+                        inst,
+                        extract_reg(args.remove(0)),
+                        extract_imm_label(args.remove(0))
+                    ))
+                },
             }
-        } else {
-            None
-        }
+        },
     }
+}
+
+fn process_data(dt: parser::DataType, n: Vec<u32>) -> VecDeque<CToken> {
+    let mut ret = VecDeque::new();
+
+    match dt {
+        parser::DataType::Byte => {
+            for num in &n {
+                ret.push_back(CToken::ByteData((num & 0x00_00_00_FF) as u8));
+            }
+        },
+        parser::DataType::Half => {
+            for num in &n {
+                ret.push_back(CToken::ByteData((num & 0x00_00_00_FF) as u8));
+                ret.push_back(CToken::ByteData((num & 0x00_00_FF_00) as u8));
+            }
+        },
+        parser::DataType::Word => {
+            for num in &n {
+                ret.push_back(CToken::ByteData((num & 0x00_00_00_FF) as u8));
+                ret.push_back(CToken::ByteData((num & 0x00_00_FF_00) as u8));
+                ret.push_back(CToken::ByteData((num & 0x00_FF_00_00) as u8));
+                ret.push_back(CToken::ByteData((num & 0xFF_00_00_00) as u8));
+            }
+        },
+    }
+    ret
 }
 
 fn extract_imm(arg: parser::Arg) -> u32 {

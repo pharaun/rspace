@@ -12,8 +12,7 @@ pub enum Token {
     Num(u32), // Only decimals or hex
     Colon,
     Newline,
-    // TODO: support data decl (.byte 0x08 0x08 0x08) for eg
-    //Dot,
+    Dot,
     MemRef(String), // Only global labels can be a memref
     AddrRef(String, AddrRefType), // Only support local labels for now
 }
@@ -171,6 +170,7 @@ impl<'a> Lexer<'a> {
                     Some(Token::Newline)
                 },
                 ':' => Some(Token::Colon),
+                '.' => Some(Token::Dot),
                 '-' => Some(Token::Num((self.read_digits('0', 10) as i32 * -1) as u32)),
                 '[' => Some(Token::MemRef(self.read_memref())),
 
@@ -217,7 +217,7 @@ pub mod lexer_token {
 
     #[test]
     fn test_line() {
-        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b asdf [qwer] // Comments";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b .asdf [qwer] // Comments";
         let mut lexer = Lexer::new(input);
 
         let neg: i32 = -1;
@@ -234,6 +234,7 @@ pub mod lexer_token {
             Some(Token::Num(0xAF)),
             Some(Token::AddrRef("2".to_string(), AddrRefType::Forward)),
             Some(Token::AddrRef("2".to_string(), AddrRefType::Backward)),
+            Some(Token::Dot),
             Some(Token::Str("asdf".to_string())),
             Some(Token::MemRef("qwer".to_string())),
             // Comments are discarded

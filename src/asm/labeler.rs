@@ -81,8 +81,10 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
               => panic!("Should have been filtered out in first pass"),
 
         // Copy the data bits over
-        cleaner::CToken::Data(n)
-              => AToken::Data(n),
+        //cleaner::CToken::Data(n)
+        //      => AToken::Data(n),
+        cleaner::CToken::Padding(_) => panic!("die"),
+        cleaner::CToken::ByteData(_) => panic!("die"),
 
         // Copy these token over
         cleaner::CToken::RegRegReg(s, rd, rs1, rs2)
