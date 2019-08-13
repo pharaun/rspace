@@ -140,7 +140,13 @@ impl<'a> Cleaner<'a> {
                         // Push a padding token to the buffer, and then append the
                         // label buffer to the master buffer then exit to let the
                         // instruction be handled after we drain the buffer
-                        self.buffer.push_back(CToken::Padding(self.buffer_idx % 4)); // 4x u8 in u32
+
+                        // If rem is 0 skip adding padding
+                        if self.buffer_idx % 4 != 0 {
+                            // 4x u8 in u32
+                            let padding = 4 - (self.buffer_idx % 4);
+                            self.buffer.push_back(CToken::Padding(padding));
+                        }
                         self.buffer.append(&mut self.label_buffer);
 
                         // Reset buffer_idx
@@ -156,7 +162,13 @@ impl<'a> Cleaner<'a> {
                 // 7. Goto 1
                 self.next_token()
             } else {
-                None
+                // There's no more token, check if we still have labels left?
+                if self.label_buffer.is_empty() {
+                    None
+                } else {
+                    self.buffer.append(&mut self.label_buffer);
+                    self.next_token()
+                }
             }
         }
     }
@@ -292,27 +304,33 @@ fn process_inst(inst: String, mut args: Vec<parser::Arg>) -> Option<CToken> {
     }
 }
 
+
+fn shift_and_mask(n: &u32, shift: usize) -> u8 {
+    ((n >> shift) & 0x00_00_00_FF) as u8
+}
+
+// TODO: not sure if the ordering of the data is correct for in memory
 fn process_data(dt: parser::DataType, n: Vec<u32>) -> VecDeque<CToken> {
     let mut ret = VecDeque::new();
 
     match dt {
         parser::DataType::Byte => {
             for num in &n {
-                ret.push_back(CToken::ByteData((num & 0x00_00_00_FF) as u8));
+                ret.push_back(CToken::ByteData(shift_and_mask(num, 0)));
             }
         },
         parser::DataType::Half => {
             for num in &n {
-                ret.push_back(CToken::ByteData((num & 0x00_00_00_FF) as u8));
-                ret.push_back(CToken::ByteData((num & 0x00_00_FF_00) as u8));
+                ret.push_back(CToken::ByteData(shift_and_mask(num, 0)));
+                ret.push_back(CToken::ByteData(shift_and_mask(num, 8)));
             }
         },
         parser::DataType::Word => {
             for num in &n {
-                ret.push_back(CToken::ByteData((num & 0x00_00_00_FF) as u8));
-                ret.push_back(CToken::ByteData((num & 0x00_00_FF_00) as u8));
-                ret.push_back(CToken::ByteData((num & 0x00_FF_00_00) as u8));
-                ret.push_back(CToken::ByteData((num & 0xFF_00_00_00) as u8));
+                ret.push_back(CToken::ByteData(shift_and_mask(num, 0)));
+                ret.push_back(CToken::ByteData(shift_and_mask(num, 8)));
+                ret.push_back(CToken::ByteData(shift_and_mask(num, 16)));
+                ret.push_back(CToken::ByteData(shift_and_mask(num, 24)));
             }
         },
     }
@@ -611,6 +629,82 @@ pub mod cleaner_ast {
                 ast::Reg::X3,
                 CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
             )),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_basic_padding() {
+        let input = ".BYTE 0x10\n add x0 x1 x2\n .HALF 0x1020\n add x0 x1 x2\n .WORD 0x10203040\n add x0 x1 x2";
+
+        let expected = vec![
+            Some(CToken::ByteData(0x10)),
+            Some(CToken::Padding(3)),
+            Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
+            Some(CToken::ByteData(0x20)),
+            Some(CToken::ByteData(0x10)),
+            Some(CToken::Padding(2)),
+            Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
+            Some(CToken::ByteData(0x40)),
+            Some(CToken::ByteData(0x30)),
+            Some(CToken::ByteData(0x20)),
+            Some(CToken::ByteData(0x10)),
+            Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_label_dump() {
+        let input = ".BYTE 0x10\n la: add x0 x1 x2\n .BYTE 0x10\n la: .BYTE 0x10\n add x0 x1 x2";
+
+        let expected = vec![
+            Some(CToken::ByteData(0x10)),
+            Some(CToken::Padding(3)),
+            Some(CToken::Label("la".to_string(), parser::LabelType::Global)),
+            Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
+            Some(CToken::ByteData(0x10)),
+            Some(CToken::Label("la".to_string(), parser::LabelType::Global)),
+            Some(CToken::ByteData(0x10)),
+            Some(CToken::Padding(2)),
+            Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_mixed_data_padding() {
+        let input = ".BYTE 0x10\n .WORD 0x10203040\n add x0 x1 x2";
+
+        let expected = vec![
+            Some(CToken::ByteData(0x10)),
+            Some(CToken::ByteData(0x40)),
+            Some(CToken::ByteData(0x30)),
+            Some(CToken::ByteData(0x20)),
+            Some(CToken::ByteData(0x10)),
+            Some(CToken::Padding(3)),
+            Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
+            None,
+        ];
+
+        assert_eq(input, expected);
+    }
+
+    #[test]
+    fn test_multibyte() {
+        let input = ".BYTE 0x10 0x20 0x30 0x40";
+
+        let expected = vec![
+            Some(CToken::ByteData(0x10)),
+            Some(CToken::ByteData(0x20)),
+            Some(CToken::ByteData(0x30)),
+            Some(CToken::ByteData(0x40)),
             None,
         ];
 
