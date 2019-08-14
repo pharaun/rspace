@@ -1,4 +1,4 @@
-#[ignore]
+#[test]
 fn lh_inst() {
   TEST_LD_OP(2, "lh", 0x00000000000000ff, 0, "tdat");
   TEST_LD_OP(3, "lh", 0xffffffffffffff00, 2, "tdat");

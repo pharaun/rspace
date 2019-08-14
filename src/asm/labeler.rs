@@ -39,17 +39,16 @@ impl WordBuf {
         }
     }
 
-    // TODO: not sure if the u32 write out is correct or not
     pub fn write_byte(&mut self, input: u8) -> Option<u32> {
         self.buffer[self.buffer_idx] = input;
         self.buffer_idx += 1;
 
         if self.buffer_idx == 4 {
             let mut ret = 0x00_00_00_00;
-            ret |= (self.buffer[0] as u32) << 24;
-            ret |= (self.buffer[1] as u32) << 16;
-            ret |= (self.buffer[2] as u32) << 8;
-            ret |= (self.buffer[3] as u32) << 0;
+            ret |= (self.buffer[0] as u32) << 0;
+            ret |= (self.buffer[1] as u32) << 8;
+            ret |= (self.buffer[2] as u32) << 16;
+            ret |= (self.buffer[3] as u32) << 24;
 
             self.buffer = [0x0, 0x0, 0x0, 0x0];
             self.buffer_idx = 0;
@@ -322,7 +321,7 @@ fn test_wordbuf_four_byte() {
     assert_eq!(res, None);
 
     let res = buf.write_byte(0x4);
-    assert_eq!(res, Some(0x01020304));
+    assert_eq!(res, Some(0x04030201));
 
     assert_eq!(buf.buffer[0], 0x0);
     assert_eq!(buf.buffer[1], 0x0);
@@ -348,7 +347,7 @@ fn test_wordbuf_five_byte() {
     assert_eq!(res, None);
 
     let res = buf.write_byte(0x4);
-    assert_eq!(res, Some(0x01020304));
+    assert_eq!(res, Some(0x04030201));
 
     let res = buf.write_byte(0x5);
     assert_eq!(res, None);
