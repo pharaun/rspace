@@ -25,6 +25,46 @@ pub enum AToken {
     Data(u32), // Raw assembly or data bits
 }
 
+// u32 buffer for flushing out a Data(u32)
+struct WordBuf {
+    buffer: [u8; 4],
+    buffer_idx: usize,
+}
+
+impl WordBuf {
+    pub fn new() -> WordBuf {
+        WordBuf {
+            buffer: [0x0, 0x0, 0x0, 0x0],
+            buffer_idx: 0,
+        }
+    }
+
+    // TODO: not sure if the u32 write out is correct or not
+    pub fn write_byte(&mut self, input: u8) -> Option<u32> {
+        self.buffer[self.buffer_idx] = input;
+        self.buffer_idx += 1;
+
+        if self.buffer_idx == 4 {
+            let mut ret = 0x00_00_00_00;
+            ret |= (self.buffer[0] as u32) << 24;
+            ret |= (self.buffer[1] as u32) << 16;
+            ret |= (self.buffer[2] as u32) << 8;
+            ret |= (self.buffer[3] as u32) << 0;
+
+            self.buffer = [0x0, 0x0, 0x0, 0x0];
+            self.buffer_idx = 0;
+
+            Some(ret)
+        } else {
+            None
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.buffer_idx == 0
+    }
+}
+
 // TODO: support labeled memory location, for now only branches + jumps (need more support)
 // Don't know how to figure out if i should generate a relative or an absolute address, branches are always relative to the inst
 // supporting those for now, the jalr/auipc/lui/jal i can't figure out yet
@@ -33,9 +73,7 @@ pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
     let mut first_pass: Vec<cleaner::CToken> = Vec::new();
 
     // Symbol table
-    // TODO: change this over to be byte addressable (not per u32 words)
-    // Make each instruction/etc emit their size to keep the byte offset correct
-    let mut position: usize = 0; // Per u32 word
+    let mut position: usize = 0; // Per byte
     let mut symbol_table: Vec<((String, parser::LabelType), usize)> = Vec::new();
 
     // First pass to scan for label and store their positions
@@ -44,11 +82,20 @@ pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
             cleaner::CToken::Label(n, lt) => {
                 symbol_table.push(((n, lt), position));
             },
+            cleaner::CToken::Padding(p) => {
+                first_pass.push(cleaner::CToken::Padding(p));
+                position += p;
+            },
+            cleaner::CToken::ByteData(d) => {
+                first_pass.push(cleaner::CToken::ByteData(d));
+                position += 1;
+            },
+            // Instructions here on out
             i@_ => {
                 first_pass.push(i);
 
-                // Inc inst pointer
-                position += 1;
+                // Inc by 4 because each inst is a u32 word
+                position += 4;
             }
         }
     }
@@ -59,17 +106,44 @@ pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
 
     // Convert instructions into AToken via looking up and encoding the labels
     let mut second_pass: Vec<AToken> = Vec::new();
+    let mut buf = WordBuf::new();
 
     // Reset position (for relative label use)
     position = 0;
 
-    // Since we're popping, reverse the vec so that we can get instructions in order
-    first_pass.reverse();
+    let mut first_pass_drain = first_pass.drain(..);
+    for token in first_pass_drain {
+        match token {
+            cleaner::CToken::Padding(p) => {
+                for _ in 0..p {
+                    match buf.write_byte(0x0) {
+                        None    => (),
+                        Some(d) => second_pass.push(AToken::Data(d)),
+                    }
+                }
 
-    // TODO: turn this into a iterator instead?
-    while let Some(token) = first_pass.pop() {
-        second_pass.push(encode_label(token, &symbol_table, position));
-        position += 1;
+                position += p;
+            },
+            cleaner::CToken::ByteData(d) => {
+                match buf.write_byte(d) {
+                    None     => (),
+                    Some(dd) => second_pass.push(AToken::Data(dd)),
+                }
+
+                position += 1;
+            },
+
+            // Instructions here on out
+            _ => {
+                if !buf.is_empty() {
+                    panic!("Buffer isn't empty, it should be before any instruction");
+                }
+                second_pass.push(encode_label(token, &symbol_table, position));
+
+                // Inc by 4 because each inst is a u32 word
+                position += 4;
+            }
+        }
     }
 
     second_pass
@@ -79,12 +153,10 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
     match token {
         cleaner::CToken::Label(_, _)
               => panic!("Should have been filtered out in first pass"),
-
-        // Copy the data bits over
-        //cleaner::CToken::Data(n)
-        //      => AToken::Data(n),
-        cleaner::CToken::Padding(_) => panic!("die"),
-        cleaner::CToken::ByteData(_) => panic!("die"),
+        cleaner::CToken::Padding(_)
+              => panic!("Should have been filtered out earlier in second pass"),
+        cleaner::CToken::ByteData(_)
+              => panic!("Should have been filtered out earlier in second pass"),
 
         // Copy these token over
         cleaner::CToken::RegRegReg(s, rd, rs1, rs2)
@@ -210,18 +282,76 @@ fn encode_relative_offset(inst_pos: usize, label_pos: usize) -> u32 {
     // This assumes u32 sized instruction words, the pos are integer in block of u32
     // If label pos is earlier than inst_pos its a negative offset
     // and viceverse
-    // The address is in byte (hence u32 blocks)
-    let inst_addr: i64 = (inst_pos as i64) * 4;
-    let label_addr: i64 = (label_pos as i64) * 4;
+    let inst_addr: i64 = (inst_pos as i64);
+    let label_addr: i64 = (label_pos as i64);
     let offset = label_addr - inst_addr;
     offset as u32
 }
 
 fn encode_global_offset(label_pos: usize) -> u32 {
-    // TODO: hella truncation
-    // This assumes u32 sized instruction words, the pos are integer in block of u32
-    // If label pos is earlier than inst_pos its a negative offset
-    // and viceverse
-    // The address is in byte (hence u32 blocks)
-    (label_pos as u32) * 4
+    label_pos as u32
+}
+
+#[test]
+fn test_wordbuf_one_byte() {
+    let mut buf = WordBuf::new();
+    let res = buf.write_byte(0x1);
+
+    assert_eq!(buf.buffer[0], 0x1);
+    assert_eq!(buf.buffer[1], 0x0);
+    assert_eq!(buf.buffer[2], 0x0);
+    assert_eq!(buf.buffer[3], 0x0);
+
+    assert_eq!(buf.buffer_idx, 1);
+
+    assert_eq!(buf.is_empty(), false);
+    assert_eq!(res, None);
+}
+
+#[test]
+fn test_wordbuf_four_byte() {
+    let mut buf = WordBuf::new();
+
+    let res = buf.write_byte(0x1);
+    assert_eq!(res, None);
+
+    let res = buf.write_byte(0x2);
+    assert_eq!(res, None);
+
+    let res = buf.write_byte(0x3);
+    assert_eq!(res, None);
+
+    let res = buf.write_byte(0x4);
+    assert_eq!(res, Some(0x01020304));
+
+    assert_eq!(buf.buffer[0], 0x0);
+    assert_eq!(buf.buffer[1], 0x0);
+    assert_eq!(buf.buffer[2], 0x0);
+    assert_eq!(buf.buffer[3], 0x0);
+
+    assert_eq!(buf.buffer_idx, 0);
+
+    assert_eq!(buf.is_empty(), true);
+}
+
+#[test]
+fn test_wordbuf_five_byte() {
+    let mut buf = WordBuf::new();
+
+    let res = buf.write_byte(0x1);
+    assert_eq!(res, None);
+
+    let res = buf.write_byte(0x2);
+    assert_eq!(res, None);
+
+    let res = buf.write_byte(0x3);
+    assert_eq!(res, None);
+
+    let res = buf.write_byte(0x4);
+    assert_eq!(res, Some(0x01020304));
+
+    let res = buf.write_byte(0x5);
+    assert_eq!(res, None);
+    assert_eq!(buf.buffer_idx, 1);
+    assert_eq!(buf.is_empty(), false);
 }
