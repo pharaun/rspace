@@ -713,9 +713,9 @@ mod op_tests {
     mod store_op_tests {
         use super::*;
 
-        //include!("../../test-rv32im/sw.rs");
-        //include!("../../test-rv32im/sh.rs");
-        //include!("../../test-rv32im/sb.rs");
+        include!("../../test-rv32im/sw.rs");
+        include!("../../test-rv32im/sh.rs");
+        include!("../../test-rv32im/sb.rs");
 
         fn TEST_ST_OP(_test: u8, load_op: &str, store_op: &str, res: u32, off: u32, _base: &str) {
             let addr: u32 = 0x1100;
@@ -746,7 +746,7 @@ mod op_tests {
             assert_eq!(vm.reg[3], res);
         }
 
-        fn test_negative_op(load_op: &str, store_op: &str, res: u32, off1: u32, off2: u32) {
+        fn test_negative_op(load_op: &str, store_op: &str, res: u32, res2: u32, off1: u32, off2: u32) {
             let addr: u32 = 0x1100;
 
             // load the rom
@@ -774,10 +774,10 @@ mod op_tests {
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[3], res);
+            assert_eq!(vm.reg[3], res2);
         }
 
-        fn test_offset_op(load_op: &str, store_op: &str, res: u32, off1: u32, off2: u32) {
+        fn test_offset_op(load_op: &str, store_op: &str, res: u32, res2: u32, off1: u32, off2: u32) {
             let addr1: u32 = 0x1100;
 
             let addr2 = match store_op {
@@ -815,11 +815,40 @@ mod op_tests {
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[3], res);
+            assert_eq!(vm.reg[3], res2);
+        }
+
+        #[test]
+        fn test_sw_negative_base() {
+            test_negative_op("lw", "sw", 0x12345678, 0x58213098, (-32 as i32) as u32, 32);
+        }
+
+        #[test]
+        fn test_sw_unaligned_base() {
+            test_offset_op("lw", "sw", 0x58213098, 0x58213098, (-3 as i32) as u32, 7);
+        }
+
+        #[test]
+        fn test_sh_negative_base() {
+            test_negative_op("lh", "sh", 0x12345678, 0x5678, (-32 as i32) as u32, 32);
+        }
+
+        #[test]
+        fn test_sh_unaligned_base() {
+            test_offset_op("lh", "sh", 0x58213098, 0x3098, (-5 as i32) as u32, 7);
+        }
+
+        #[test]
+        fn test_sb_negative_base() {
+            test_negative_op("lb", "sb", 0x12345678, 0x78, (-32 as i32) as u32, 32);
+        }
+
+        #[test]
+        fn test_sb_unaligned_base() {
+            test_offset_op("lb", "sb", 0x58213098, 0xffffff98, (-6 as i32) as u32, 7);
         }
     }
 
-// STORE
 // COUNTERS (CSR)
 //
 // Haven't found a way to make usable:
