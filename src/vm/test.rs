@@ -486,9 +486,9 @@ mod op_tests {
 
         include!("../../test-rv32im/lw.rs");
         include!("../../test-rv32im/lh.rs");
-        //include!("../../test-rv32im/lhu.rs");
+        include!("../../test-rv32im/lhu.rs");
         include!("../../test-rv32im/lb.rs");
-        //include!("../../test-rv32im/lbu.rs");
+        include!("../../test-rv32im/lbu.rs");
 
         fn TEST_LD_OP(_test: u8, op: &str, res: u32, off: u32, base: &str) {
             let mem = match op {
@@ -539,23 +539,37 @@ mod op_tests {
             TEST_LD_OP(test, op, res, off, base);
         }
 
-        #[test]
-        fn test_lw_negative_base() {
+        fn test_weird_op(op: &str, res: u32, off: u32, off2: u32) {
+            let mem = match op {
+                "lw"  => ".WORD",
+                "lh"  => ".HALF",
+                "lhu" => ".HALF",
+                "lb"  => ".BYTE",
+                "lbu" => ".BYTE",
+                _     => panic!("New load op: {}", op),
+            };
+
             // load the rom
             let mut vm = Emul32::new_with_rom(
                 generate_rom(
-                    // TODO: implement support for `la` alias
-                    "lui x1 tdat\n
-                    addi x1 x1 tdat\n
-                    addi x1 x1 -32\n
-                    lw x2 x1 32\n
-                    jal x0 exit\n
-                    tdat:\n
-                    tdat1: .WORD 0x00ff00ff\n
-                    tdat2: .WORD 0xff00ff00\n
-                    tdat3: .WORD 0x0ff00ff0\n
-                    tdat4: .WORD 0xf00ff00f\n
-                    exit: add x0 x0 x0",
+                    &format!(
+                        // TODO: implement support for `la` alias
+                        "lui x1 tdat\n
+                        addi x1 x1 tdat\n
+                        addi x1 x1 {}\n
+                        {} x2 x1 {}\n
+                        jal x0 exit\n
+                        tdat:\n
+                        tdat1: {} 0x00ff00ff\n
+                        tdat2: {} 0xff00ff00\n
+                        tdat3: {} 0x0ff00ff0\n
+                        tdat4: {} 0xf00ff00f\n
+                        exit: add x0 x0 x0",
+                        off,
+                        op,
+                        off2,
+                        mem, mem, mem, mem,
+                    )
                 )
             );
 
@@ -563,142 +577,57 @@ mod op_tests {
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[2], 0x00ff00ff);
+            assert_eq!(vm.reg[2], res);
         }
 
         #[test]
-        fn test_lw_unaligned_base() {
-            // load the rom
-            let mut vm = Emul32::new_with_rom(
-                generate_rom(
-                    // TODO: implement support for `la` alias
-                    "lui x1 tdat\n
-                    addi x1 x1 tdat\n
-                    addi x1 x1 -3\n
-                    lw x2 x1 7\n
-                    jal x0 exit\n
-                    tdat:\n
-                    tdat1: .WORD 0x00ff00ff\n
-                    tdat2: .WORD 0xff00ff00\n
-                    tdat3: .WORD 0x0ff00ff0\n
-                    tdat4: .WORD 0xf00ff00f\n
-                    exit: add x0 x0 x0",
-                )
-            );
-
-            // Run
-            vm.run();
-
-            // Validate
-            assert_eq!(vm.reg[2], 0xff00ff00);
+        fn test_lw_negative_base() {
+            test_weird_op("lw", 0x00ff00ff, (-32 as i32) as u32, 32);
         }
 
         #[test]
         fn test_lh_negative_base() {
-            // load the rom
-            let mut vm = Emul32::new_with_rom(
-                generate_rom(
-                    // TODO: implement support for `la` alias
-                    "lui x1 tdat\n
-                    addi x1 x1 tdat\n
-                    addi x1 x1 -32\n
-                    lh x2 x1 32\n
-                    jal x0 exit\n
-                    tdat:\n
-                    tdat1: .HALF 0x00ff\n
-                    tdat2: .HALF 0xff00\n
-                    tdat3: .HALF 0x0ff0\n
-                    tdat4: .HALF 0xf00f\n
-                    exit: add x0 x0 x0",
-                )
-            );
-
-            // Run
-            vm.run();
-
-            // Validate
-            assert_eq!(vm.reg[2], 0x000000ff);
-        }
-
-        #[test]
-        fn test_lh_unaligned_base() {
-            // load the rom
-            let mut vm = Emul32::new_with_rom(
-                generate_rom(
-                    // TODO: implement support for `la` alias
-                    "lui x1 tdat\n
-                    addi x1 x1 tdat\n
-                    addi x1 x1 -5\n
-                    lh x2 x1 7\n
-                    jal x0 exit\n
-                    tdat:\n
-                    tdat1: .HALF 0x00ff\n
-                    tdat2: .HALF 0xff00\n
-                    tdat3: .HALF 0x0ff0\n
-                    tdat4: .HALF 0xf00f\n
-                    exit: add x0 x0 x0",
-                )
-            );
-
-            // Run
-            vm.run();
-
-            // Validate
-            assert_eq!(vm.reg[2], 0xffffff00);
+            test_weird_op("lh", 0x000000ff, (-32 as i32) as u32, 32);
         }
 
         #[test]
         fn test_lb_negative_base() {
-            // load the rom
-            let mut vm = Emul32::new_with_rom(
-                generate_rom(
-                    // TODO: implement support for `la` alias
-                    "lui x1 tdat\n
-                    addi x1 x1 tdat\n
-                    addi x1 x1 -32\n
-                    lb x2 x1 32\n
-                    jal x0 exit\n
-                    tdat:\n
-                    tdat1: .BYTE 0xff\n
-                    tdat2: .BYTE 0x00\n
-                    tdat3: .BYTE 0xf0\n
-                    tdat4: .BYTE 0x0f\n
-                    exit: add x0 x0 x0",
-                )
-            );
+            test_weird_op("lb", 0xffffffff, (-32 as i32) as u32, 32);
+        }
 
-            // Run
-            vm.run();
+        #[test]
+        fn test_lbu_negative_base() {
+            test_weird_op("lbu", 0x000000ff, (-32 as i32) as u32, 32);
+        }
 
-            // Validate
-            assert_eq!(vm.reg[2], 0xffffffff);
+        #[test]
+        fn test_lhu_negative_base() {
+            test_weird_op("lhu", 0x000000ff, (-32 as i32) as u32, 32);
+        }
+
+        #[test]
+        fn test_lw_unaligned_base() {
+            test_weird_op("lw", 0xff00ff00, (-3 as i32) as u32, 7);
+        }
+
+        #[test]
+        fn test_lh_unaligned_base() {
+            test_weird_op("lh", 0xffffff00, (-5 as i32) as u32, 7);
         }
 
         #[test]
         fn test_lb_unaligned_base() {
-            // load the rom
-            let mut vm = Emul32::new_with_rom(
-                generate_rom(
-                    // TODO: implement support for `la` alias
-                    "lui x1 tdat\n
-                    addi x1 x1 tdat\n
-                    addi x1 x1 -6\n
-                    lb x2 x1 7\n
-                    jal x0 exit\n
-                    tdat:\n
-                    tdat1: .BYTE 0xff\n
-                    tdat2: .BYTE 0x00\n
-                    tdat3: .BYTE 0xf0\n
-                    tdat4: .BYTE 0x0f\n
-                    exit: add x0 x0 x0",
-                )
-            );
+            test_weird_op("lb", 0x00000000, (-6 as i32) as u32, 7);
+        }
 
-            // Run
-            vm.run();
+        #[test]
+        fn test_lbu_unaligned_base() {
+            test_weird_op("lbu", 0x00000000, (-6 as i32) as u32, 7);
+        }
 
-            // Validate
-            assert_eq!(vm.reg[2], 0x00000000);
+        #[test]
+        fn test_lhu_unaligned_base() {
+            test_weird_op("lhu", 0x0000ff00, (-5 as i32) as u32, 7);
         }
     }
 
