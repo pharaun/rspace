@@ -423,6 +423,85 @@ mod op_tests {
 
         include!("../../test-rv32im/lui.rs");
 
+        #[ignore]
+        fn auipc_inst() {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                // TODO: for this to properly work needs special labeler support
+                // where if addi/other inst points toward a label that contains a
+                // auipc they would generate different offset (same thing with
+                // auipc itself) Thus this isn't really usable/testable yet
+                generate_rom(
+                    // lla x1 2f
+                    "1: auipc x1 2f\n
+                    addi x1 x1 1b\n
+                    2: add x0 x0 x0"
+                )
+            );
+
+            // Validate
+            assert_eq!(vm.reg[1], 0);
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[1], 0x8); // AUIPC is at PC=0, 2f is at 0x8
+        }
+
+        #[test]
+        fn jalr_inst() {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                // 0xC -> jumps to label 1
+                generate_rom(
+                    "addi x1 x1 0x1\n
+                    jalr x2 x0 0xC\n
+                    addi x3 x3 0x1\n
+                    1: addi x4 x4 0x1\n
+                    jal x0 3f\n
+                    addi x5 x5 0x1\n
+                    2: addi x6 x6 0x1\n
+                    jal x0 4f\n
+                    addi x7 x7 0x1\n
+                    3: addi x8 x8 0x1\n
+                    lui x11 2b\n
+                    addi x11 x11 2b\n
+                    jalr x9 x11 0\n
+                    4: addi x10 x10 0x1"
+                )
+            );
+
+            // Validate - want to skip over x3, x5, x7
+            assert_eq!(vm.reg[1], 0);
+            assert_eq!(vm.reg[2], 0);
+            assert_eq!(vm.reg[3], 0);
+            assert_eq!(vm.reg[4], 0);
+            assert_eq!(vm.reg[5], 0);
+            assert_eq!(vm.reg[6], 0);
+            assert_eq!(vm.reg[7], 0);
+            assert_eq!(vm.reg[8], 0);
+            assert_eq!(vm.reg[9], 0);
+            assert_eq!(vm.reg[10], 0);
+            assert_eq!(vm.reg[11], 0);
+
+            // Run
+            vm.run();
+
+            // Validate - want to skip over x3, x5, x7
+            assert_eq!(vm.reg[1], 0x1);
+            assert_eq!(vm.reg[2], 0x8); // JALR pc + 4
+            assert_eq!(vm.reg[3], 0x0);
+            assert_eq!(vm.reg[4], 0x1);
+            assert_eq!(vm.reg[5], 0x0);
+            assert_eq!(vm.reg[6], 0x1);
+            assert_eq!(vm.reg[7], 0x0);
+            assert_eq!(vm.reg[8], 0x1);
+            assert_eq!(vm.reg[9], 0x34); // JALR pc + 4
+            assert_eq!(vm.reg[10], 0x1);
+            assert_eq!(vm.reg[11], 0x18); // LUI/addi address of 2b
+        }
+
         #[test]
         fn jal_inst() {
             // load the rom
@@ -631,11 +710,122 @@ mod op_tests {
         }
     }
 
-        // AUIPC
-        // JALR
-        // STORE
-        // Lower Priority:
-        // COUNTERS (CSR)
-        // SYNCH (fence)
-        // SYSTEM (scall/sbreak)/(ebreak/ecall)
+    mod store_op_tests {
+        use super::*;
+
+        //include!("../../test-rv32im/sw.rs");
+        //include!("../../test-rv32im/sh.rs");
+        //include!("../../test-rv32im/sb.rs");
+
+        fn TEST_ST_OP(_test: u8, load_op: &str, store_op: &str, res: u32, off: u32, _base: &str) {
+            let addr: u32 = 0x1100;
+
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    &format!(
+                        // TODO: implement support for la and li alias
+                        "lui x1 {}\n
+                        addi x1 x1 {}\n
+                        lui x2 0x{:08x}\n
+                        addi x2 x2 0x{:08x}\n
+                        {} x2 x1 {}\n
+                        {} x3 x1 {}",
+                        addr, addr,
+                        res, res,
+                        store_op, off,
+                        load_op, off,
+                    )
+                )
+            );
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[3], res);
+        }
+
+        fn test_negative_op(load_op: &str, store_op: &str, res: u32, off1: u32, off2: u32) {
+            let addr: u32 = 0x1100;
+
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    &format!(
+                        // TODO: implement support for la and li alias
+                        "lui x1 {}\n
+                        addi x1 x1 {}\n
+                        lui x2 0x{:08x}\n
+                        addi x2 x2 0x{:08x}\n
+                        addi x4 x1 {}\n
+                        {} x2 x4 {}\n
+                        {} x3 x1 0",
+                        addr, addr,
+                        res, res,
+                        off1,
+                        store_op, off2,
+                        load_op,
+                    )
+                )
+            );
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[3], res);
+        }
+
+        fn test_offset_op(load_op: &str, store_op: &str, res: u32, off1: u32, off2: u32) {
+            let addr1: u32 = 0x1100;
+
+            let addr2 = match store_op {
+                "sw"  => addr1 + 4,
+                "sh"  => addr1 + 2,
+                "sb"  => addr1 + 1,
+                _     => panic!("New store op: {} and load op: {}", store_op, load_op),
+            };
+
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    &format!(
+                        // TODO: implement support for la and li alias
+                        "lui x1 {}\n
+                        addi x1 x1 {}\n
+                        lui x2 0x{:08x}\n
+                        addi x2 x2 0x{:08x}\n
+                        addi x1 x1 {}\n
+                        {} x2 x1 {}\n
+                        lui x4 {}\n
+                        addi x4 x4 {}\n
+                        {} x3 x4 0",
+                        addr1, addr1,
+                        res, res,
+                        off1,
+                        store_op, off2,
+                        addr2, addr2,
+                        load_op,
+                    )
+                )
+            );
+
+            // Run
+            vm.run();
+
+            // Validate
+            assert_eq!(vm.reg[3], res);
+        }
+    }
+
+// STORE
+// COUNTERS (CSR)
+//
+// Haven't found a way to make usable:
+// AUIPC
+//
+// Won't implement:
+// SYNCH (fence)
+// SYSTEM (scall/sbreak)/(ebreak/ecall)
 }

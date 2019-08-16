@@ -214,11 +214,10 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::JALR) => {
                     // JALR
-                    // TODO: TEST
-                    // TODO: unclear if we need to execute the jumped to instruction or +4?
-                    // Need to zero the last value
-                    self.pc = ((self.reg[rs1] + i_imm) & 0xff_ff_ff_fe) as usize;
                     self.reg[rd] = (self.pc + 4) as u32;
+                    // Need to zero the last value
+                    self.pc = ((self.reg[rs1] + i_imm - 4) & 0xff_ff_ff_fe) as usize;
+                    // Because after this inst complete the pc will +4 at the end)
                 },
 
                 // RV32 I
@@ -239,7 +238,6 @@ impl Emul32 {
                 },
                 (        _, 0b010, opcode::LOAD) => {
                     // LW
-                    // Negative offset makes this break
                     // TODO: abstract this to memory?
                     let bytes: [u8; 4] = [
                         self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize],
@@ -321,23 +319,23 @@ impl Emul32 {
                     // SB
                     // TODO: TEST
                     // TODO: abstract this to memory?
-                    self.mem[(self.reg[rs1] + sign_extend(inst, s_imm)) as usize] = (self.reg[rs2] & 0x00_00_00_FF) as u8;
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize] = (self.reg[rs2] & 0x00_00_00_FF) as u8;
                 },
                 (        _, 0b001, opcode::STORE) => {
                     // SH
                     // TODO: TEST
                     // TODO: abstract this to memory?
-                    self.mem[(self.reg[rs1] + sign_extend(inst, s_imm)) as usize]     = (self.reg[rs2] & 0x00_00_00_FF) as u8;
-                    self.mem[(self.reg[rs1] + sign_extend(inst, s_imm) + 1) as usize] = (self.reg[rs2] & 0x00_00_FF_00) as u8;
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = (self.reg[rs2] & 0x00_00_00_FF) as u8;
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 1) as usize] = (self.reg[rs2] & 0x00_00_FF_00) as u8;
                 },
                 (        _, 0b010, opcode::STORE) => {
                     // SW
                     // TODO: TEST
                     // TODO: abstract this to memory?
-                    self.mem[(self.reg[rs1] + sign_extend(inst, s_imm)) as usize]     = (self.reg[rs2] & 0x00_00_00_FF) as u8;
-                    self.mem[(self.reg[rs1] + sign_extend(inst, s_imm) + 1) as usize] = (self.reg[rs2] & 0x00_00_FF_00) as u8;
-                    self.mem[(self.reg[rs1] + sign_extend(inst, s_imm) + 2) as usize] = (self.reg[rs2] & 0x00_FF_00_00) as u8;
-                    self.mem[(self.reg[rs1] + sign_extend(inst, s_imm) + 3) as usize] = (self.reg[rs2] & 0xFF_00_00_00) as u8;
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = (self.reg[rs2] & 0x00_00_00_FF) as u8;
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 1) as usize] = (self.reg[rs2] & 0x00_00_FF_00) as u8;
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 2) as usize] = (self.reg[rs2] & 0x00_FF_00_00) as u8;
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 3) as usize] = (self.reg[rs2] & 0xFF_00_00_00) as u8;
                 },
 
                 // RV32 I
@@ -392,7 +390,8 @@ impl Emul32 {
                 (        _,     _, opcode::AUIPC) => {
                     // AUIPC
                     // TODO: TEST - don't really have a way to test yet
-                    self.reg[rd] = u_imm.wrapping_add(self.pc as u32);
+                    //self.reg[rd] = u_imm.wrapping_add(self.pc as u32);
+                    panic!("Auipc isn't really supported by the assembler yet");
                 },
                 (        _,     _, opcode::JAL) => {
                     // JAL

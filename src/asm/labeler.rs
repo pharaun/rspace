@@ -185,7 +185,12 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
         cleaner::CToken::RegRegImm(s, rd, rs1, cleaner::CImmRef::AddrRef(l, lt)) => {
             // TODO: handle relative vs global for now hardcode global position?
             let pos = find_label(&l, lt, symbol, inst_pos);
-            let imm = encode_global_offset(pos);
+
+            // This is for lui (global offset) and auipc (relative offset)
+            let imm = match &s[..] {
+                "JALR" => encode_relative_offset(inst_pos, pos),
+                _      => encode_global_offset(pos),
+            };
 
             AToken::RegRegImm(s, rd, rs1, imm)
         },
@@ -204,8 +209,13 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
         },
         cleaner::CToken::RegIL(s, rd, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
-            //let imm = encode_relative_offset(inst_pos, pos);
-            let imm = encode_global_offset(pos);
+
+            // This is for lui (global offset) and auipc (relative offset)
+            let imm = match &s[..] {
+                "AUIPC" => encode_relative_offset(inst_pos, pos),
+                "LUI"   => encode_global_offset(pos),
+                _       => panic!("Unknown inst {}", s),
+            };
 
             // Since mips legacy shift the imm over 12 bit
             // since it'll only take the lower 20 not the upper
