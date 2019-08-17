@@ -731,21 +731,33 @@ mod op_tests {
             let (addr, addr2) = hi_lo(0x1100);
             let (res1, res2) = hi_lo(res);
 
-            println!("test: {}", _test);
+            // test data - some tests uses mismatched load/store op
+            let (td1, td2) = match load_op {
+                "lh" => hi_lo(0xEF_EF_EF_EF),
+                "lw" => hi_lo(0xBE_EF_BE_EF),
+                "lb" => (0, 0),
+                _    => panic!("unexpected load: {}", load_op),
+            };
 
             // load the rom
             let mut vm = Emul32::new_with_rom(
                 generate_rom(
                     &format!(
                         // TODO: implement support for la and li alias
+                        // first two sw + x10 is for setting the data (for mismatch op)
                         "lui x1 {}\n
                         addi x1 x1 {}\n
                         lui x2 0x{:08x}\n
                         addi x2 x2 0x{:08x}\n
+                        lui x10 0x{:08x}\n
+                        addi x10 x10 0x{:08x}\n
+                        sw x1 x10 0\n
+                        sw x1 x10 4\n
                         {} x1 x2 {}\n
                         {} x3 x1 {}",
                         addr, addr2,
                         res1, res2,
+                        td1, td2,
                         store_op, off,
                         load_op, off,
                     )
@@ -754,13 +766,6 @@ mod op_tests {
 
             // Run
             vm.run();
-
-            // DEBUG
-            println!("addr: 0x{:08x} x1: 0x{:08x}", addr, vm.reg[1]);
-            println!("data: 0x{:08x} x2: 0x{:08x}", res, vm.reg[2]);
-            println!("data: 0x{:08x} x4: 0x{:08x}", res, vm.reg[4]);
-            println!("data: 0x{:08x} x5: 0x{:08x}", res, vm.reg[5]);
-            println!("offs: 0x{:08x} load (x3): 0x{:08x}", off, vm.reg[3]);
 
             // Validate
             assert_eq!(vm.reg[3], res);
@@ -793,13 +798,6 @@ mod op_tests {
 
             // Run
             vm.run();
-
-            // DEBUG
-            println!("addr: 0x{:08x} x1: 0x{:08x}", addr, vm.reg[1]);
-            println!("data: 0x{:08x} x2: 0x{:08x}", res, vm.reg[2]);
-            println!("data: 0x{:08x} x4: 0x{:08x}", res, vm.reg[4]);
-            println!("off1: 0x{:08x} off2: 0x{:08x}", off1, off2);
-            println!("load (x3): 0x{:08x}", vm.reg[3]);
 
             // Validate
             assert_eq!(vm.reg[3], res2);
@@ -852,7 +850,7 @@ mod op_tests {
 
         #[test]
         fn test_sw_negative_base() {
-            test_negative_op("lw", "sw", 0x12345678, 0x58213098, (-32 as i32) as u32, 32);
+            test_negative_op("lw", "sw", 0x12345678, 0x12345678, (-32 as i32) as u32, 32);
         }
 
         #[test]
