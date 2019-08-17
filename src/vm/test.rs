@@ -507,15 +507,12 @@ mod op_tests {
             // load the rom
             let mut vm = Emul32::new_with_rom(
                 generate_rom(
-                    // TODO:
-                    // LA x5 ta (to grab the address of ta to compare)
                     "addi x1 x0 0x1\n
                     jal x2 ta\n
-                    addi x3 x0 0x1\n
+                    ret: addi x3 x0 0x1\n
                     ta: addi x4 x0 0x1\n
-                    "
-                    //auipc x5 ta\n
-                    //addi x5 x5 ta"
+                    lui x5 ret\n
+                    addi x5 x5 ret"
                 )
             );
 
@@ -531,8 +528,8 @@ mod op_tests {
 
             // Validate
             assert_eq!(vm.reg[1], 0x1);
-            assert_eq!(vm.reg[2], 0x8); // Hardcode address, re-validate (la - auipc+addi)
-            //assert_eq!(vm.reg[2], vm.reg[5]);
+            //assert_eq!(vm.reg[2], 0x8); // Hardcode address, re-validate (la - auipc+addi)
+            assert_eq!(vm.reg[2], vm.reg[5]);
             assert_eq!(vm.reg[3], 0);
             assert_eq!(vm.reg[4], 0x1);
         }

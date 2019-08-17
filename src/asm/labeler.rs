@@ -148,6 +148,8 @@ pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
     second_pass
 }
 
+// TODO: find a good way to handle %hi_lo() since right now i have not ran into it because all of
+// my address are small enough to not trip into lui and thus trip the sign-extend of addi, so ...
 fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType), usize)>, inst_pos: usize) -> AToken {
     match token {
         cleaner::CToken::Label(_, _)

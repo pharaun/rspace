@@ -18,12 +18,57 @@ impl Memory {
         }
     }
 
+    // TODO: make this raise an error or cause the cpu to enter a trap state on unaligned access
     pub fn fetch_instruction(&self, idx: usize) -> u32 {
         let inst_u8: [u8; 4] = [self[idx], self[idx+1], self[idx+2], self[idx+3]];
 
         // TODO: better way of doing this
         //unsafe { std::mem::transmute::<[u8; 4], u32>(inst_u8) }
         ((inst_u8[0] as u32)) | ((inst_u8[1] as u32) << 8) | ((inst_u8[2] as u32) << 16) | ((inst_u8[3] as u32) << 24)
+    }
+
+    pub fn load_word(&self, idx: usize) -> u32 {
+        let bytes: [u8; 4] = [self[idx], self[idx+1], self[idx+2], self[idx+3]];
+        ((bytes[0] as u32)) | ((bytes[1] as u32) << 8) | ((bytes[2] as u32) << 16) | ((bytes[3] as u32) << 24)
+    }
+
+    pub fn load_half(&self, idx: usize) -> u32 {
+        let bytes: [u8; 2] = [self[idx], self[idx+1]];
+        ((bytes[0] as u32)) | ((bytes[1] as u32) << 8)
+    }
+
+    pub fn load_byte(&self, idx: usize) -> u32 {
+        let byte = self[idx];
+        ((byte as u32))
+    }
+
+    pub fn store_word(&mut self, idx: usize, data: u32) {
+        let bytes: [u8; 4] = [
+            ((data & 0x00_00_00_FF)) as u8,
+            ((data & 0x00_00_FF_00) >> 8) as u8,
+            ((data & 0x00_FF_00_00) >> 16) as u8,
+            ((data & 0xFF_00_00_00) >> 24) as u8,
+        ];
+
+        self[idx]     = bytes[0];
+        self[idx + 1] = bytes[1];
+        self[idx + 2] = bytes[2];
+        self[idx + 3] = bytes[3];
+    }
+
+    pub fn store_half(&mut self, idx: usize, data: u32) {
+        let bytes: [u8; 2] = [
+            ((data & 0x00_00_00_FF)) as u8,
+            ((data & 0x00_00_FF_00) >> 8) as u8,
+        ];
+
+        self[idx]     = bytes[0];
+        self[idx + 1] = bytes[1];
+    }
+
+    pub fn store_byte(&mut self, idx: usize, data: u32) {
+        let byte  = ((data & 0x00_00_00_FF)) as u8;
+        self[idx] = byte;
     }
 }
 
@@ -50,6 +95,7 @@ impl IndexMut<usize> for Memory {
 }
 
 
+// TODO: write more tests for the store+load calls for memory
 #[test]
 fn memory_test() {
     let mut mem = Memory::new([0; 4096], [0; 4096]);

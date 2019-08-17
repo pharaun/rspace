@@ -223,44 +223,33 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::LOAD) => {
                     // LB
-                    // TODO: abstract this to memory?
-                    let byte = self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize];
-                    self.reg[rd] = sign_extend_8_to_32(byte as u32);
+                    self.reg[rd] = sign_extend_8_to_32(self.mem.load_byte(
+                        (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
+                    ));
                 },
                 (        _, 0b001, opcode::LOAD) => {
                     // LH
-                    // TODO: abstract this to memory?
-                    let bytes: [u8; 2] = [
-                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize],
-                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 1) as usize]
-                    ];
-                    self.reg[rd] = sign_extend_16_to_32((bytes[0] as u32) | ((bytes[1] as u32) << 8));
+                    self.reg[rd] = sign_extend_16_to_32(self.mem.load_half(
+                        (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
+                    ));
                 },
                 (        _, 0b010, opcode::LOAD) => {
                     // LW
-                    // TODO: abstract this to memory?
-                    let bytes: [u8; 4] = [
-                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize],
-                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 1) as usize],
-                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 2) as usize],
-                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 3) as usize]
-                    ];
-                    self.reg[rd] = ((bytes[0] as u32)) | ((bytes[1] as u32) << 8) | ((bytes[2] as u32) << 16) | ((bytes[3] as u32) << 24);
+                    self.reg[rd] = self.mem.load_word(
+                        (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
+                    );
                 },
                 (        _, 0b100, opcode::LOAD) => {
                     // LBU
-                    // TODO: abstract this to memory?
-                    let byte = self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize];
-                    self.reg[rd] = byte as u32;
+                    self.reg[rd] = self.mem.load_byte(
+                        (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
+                    );
                 },
                 (        _, 0b101, opcode::LOAD) => {
                     // LHU
-                    // TODO: abstract this to memory?
-                    let bytes: [u8; 2] = [
-                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize],
-                        self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, i_imm)) + 1) as usize]
-                    ];
-                    self.reg[rd] = (bytes[0] as u32) | ((bytes[1] as u32) << 8);
+                    self.reg[rd] = self.mem.load_half(
+                        (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
+                    );
                 },
 
                 // RV32 I
@@ -317,33 +306,24 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::STORE) => {
                     // SB
-                    // TODO: abstract this to memory?
-                    let byte = ((self.reg[rs2] & 0x00_00_00_FF)) as u8;
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = byte;
+                    self.mem.store_byte(
+                        (self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize,
+                        self.reg[rs2],
+                    );
                 },
                 (        _, 0b001, opcode::STORE) => {
                     // SH
-                    // TODO: abstract this to memory?
-                    let bytes: [u8; 2] = [
-                        ((self.reg[rs2] & 0x00_00_00_FF)) as u8,
-                        ((self.reg[rs2] & 0x00_00_FF_00) >> 8) as u8,
-                    ];
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = bytes[0];
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 1) as usize] = bytes[1];
+                    self.mem.store_half(
+                        (self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize,
+                        self.reg[rs2],
+                    );
                 },
                 (        _, 0b010, opcode::STORE) => {
                     // SW
-                    // TODO: abstract this to memory?
-                    let bytes: [u8; 4] = [
-                        ((self.reg[rs2] & 0x00_00_00_FF)) as u8,
-                        ((self.reg[rs2] & 0x00_00_FF_00) >> 8) as u8,
-                        ((self.reg[rs2] & 0x00_FF_00_00) >> 16) as u8,
-                        ((self.reg[rs2] & 0xFF_00_00_00) >> 24) as u8,
-                    ];
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = bytes[0];
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 1) as usize] = bytes[1];
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 2) as usize] = bytes[2];
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 3) as usize] = bytes[3];
+                    self.mem.store_word(
+                        (self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize,
+                        self.reg[rs2],
+                    );
                 },
 
                 // RV32 I
