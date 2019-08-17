@@ -317,25 +317,33 @@ impl Emul32 {
                 // RV32 I
                 (        _, 0b000, opcode::STORE) => {
                     // SB
-                    // TODO: TEST
                     // TODO: abstract this to memory?
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize] = (self.reg[rs2] & 0x00_00_00_FF) as u8;
+                    let byte = ((self.reg[rs2] & 0x00_00_00_FF)) as u8;
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = byte;
                 },
                 (        _, 0b001, opcode::STORE) => {
                     // SH
-                    // TODO: TEST
                     // TODO: abstract this to memory?
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = (self.reg[rs2] & 0x00_00_00_FF) as u8;
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 1) as usize] = (self.reg[rs2] & 0x00_00_FF_00) as u8;
+                    let bytes: [u8; 2] = [
+                        ((self.reg[rs2] & 0x00_00_00_FF)) as u8,
+                        ((self.reg[rs2] & 0x00_00_FF_00) >> 8) as u8,
+                    ];
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = bytes[0];
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 1) as usize] = bytes[1];
                 },
                 (        _, 0b010, opcode::STORE) => {
                     // SW
-                    // TODO: TEST
                     // TODO: abstract this to memory?
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = (self.reg[rs2] & 0x00_00_00_FF) as u8;
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 1) as usize] = (self.reg[rs2] & 0x00_00_FF_00) as u8;
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 2) as usize] = (self.reg[rs2] & 0x00_FF_00_00) as u8;
-                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 3) as usize] = (self.reg[rs2] & 0xFF_00_00_00) as u8;
+                    let bytes: [u8; 4] = [
+                        ((self.reg[rs2] & 0x00_00_00_FF)) as u8,
+                        ((self.reg[rs2] & 0x00_00_FF_00) >> 8) as u8,
+                        ((self.reg[rs2] & 0x00_FF_00_00) >> 16) as u8,
+                        ((self.reg[rs2] & 0xFF_00_00_00) >> 24) as u8,
+                    ];
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize]     = bytes[0];
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 1) as usize] = bytes[1];
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 2) as usize] = bytes[2];
+                    self.mem[(self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)) + 3) as usize] = bytes[3];
                 },
 
                 // RV32 I

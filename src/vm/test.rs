@@ -717,8 +717,21 @@ mod op_tests {
         include!("../../test-rv32im/sh.rs");
         include!("../../test-rv32im/sb.rs");
 
+        fn hi_lo(data: u32) -> (u32, u32) {
+            if (data & 0x8_00) == 0x8_00 {
+                ((data >> 12) + 1, data)
+            } else {
+                (data >> 12, data)
+            }
+        }
+
         fn TEST_ST_OP(_test: u8, load_op: &str, store_op: &str, res: u32, off: u32, _base: &str) {
-            let addr: u32 = 0x1100;
+            // Should be using %hi and %lo because they do some clever processing
+            // https://stackoverflow.com/questions/53379306/unexpected-behaviour-of-lui-a4-hi0x0001ff00
+            let (addr, addr2) = hi_lo(0x1100);
+            let (res1, res2) = hi_lo(res);
+
+            println!("test: {}", _test);
 
             // load the rom
             let mut vm = Emul32::new_with_rom(
@@ -729,10 +742,10 @@ mod op_tests {
                         addi x1 x1 {}\n
                         lui x2 0x{:08x}\n
                         addi x2 x2 0x{:08x}\n
-                        {} x2 x1 {}\n
+                        {} x1 x2 {}\n
                         {} x3 x1 {}",
-                        addr, addr,
-                        res, res,
+                        addr, addr2,
+                        res1, res2,
                         store_op, off,
                         load_op, off,
                     )
@@ -742,12 +755,20 @@ mod op_tests {
             // Run
             vm.run();
 
+            // DEBUG
+            println!("addr: 0x{:08x} x1: 0x{:08x}", addr, vm.reg[1]);
+            println!("data: 0x{:08x} x2: 0x{:08x}", res, vm.reg[2]);
+            println!("data: 0x{:08x} x4: 0x{:08x}", res, vm.reg[4]);
+            println!("data: 0x{:08x} x5: 0x{:08x}", res, vm.reg[5]);
+            println!("offs: 0x{:08x} load (x3): 0x{:08x}", off, vm.reg[3]);
+
             // Validate
             assert_eq!(vm.reg[3], res);
         }
 
         fn test_negative_op(load_op: &str, store_op: &str, res: u32, res2: u32, off1: u32, off2: u32) {
-            let addr: u32 = 0x1100;
+            let (addr, addr2) = hi_lo(0x1100);
+            let (res1a, res1b) = hi_lo(res);
 
             // load the rom
             let mut vm = Emul32::new_with_rom(
@@ -759,10 +780,10 @@ mod op_tests {
                         lui x2 0x{:08x}\n
                         addi x2 x2 0x{:08x}\n
                         addi x4 x1 {}\n
-                        {} x2 x4 {}\n
+                        {} x4 x2 {}\n
                         {} x3 x1 0",
-                        addr, addr,
-                        res, res,
+                        addr, addr2,
+                        res1a, res1b,
                         off1,
                         store_op, off2,
                         load_op,
@@ -772,6 +793,13 @@ mod op_tests {
 
             // Run
             vm.run();
+
+            // DEBUG
+            println!("addr: 0x{:08x} x1: 0x{:08x}", addr, vm.reg[1]);
+            println!("data: 0x{:08x} x2: 0x{:08x}", res, vm.reg[2]);
+            println!("data: 0x{:08x} x4: 0x{:08x}", res, vm.reg[4]);
+            println!("off1: 0x{:08x} off2: 0x{:08x}", off1, off2);
+            println!("load (x3): 0x{:08x}", vm.reg[3]);
 
             // Validate
             assert_eq!(vm.reg[3], res2);
@@ -787,6 +815,10 @@ mod op_tests {
                 _     => panic!("New store op: {} and load op: {}", store_op, load_op),
             };
 
+            let (addr1a, addr1b) = hi_lo(addr1);
+            let (addr2a, addr2b) = hi_lo(addr2);
+            let (res1a, res1b) = hi_lo(res);
+
             // load the rom
             let mut vm = Emul32::new_with_rom(
                 generate_rom(
@@ -797,15 +829,15 @@ mod op_tests {
                         lui x2 0x{:08x}\n
                         addi x2 x2 0x{:08x}\n
                         addi x1 x1 {}\n
-                        {} x2 x1 {}\n
+                        {} x1 x2 {}\n
                         lui x4 {}\n
                         addi x4 x4 {}\n
                         {} x3 x4 0",
-                        addr1, addr1,
-                        res, res,
+                        addr1a, addr1b,
+                        res1a, res1b,
                         off1,
                         store_op, off2,
-                        addr2, addr2,
+                        addr2a, addr2b,
                         load_op,
                     )
                 )

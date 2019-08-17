@@ -176,10 +176,16 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
               => AToken::RegRegIL(s, rd, rs1, imm),
         cleaner::CToken::RegRegILBranch(s, rs1, rs2, cleaner::CImmRef::Imm(imm))
               => AToken::RegRegILBranch(s, rs1, rs2, imm),
-        cleaner::CToken::RegIL(s, rd, cleaner::CImmRef::Imm(imm))
-              => AToken::RegIL(s, rd, imm),
         cleaner::CToken::RegILShuffle(s, rd, cleaner::CImmRef::Imm(imm))
               => AToken::RegILShuffle(s, rd, imm),
+
+        // Since mips legacy shift the imm over 12 bit
+        // since it'll only take the lower 20 not the upper
+        // 20 inst, and use absolute addressing
+        cleaner::CToken::RegIL(s, rd, cleaner::CImmRef::Imm(imm))
+        // TODO: apparently tests expects no shift here, yet my code does, figure this out
+        //      => AToken::RegIL(s, rd, imm >> 12),
+              => AToken::RegIL(s, rd, imm),
 
         // Handle the label variant of these tokens
         cleaner::CToken::RegRegImm(s, rd, rs1, cleaner::CImmRef::AddrRef(l, lt)) => {
