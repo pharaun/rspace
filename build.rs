@@ -77,7 +77,6 @@ fn main() {
         // TODO: custom bitfield (but its nop in the vm tho)
         // imm - custom bitfield
         .entry("FENCE",   "InstEnc{encoding: InstType::I, opcode: MISC_MEM, func3: Some(0b000), func7: None}")
-        .entry("FENCE.I", "InstEnc{encoding: InstType::I, opcode: MISC_MEM, func3: Some(0b001), func7: None}")
 
         // TODO: custom layout (imm/registers/etc)
         // TODO: CSR - RDCYCLE[H], RDTIME[H], RDINSTRET[H]

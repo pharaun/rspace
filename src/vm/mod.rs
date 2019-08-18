@@ -42,36 +42,40 @@ impl Emul32 {
             let inst = self.mem.fetch_instruction(self.pc);
 
             // Decode opcode
-            let opcode = select_and_shift(inst, 6, 0);
+            let opcode  = select_and_shift(inst, 6, 0);
 
             // Inst Type
             // TODO: change this over to generating the mask needed (for rspace issue #4)
             //let instType = opcode::instruction_type(opcode);
 
             // Prefetch the func3/7
-            let func3  = select_and_shift(inst, 14, 12);
-            let func7  = select_and_shift(inst, 31, 25);
+            let func3   = select_and_shift(inst, 14, 12);
+            let func7   = select_and_shift(inst, 31, 25);
 
             // Prefetch rd/rs1/rs2
-            let rd     = select_and_shift(inst, 11, 7) as usize;
-            let rs1    = select_and_shift(inst, 19, 15) as usize;
-            let rs2    = select_and_shift(inst, 24, 20) as usize;
+            let rd      = select_and_shift(inst, 11, 7) as usize;
+            let rs1     = select_and_shift(inst, 19, 15) as usize;
+            let rs2     = select_and_shift(inst, 24, 20) as usize;
 
             // IMM types - Probably can be put in the asm steps
-            let shamt  = select_and_shift(inst, 24, 20);
+            let shamt   = select_and_shift(inst, 24, 20);
             // TODO: handle sign extend and so on as needed
-            let i_imm  = select_and_shift(inst, 31, 20);
-            let s_imm  = (select_and_shift(inst, 31, 25) << 5)
-                       | select_and_shift(inst, 11, 7);
-            let sb_imm = (select_and_shift(inst, 31, 31) << 12)
-                       | (select_and_shift(inst, 7, 7) << 11)
-                       | (select_and_shift(inst, 30, 25) << 5)
-                       | (select_and_shift(inst, 11, 8) << 1);
-            let u_imm  = select_and_shift(inst, 31, 12) << 12;
-            let uj_imm = (select_and_shift(inst, 31, 31) << 20)
-                       | (select_and_shift(inst, 19, 12) << 12)
-                       | (select_and_shift(inst, 20, 20) << 11)
-                       | (select_and_shift(inst, 30, 21) << 1);
+            let i_imm   = select_and_shift(inst, 31, 20);
+            let s_imm   = (select_and_shift(inst, 31, 25) << 5)
+                        | select_and_shift(inst, 11, 7);
+            let sb_imm  = (select_and_shift(inst, 31, 31) << 12)
+                        | (select_and_shift(inst, 7, 7) << 11)
+                        | (select_and_shift(inst, 30, 25) << 5)
+                        | (select_and_shift(inst, 11, 8) << 1);
+            let u_imm   = select_and_shift(inst, 31, 12) << 12;
+            let uj_imm  = (select_and_shift(inst, 31, 31) << 20)
+                        | (select_and_shift(inst, 19, 12) << 12)
+                        | (select_and_shift(inst, 20, 20) << 11)
+                        | (select_and_shift(inst, 30, 21) << 1);
+
+            // CSR related
+            let csr     = select_and_shift(inst, 31, 20) as usize; // functionally same as i_imm
+            let csr_imm = select_and_shift(inst, 24, 20); // functionally same as rs2
 
             // TODO: handle these items
             // - exception (invalid instruction, invalid memory access, etc...)
@@ -83,12 +87,28 @@ impl Emul32 {
             //   * any instructions encountered with either low bit clear should be
             //     considered illegal 30-bit instructions
             //   * Encodings with bits [15:0] all zeros are defined as illegal instructions.
-            //     These instructions are con- sidered to be of minimal length:
+            //     These instructions are considered to be of minimal length:
             //     16 bits if any 16-bit instruction-set extension is present,
             //     otherwise 32 bits. The encoding with bits [ILEN-1:0] all ones is also illegal;
             //     this instruction is considered to be ILEN bits long.
             //   * all 0 and all 1 in [15:0] are considered illegal as well
-
+            //
+            // - Instruction access exception
+            //   * All are a fixed 32 bits in length and must be aligned on a four-byte
+            //     boundary in memory. An instruction-address-misaligned exception is
+            //     generated on a taken branch or unconditional jump if the target address
+            //     is not four-byte aligned. This exception is reported on the branch or
+            //     jump instruction, not on the target instruction.
+            //   * No instruction-address-misaligned exception is generated for a
+            //     conditional branch that is not taken.
+            //
+            // - Support misaligned load/store ops (optional to except misaligned load)
+            //   * May need to issue misaligned address or access exception if writing to
+            //     that memory region can cause side-effect (ie IOMAP - hardware addresses)
+            //
+            // - ecall is used to make service request to the ie outer environment (ie machine)
+            //   and will call (i think) into a trap
+            //
             match (func7, func3, opcode) {
                 // RV32 I
                 (0b0000000, 0b000, opcode::OP_REG) => {
@@ -277,10 +297,6 @@ impl Emul32 {
                     // FENCE
                     // NOP instruction
                 },
-                (        _, 0b001, opcode::MISC_MEM) => {
-                    // FENCE.I
-                    // NOP instruction
-                },
 
                 // RV32 I
                 (        _, 0b000, opcode::SYSTEM) => {
@@ -300,38 +316,67 @@ impl Emul32 {
                     }
                 },
 
-                // RV32 ? extensions
+                // RV32 Zicsr extensions
+                // TODO:
+                // - if rd = x0 then csr does not read and cause read side effects (rw)
+                // - if rs1 = x0 then csr does not write and cause write side effects (rs/c)
+                //   * such as raising illegal instruction exceptions on accesses to read-only CSRs.
+                //
+                //  inst    rd rs1
+                // CSRRW    x0   - -> no-read, write
+                // CSRRW   !x0   - -> read, write
+                // CSRRS/C   -  x0 -> read, no-write
+                // CSRRS/C   - !x0 -> read, write
+                //
+                // for Imm variant replace x0 with 0 and !0 for rs1
+                //
+                // TODO: decide if i want and/or care to implement these counters
+                // - RDCYCLE[H], RDTIME[H], RDINSTRET[H] - since these will need
+                //   main vm loop support to implement
+                // - These also forms a pseudo instruction if we do implement em
+                // - RDCYCLE = cycle, RDTIME = time, RDINSTRET = instret (64bit counters)
+                //
                 (        _, 0b001, opcode::SYSTEM) => {
                     // CSRRW
                     self.reg[rd] = self.csr.read_write(
-                        self.reg[rs1] as usize,
-                        self.reg[rs2],
+                        csr,
+                        self.reg[rs1],
                     );
                 },
                 (        _, 0b010, opcode::SYSTEM) => {
                     // CSRRS
                     self.reg[rd] = self.csr.read_set(
-                        self.reg[rs1] as usize,
-                        self.reg[rs2],
+                        csr,
+                        self.reg[rs1],
                     );
                 },
                 (        _, 0b011, opcode::SYSTEM) => {
                     // CSRRC
                     self.reg[rd] = self.csr.read_clear(
-                        self.reg[rs1] as usize,
-                        self.reg[rs2],
+                        csr,
+                        self.reg[rs1],
                     );
                 },
                 (        _, 0b101, opcode::SYSTEM) => {
                     // CSRRWI
-                    // TODO: implement
+                    self.reg[rd] = self.csr.read_write(
+                        csr,
+                        csr_imm,
+                    );
                 },
                 (        _, 0b110, opcode::SYSTEM) => {
                     // CSRRSI
-                    // TODO: implement
+                    self.reg[rd] = self.csr.read_set(
+                        csr,
+                        csr_imm,
+                    );
                 },
                 (        _, 0b111, opcode::SYSTEM) => {
                     // CSRRCI
+                    self.reg[rd] = self.csr.read_clear(
+                        csr,
+                        csr_imm,
+                    );
                 },
 
                 // RV32 I

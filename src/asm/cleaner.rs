@@ -174,6 +174,29 @@ impl<'a> Cleaner<'a> {
     }
 }
 
+// NOTE: jalr rd x0 imm -> one inst subroutine call to any code in the bottom
+//       or top 2KiB of memory
+//
+// TODO: pseudo instructions (here or at a earlier stage, probably earlier)
+// MV rd rs1 = addi rd rs1 0
+// NOT rd rs1 = xori rd rs1 -1
+// SNEZ rd rs2 = sltu rd x0 rs2
+// NOP = addi x0 x0 0
+// J imm = jal x0 imm
+// BGT rs1 rs2 imm = blt rs2 rs1 imm
+// BGTU rs1 rs2 imm = bltu rs2 rs1 imm
+// BLE rs1 rs2 imm = bge rs2 rs1 imm
+// BLEU rs1 rs2 imm = bgeu rs2 rs1 imm
+// CSRR rd csr = csrrs rd x0 csr
+// CSRW rs1 csr = csrrw x0 rs1 csr
+// CSRWI uimm csr = csrrwi x0 uimm csr
+// CSRS rs1 csr = csrrs x0 rs1 csr
+// CSRC rs1 csr = csrrc x0 rs1 csr
+// CSRSI uimm csr = csrrsi x0 uimm csr
+// CSRCI uimm csr = csrrci x0 uimm csr
+//
+// page 139 - table 26.2 - pseudo instructions (several more)
+//
 fn process_inst(inst: String, mut args: Vec<parser::Arg>) -> Option<CToken> {
     // 2. lookup inst (if not found error out)
     match opcode::lookup(&inst) {
@@ -196,7 +219,7 @@ fn process_inst(inst: String, mut args: Vec<parser::Arg>) -> Option<CToken> {
                 },
                 opcode::InstType::I => {
                     match &inst[..] {
-                        "FENCE" | "FENCE.I" | "ECALL" | "EBREAK" => {
+                        "FENCE" | "ECALL" | "EBREAK" => {
                             print!("Skipping unsupported instruction: {}", inst);
                             None
                         },
