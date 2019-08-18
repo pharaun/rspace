@@ -3,6 +3,25 @@ use std::ops::IndexMut;
 
 // Memory access stuff
 // TODO: compile time size, instead of hardcoded
+//
+// NOTE:
+// - The memory address space is circular, so that the byte at address 2^X −1 is adjacent
+//   to the byte at address zero. Accordingly, memory address computations done by the
+//   hardware ignore overflow and instead wrap around modulo 2^X.
+//
+// - Different address ranges of a hart’s address space may (1) be vacant,
+//   or (2) contain main memory, or (3) contain one or more I/O devices.
+//
+// - The execution environment determines what portions of the non-vacant address
+//   space are accessible for each kind of memory access.
+//   For example, the set of locations that can be implicitly read for instruction
+//   fetch may or may not have any overlap with the set of locations that can be
+//   explicitly read by a load instruction; and the set of locations that can be
+//   explicitly written by a store instruction may be only a subset of locations that can be read.
+//   Ordinarily, if an instruction attempts to access memory at an inaccessible address,
+//   an exception is raised for the instruction.
+//   Vacant locations in the address space are never accessible.
+//
 pub struct Memory {
     _rom_hole: u8,
     rom: [u8; 4096],

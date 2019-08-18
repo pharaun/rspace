@@ -2,12 +2,14 @@ use twiddle::Twiddle;
 
 pub mod regfile;
 pub mod mem;
+pub mod csr;
 pub mod opcode;
 
 
 pub struct Emul32 {
     reg: regfile::RegFile,
     mem: mem::Memory,
+    csr: csr::Csr,
     pc: usize
 }
 
@@ -16,14 +18,16 @@ impl Emul32 {
         Emul32 {
             reg: regfile::RegFile::new([0; 31]),
             mem: mem::Memory::new(rom, [0; 4096]),
+            csr: csr::Csr::new([0; 4096]),
             pc: 0
         }
     }
 
-    pub fn new(reg: regfile::RegFile, mem: mem::Memory, pc: usize) -> Emul32 {
+    pub fn new(reg: regfile::RegFile, mem: mem::Memory, csr: csr::Csr, pc: usize) -> Emul32 {
         Emul32 {
             reg: reg,
             mem: mem,
+            csr: csr,
             pc: pc
         }
     }
@@ -68,6 +72,22 @@ impl Emul32 {
                        | (select_and_shift(inst, 19, 12) << 12)
                        | (select_and_shift(inst, 20, 20) << 11)
                        | (select_and_shift(inst, 30, 21) << 1);
+
+            // TODO: handle these items
+            // - exception (invalid instruction, invalid memory access, etc...)
+            // - interrupts (external async event)
+            // - traps (transfer of control to a trap handler for interrupt or exception)
+            //
+            // NOTE:
+            // - Illegal instructions:
+            //   * any instructions encountered with either low bit clear should be
+            //     considered illegal 30-bit instructions
+            //   * Encodings with bits [15:0] all zeros are defined as illegal instructions.
+            //     These instructions are con- sidered to be of minimal length:
+            //     16 bits if any 16-bit instruction-set extension is present,
+            //     otherwise 32 bits. The encoding with bits [ILEN-1:0] all ones is also illegal;
+            //     this instruction is considered to be ILEN bits long.
+            //   * all 0 and all 1 in [15:0] are considered illegal as well
 
             match (func7, func3, opcode) {
                 // RV32 I
@@ -279,17 +299,28 @@ impl Emul32 {
                         _ => panic!("FIXME"),
                     }
                 },
+
+                // RV32 ? extensions
                 (        _, 0b001, opcode::SYSTEM) => {
                     // CSRRW
-                    // TODO: implement
+                    self.reg[rd] = self.csr.read_write(
+                        self.reg[rs1] as usize,
+                        self.reg[rs2],
+                    );
                 },
                 (        _, 0b010, opcode::SYSTEM) => {
                     // CSRRS
-                    // TODO: implement
+                    self.reg[rd] = self.csr.read_set(
+                        self.reg[rs1] as usize,
+                        self.reg[rs2],
+                    );
                 },
                 (        _, 0b011, opcode::SYSTEM) => {
                     // CSRRC
-                    // TODO: implement
+                    self.reg[rd] = self.csr.read_clear(
+                        self.reg[rs1] as usize,
+                        self.reg[rs2],
+                    );
                 },
                 (        _, 0b101, opcode::SYSTEM) => {
                     // CSRRWI
