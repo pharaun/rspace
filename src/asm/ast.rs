@@ -28,12 +28,28 @@ pub enum Csr {
 
     // Machine Trap Setup
     MSTATUS, MISA,
-    MEDELEG, MIDELEG,
     MIE, MTVEC,
-    MCOUNTEREN,
 
     // Machine Trap Handling
     MSCRATCH, MEPC, MCAUSE, MTVAL, MIP
+
+    // mepc is an MXLEN-bit read/write register formatted as shown in Figure 3.21.
+    // The low bit of mepc (mepc[0]) is always zero. On implementations that support
+    // only IALIGN=32, the two low bits (mepc[1:0]) are always zero.
+    // When a trap is taken into M-mode, mepc is written with the virtual address
+    // of the instruction that was interrupted or that encountered the exception.
+    // Otherwise, mepc is never written by the implementation, though it may be
+    // explicitly written by software.
+    //
+    // The mcause register is an MXLEN-bit read-write register formatted as shown in
+    // Figure 3.22. When a trap is taken into M-mode, mcause is written with a code
+    // indicating the event that caused the trap. Otherwise, mcause is never written
+    // by the implementation, though it may be explicitly written by software.
+    // GOTO: 3.1.16 Machine Cause Register (mcause) - for more detail on trap/interrupt
+    //
+    // The mtval register is an MXLEN-bit read-write register formatted as shown in
+    // Figure 3.23. When a trap is taken into M-mode, mtval is either set to zero or
+    // written with exception-specific information to assist software in handling the trap.
 }
 
 impl From<Csr> for u32 {
@@ -45,11 +61,8 @@ impl From<Csr> for u32 {
             Csr::MHARTID    => 0xF14, // MRO
             Csr::MSTATUS    => 0x300, // MRW
             Csr::MISA       => 0x301, // MRW
-            Csr::MEDELEG    => 0x302, // MRW
-            Csr::MIDELEG    => 0x303, // MRW
             Csr::MIE        => 0x304, // MRW
             Csr::MTVEC      => 0x305, // MRW
-            Csr::MCOUNTEREN => 0x306, // MRW
             Csr::MSCRATCH   => 0x340, // MRW
             Csr::MEPC       => 0x341, // MRW
             Csr::MCAUSE     => 0x342, // MRW
@@ -70,11 +83,8 @@ impl FromStr for Csr {
             "MHARTID"    => Ok(Csr::MHARTID),
             "MSTATUS"    => Ok(Csr::MSTATUS),
             "MISA"       => Ok(Csr::MISA),
-            "MEDELEG"    => Ok(Csr::MEDELEG),
-            "MIDELEG"    => Ok(Csr::MIDELEG),
             "MIE"        => Ok(Csr::MIE),
             "MTVEC"      => Ok(Csr::MTVEC),
-            "MCOUNTEREN" => Ok(Csr::MCOUNTEREN),
             "MSCRATCH"   => Ok(Csr::MSCRATCH),
             "MEPC"       => Ok(Csr::MEPC),
             "MCAUSE"     => Ok(Csr::MCAUSE),

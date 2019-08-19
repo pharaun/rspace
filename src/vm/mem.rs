@@ -22,6 +22,18 @@ use std::ops::IndexMut;
 //   an exception is raised for the instruction.
 //   Vacant locations in the address space are never accessible.
 //
+// TODO: Memory-mapped read-write register in memory
+// - mtime (64 bit register)
+// - mtimecmp (64 bit register)
+// - Details: 3.1.10 Machine Timer Registers (mtime and mtimecmp) (riscv-priv)
+// - This is the timer-interrupt source
+//
+// TODO:
+// - implement some sort of memory map (ie this block is ro, this block is rw, this block is i/o
+// for xyz) (see sector 3.5 - PMA - physical memory attributes)
+// - 3.5.1 Main Memory versus I/O versus Empty Regions
+// -
+//
 pub struct Memory {
     _rom_hole: u8,
     rom: [u8; 4096],

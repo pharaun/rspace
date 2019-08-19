@@ -297,6 +297,11 @@ impl Emul32 {
                 },
 
                 // RV32 I
+                // TODO: finish implementing these (particularly ECALL)
+                // - Implement MRET for returning from trap
+                // - Implement WFI - can make the emulator halt the cpu portion till a interrupt
+                // fires, this depends on how we do it, if its essental, we can NOP instead -> busy
+                // wait loop
                 (        _, 0b000, opcode::SYSTEM) => {
                     // ECALL | EBREAK
                     let imm   = select_and_shift(inst, 31, 20);
