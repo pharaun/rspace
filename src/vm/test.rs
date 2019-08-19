@@ -6,7 +6,7 @@ mod op_tests {
 
     use asm;
     use super::*;
-    use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+    use byteorder::{LittleEndian, WriteBytesExt};
 
     // TODO: Put in some sort of generic test suite utilities
     fn generate_rom(opcodes: &str) -> [u8; 4096] {
@@ -16,7 +16,7 @@ mod op_tests {
             let mut wtr = vec![];
 
             for i in 0..asm.len() {
-                wtr.write_u32::<LittleEndian>(asm[i]);
+                let _ = wtr.write_u32::<LittleEndian>(asm[i]);
             }
             wtr
         };

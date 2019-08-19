@@ -399,6 +399,8 @@ impl<'a> Iterator for Cleaner<'a> {
 
 #[cfg(test)]
 pub mod cleaner_ast {
+    #![allow(non_snake_case)]
+
     use asm::lexer;
     use super::*;
 

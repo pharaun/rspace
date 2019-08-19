@@ -2,8 +2,7 @@ extern crate rspace;
 extern crate byteorder;
 extern crate twiddle;
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
-use std::fs::File;
+use byteorder::{LittleEndian, WriteBytesExt};
 
 
 fn main() {
@@ -113,12 +112,11 @@ fn main() {
     "#;
 
     let binary_code = rspace::asm::parse_asm(test_asm);
-    //compare_assembly(binary_code, test_asm);
     let binary_u8 = {
         let mut wtr = vec![];
 
         for i in 0..binary_code.len() {
-            wtr.write_u32::<LittleEndian>(binary_code[i]);
+            let _ = wtr.write_u32::<LittleEndian>(binary_code[i]);
         }
         wtr
     };
@@ -128,14 +126,6 @@ fn main() {
     // Rom (would be nice to make this consistent sized)
     let rom = {
         let mut rom: [u8; 4096] = [0; 4096];
-
-        // TODO: verify
-        // Instructions are stored in memory with each 16-bit parcel stored in a memory halfword
-        // according to the implementation’s natural endianness. Parcels forming one instruction
-        // are stored at increasing halfword addresses, with the lowest addressed parcel holding
-        // the lowest numbered bits in the instruction specification, i.e., instructions are always
-        // stored in a little-endian sequence of parcels regardless of the memory system
-        // endianness.
         for i in 0..binary_u8.len() {
             rom[i] = binary_u8[i];
         }
@@ -146,67 +136,4 @@ fn main() {
 
     // Virtal machine run
     vm.run();
-}
-
-
-
-
-
-
-
-fn compare_assembly(binary_code: Vec<u32>, test_asm: &str) {
-    // Reprocess input
-    let mut other_code: Vec<u32> = Vec::new();
-    let mut rtw = File::open("input.bin").unwrap();
-
-    loop {
-        match rtw.read_u32::<LittleEndian>() {
-            Ok(x) => {
-                if (x != 0x6f) & (x != 0x8067) {
-                    other_code.push(x);
-                }
-            },
-            _ => break,
-        }
-    }
-
-    // reprocess asm
-    let mut asm: Vec<&str> = Vec::new();
-
-    for line in test_asm.lines() {
-        let line = line.trim();
-        let line = match line.find(r#"//"#) {
-            Some(x) => &line[..x],
-            None => line,
-        };
-
-        if !line.is_empty() {
-            asm.push(line);
-        }
-    }
-
-
-    // Compare and print ones that are not matched
-    println!("{:?}", "asm == other_code");
-    assert_eq!(asm.len(), other_code.len());
-
-    println!("{:?}", "asm == binary_code");
-    assert_eq!(asm.len(), binary_code.len());
-
-    for (i, item) in asm.iter().enumerate() {
-        if binary_code[i] != other_code[i] {
-            println!("{:?}", i);
-            println!("{:?}", item);
-
-            let byte_binary_code = unsafe { std::mem::transmute::<u32, [u8; 4]>(binary_code[i].to_le()) };
-            let byte_other_code = unsafe { std::mem::transmute::<u32, [u8; 4]>(other_code[i].to_le()) };
-
-            println!("{:08b} {:08b} {:08b} {:08b}", byte_binary_code[3], byte_binary_code[2], byte_binary_code[1], byte_binary_code[0]);
-            println!("{:08b} {:08b} {:08b} {:08b}", byte_other_code[3], byte_other_code[2], byte_other_code[1], byte_other_code[0]);
-
-            //println!("{:032b}", binary_line);
-            //println!("{:08x}", binary_line);
-            //println!("{:08b} {:08b} {:08b} {:08b}", byte_line[3], byte_line[2], byte_line[1], byte_line[0]);
-        }
-    }
 }

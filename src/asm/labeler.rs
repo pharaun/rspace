@@ -110,7 +110,7 @@ pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
     // Reset position (for relative label use)
     position = 0;
 
-    let mut first_pass_drain = first_pass.drain(..);
+    let first_pass_drain = first_pass.drain(..);
     for token in first_pass_drain {
         match token {
             cleaner::CToken::Padding(p) => {
@@ -202,12 +202,13 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, parser::LabelType
 
             AToken::RegRegImm(s, rd, rs1, imm)
         },
-        cleaner::CToken::RegRegIL(s, rd, rs1, cleaner::CImmRef::AddrRef(l, lt)) => {
+        cleaner::CToken::RegRegIL(_s, _rd, _rs1, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
-            let imm = encode_relative_offset(inst_pos, pos);
+            let _imm = encode_relative_offset(inst_pos, pos);
 
             // TODO: deal with labels
-            AToken::RegRegIL(s, rd, rs1, 999999)
+            panic!("Deal with labels");
+            //AToken::RegRegIL(s, rd, rs1, 999999)
         },
         cleaner::CToken::RegRegILBranch(s, rs1, rs2, cleaner::CImmRef::AddrRef(l, lt)) => {
             let pos = find_label(&l, lt, symbol, inst_pos);
@@ -299,8 +300,8 @@ fn encode_relative_offset(inst_pos: usize, label_pos: usize) -> u32 {
     // This assumes u32 sized instruction words, the pos are integer in block of u32
     // If label pos is earlier than inst_pos its a negative offset
     // and viceverse
-    let inst_addr: i64 = (inst_pos as i64);
-    let label_addr: i64 = (label_pos as i64);
+    let inst_addr:  i64 = inst_pos as i64;
+    let label_addr: i64 = label_pos as i64;
     let offset = label_addr - inst_addr;
     offset as u32
 }
