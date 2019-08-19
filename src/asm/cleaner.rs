@@ -439,12 +439,12 @@ pub mod cleaner_ast {
 
     #[test]
     fn test_RegImmCsr_inst() {
-        let input = "csrrwi x0 33 CYCLE\n csrrsi x1 11 CYCLEH\n csrrci x2 22 TIME";
+        let input = "csrrwi x0 33 MSTATUS\n csrrsi x1 11 MIE\n csrrci x2 22 MEPC";
 
         let expected = vec![
-            Some(CToken::RegImmCsr("CSRRWI".to_string(), ast::Reg::X0, 33, ast::Csr::CYCLE)),
-            Some(CToken::RegImmCsr("CSRRSI".to_string(), ast::Reg::X1, 11, ast::Csr::CYCLEH)),
-            Some(CToken::RegImmCsr("CSRRCI".to_string(), ast::Reg::X2, 22, ast::Csr::TIME)),
+            Some(CToken::RegImmCsr("CSRRWI".to_string(), ast::Reg::X0, 33, ast::Csr::MSTATUS)),
+            Some(CToken::RegImmCsr("CSRRSI".to_string(), ast::Reg::X1, 11, ast::Csr::MIE)),
+            Some(CToken::RegImmCsr("CSRRCI".to_string(), ast::Reg::X2, 22, ast::Csr::MEPC)),
             None,
         ];
 
@@ -453,12 +453,12 @@ pub mod cleaner_ast {
 
     #[test]
     fn test_RegRegCsr_inst() {
-        let input = "csrrw x0 x1 CYCLE\n csrrs x1 x2 CYCLEH\n csrrc x2 x3 TIME";
+        let input = "csrrw x0 x1 MSTATUS\n csrrs x1 x2 MIE\n csrrc x2 x3 MEPC";
 
         let expected = vec![
-            Some(CToken::RegRegCsr("CSRRW".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Csr::CYCLE)),
-            Some(CToken::RegRegCsr("CSRRS".to_string(), ast::Reg::X1, ast::Reg::X2, ast::Csr::CYCLEH)),
-            Some(CToken::RegRegCsr("CSRRC".to_string(), ast::Reg::X2, ast::Reg::X3, ast::Csr::TIME)),
+            Some(CToken::RegRegCsr("CSRRW".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Csr::MSTATUS)),
+            Some(CToken::RegRegCsr("CSRRS".to_string(), ast::Reg::X1, ast::Reg::X2, ast::Csr::MIE)),
+            Some(CToken::RegRegCsr("CSRRC".to_string(), ast::Reg::X2, ast::Reg::X3, ast::Csr::MEPC)),
             None,
         ];
 

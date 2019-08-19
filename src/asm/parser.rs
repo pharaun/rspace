@@ -200,7 +200,7 @@ pub mod parser_ast {
 
     #[test]
     fn test_line() {
-        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b asdf CYCLE [qwer]\n .BYTE 0xDE\n .HALF 0xDF\n .WORD 0xEA 0xEB // Comments";
+        let input = "la: 2: addi x0 fp 1 -1 0xAF 2f 2b asdf MSTATUS [qwer]\n .BYTE 0xDE\n .HALF 0xDF\n .WORD 0xEA 0xEB // Comments";
         let mut parser = Parser::new(lexer::Lexer::new(input));
 
         let neg: i32 = -1;
@@ -217,7 +217,7 @@ pub mod parser_ast {
                 Arg::AddrRef("2".to_string(), AddrRefType::LocalForward),
                 Arg::AddrRef("2".to_string(), AddrRefType::LocalBackward),
                 Arg::AddrRef("asdf".to_string(), AddrRefType::Global),
-                Arg::Csr(ast::Csr::CYCLE),
+                Arg::Csr(ast::Csr::MSTATUS),
                 Arg::MemRef("qwer".to_string()),
             ])),
             Some(PToken::Data(DataType::Byte, vec![0xDE])),

@@ -23,20 +23,38 @@ pub enum AsmLine <'input> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Csr {
-    CYCLE, CYCLEH,
-    TIME, TIMEH,
-    INSTRET, INSTRETH
+    // Machine Information Registers
+    MVENDORID, MARCHID, MIMPID, MHARTID,
+
+    // Machine Trap Setup
+    MSTATUS, MISA,
+    MEDELEG, MIDELEG,
+    MIE, MTVEC,
+    MCOUNTEREN,
+
+    // Machine Trap Handling
+    MSCRATCH, MEPC, MCAUSE, MTVAL, MIP
 }
 
 impl From<Csr> for u32 {
     fn from(original: Csr) -> u32 {
         match original {
-            Csr::CYCLE => 0xC00,
-            Csr::CYCLEH => 0xC80,
-            Csr::TIME => 0xC01,
-            Csr::TIMEH => 0xC81,
-            Csr::INSTRET => 0xC02,
-            Csr::INSTRETH => 0xC82,
+            Csr::MVENDORID  => 0xF11, // MRO
+            Csr::MARCHID    => 0xF12, // MRO
+            Csr::MIMPID     => 0xF13, // MRO
+            Csr::MHARTID    => 0xF14, // MRO
+            Csr::MSTATUS    => 0x300, // MRW
+            Csr::MISA       => 0x301, // MRW
+            Csr::MEDELEG    => 0x302, // MRW
+            Csr::MIDELEG    => 0x303, // MRW
+            Csr::MIE        => 0x304, // MRW
+            Csr::MTVEC      => 0x305, // MRW
+            Csr::MCOUNTEREN => 0x306, // MRW
+            Csr::MSCRATCH   => 0x340, // MRW
+            Csr::MEPC       => 0x341, // MRW
+            Csr::MCAUSE     => 0x342, // MRW
+            Csr::MTVAL      => 0x343, // MRW
+            Csr::MIP        => 0x344, // MRW
         }
     }
 }
@@ -46,13 +64,23 @@ impl FromStr for Csr {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "CYCLE"     => Ok(Csr::CYCLE),
-            "CYCLEH"    => Ok(Csr::CYCLEH),
-            "TIME"      => Ok(Csr::TIME),
-            "TIMEH"     => Ok(Csr::TIMEH),
-            "INSTRET"   => Ok(Csr::INSTRET),
-            "INSTRETH"  => Ok(Csr::INSTRETH),
-            _           => Err(ParseCsrError { _priv: () }),
+            "MVENDORID"  => Ok(Csr::MVENDORID),
+            "MARCHID"    => Ok(Csr::MARCHID),
+            "MIMPID"     => Ok(Csr::MIMPID),
+            "MHARTID"    => Ok(Csr::MHARTID),
+            "MSTATUS"    => Ok(Csr::MSTATUS),
+            "MISA"       => Ok(Csr::MISA),
+            "MEDELEG"    => Ok(Csr::MEDELEG),
+            "MIDELEG"    => Ok(Csr::MIDELEG),
+            "MIE"        => Ok(Csr::MIE),
+            "MTVEC"      => Ok(Csr::MTVEC),
+            "MCOUNTEREN" => Ok(Csr::MCOUNTEREN),
+            "MSCRATCH"   => Ok(Csr::MSCRATCH),
+            "MEPC"       => Ok(Csr::MEPC),
+            "MCAUSE"     => Ok(Csr::MCAUSE),
+            "MTVAL"      => Ok(Csr::MTVAL),
+            "MIP"        => Ok(Csr::MIP),
+            _            => Err(ParseCsrError { _priv: () }),
         }
     }
 }

@@ -35,8 +35,6 @@ impl Emul32 {
     pub fn run(&mut self) {
         // VM loop
         loop {
-            // TODO: unitify memory at some point
-            // TODO: deal with u32 access for inst
             // TODO: if inst is read from a non u32 aligned address, error out (ISA specifies this)
             // TODO: instruction that is all zero or all ones is an illegal instruction (trap)
             let inst = self.mem.fetch_instruction(self.pc);
@@ -317,9 +315,9 @@ impl Emul32 {
                 },
 
                 // RV32 Zicsr extensions
-                // TODO:
                 // - if rd = x0 then csr does not read and cause read side effects (rw)
                 // - if rs1 = x0 then csr does not write and cause write side effects (rs/c)
+                // TODO:
                 //   * such as raising illegal instruction exceptions on accesses to read-only CSRs.
                 //
                 //  inst    rd rs1
@@ -329,54 +327,45 @@ impl Emul32 {
                 // CSRRS/C   - !x0 -> read, write
                 //
                 // for Imm variant replace x0 with 0 and !0 for rs1
-                //
-                // TODO: decide if i want and/or care to implement these counters
-                // - RDCYCLE[H], RDTIME[H], RDINSTRET[H] - since these will need
-                //   main vm loop support to implement
-                // - These also forms a pseudo instruction if we do implement em
-                // - RDCYCLE = cycle, RDTIME = time, RDINSTRET = instret (64bit counters)
-                //
                 (        _, 0b001, opcode::SYSTEM) => {
                     // CSRRW
-                    self.reg[rd] = self.csr.read_write(
-                        csr,
-                        self.reg[rs1],
-                    );
+                    if rd != 0 {
+                        self.reg[rd] = self.csr.read(csr);
+                    }
+                    self.csr.write(csr, self.reg[rs1]);
                 },
                 (        _, 0b010, opcode::SYSTEM) => {
                     // CSRRS
-                    self.reg[rd] = self.csr.read_set(
-                        csr,
-                        self.reg[rs1],
-                    );
+                    self.reg[rd] = self.csr.read(csr);
+                    if rs1 != 0 {
+                        self.csr.set(csr, self.reg[rs1]);
+                    }
                 },
                 (        _, 0b011, opcode::SYSTEM) => {
                     // CSRRC
-                    self.reg[rd] = self.csr.read_clear(
-                        csr,
-                        self.reg[rs1],
-                    );
+                    self.reg[rd] = self.csr.read(csr);
+                    if rs1 != 0 {
+                        self.csr.clear(csr, self.reg[rs1]);
+                    }
                 },
                 (        _, 0b101, opcode::SYSTEM) => {
                     // CSRRWI
-                    self.reg[rd] = self.csr.read_write(
-                        csr,
-                        csr_imm,
-                    );
+                    self.reg[rd] = self.csr.read(csr);
+                    self.csr.write(csr, csr_imm);
                 },
                 (        _, 0b110, opcode::SYSTEM) => {
                     // CSRRSI
-                    self.reg[rd] = self.csr.read_set(
-                        csr,
-                        csr_imm,
-                    );
+                    self.reg[rd] = self.csr.read(csr);
+                    if csr_imm != 0 {
+                        self.csr.set(csr, csr_imm);
+                    }
                 },
                 (        _, 0b111, opcode::SYSTEM) => {
                     // CSRRCI
-                    self.reg[rd] = self.csr.read_clear(
-                        csr,
-                        csr_imm,
-                    );
+                    self.reg[rd] = self.csr.read(csr);
+                    if csr_imm != 0 {
+                        self.csr.clear(csr, csr_imm);
+                    }
                 },
 
                 // RV32 I
