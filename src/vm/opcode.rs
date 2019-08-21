@@ -12,8 +12,7 @@ use phf;
 //          set to be NOP (except undefined instruction behavior)
 //      Caches & Write buffers are not simulated.
 //          All load/fetches/stores completes immediately and in order and fully synchronously
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum InstType {
     R,
     I,
@@ -37,8 +36,7 @@ pub const MISC_MEM: u32 = 0b0001111; // I
 pub const SYSTEM:   u32 = 0b1110011; // I - CSR (control and status registers) + other priviledged instructions
 
 // Inst Encoding
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct InstEnc {
     pub encoding:   InstType,
     pub opcode:     u32,

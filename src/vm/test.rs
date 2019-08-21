@@ -55,19 +55,19 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x3 x1 x2", op)));
 
             // Load the registers
-            vm.reg[1] = a;
-            vm.reg[2] = b;
+            vm.cpu.reg[1] = a;
+            vm.cpu.reg[2] = b;
 
             // Validate
-            assert_eq!(vm.reg[3], 0);
+            assert_eq!(vm.cpu.reg[3], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], a);
-            assert_eq!(vm.reg[2], b);
-            assert_eq!(vm.reg[3], r);
+            assert_eq!(vm.cpu.reg[1], a);
+            assert_eq!(vm.cpu.reg[2], b);
+            assert_eq!(vm.cpu.reg[3], r);
         }
 
         fn TEST_RR_SRC1_EQ_DEST(_test: u8, op: &str, res: u32, a: u32, b: u32) {
@@ -75,15 +75,15 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 x2", op)));
 
             // Load the registers
-            vm.reg[1] = a;
-            vm.reg[2] = b;
+            vm.cpu.reg[1] = a;
+            vm.cpu.reg[2] = b;
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], res);
-            assert_eq!(vm.reg[2], b);
+            assert_eq!(vm.cpu.reg[1], res);
+            assert_eq!(vm.cpu.reg[2], b);
         }
 
         fn TEST_RR_SRC2_EQ_DEST(_test: u8, op: &str, res: u32, a: u32, b: u32) {
@@ -91,15 +91,15 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x2 x1 x2", op)));
 
             // Load the registers
-            vm.reg[1] = a;
-            vm.reg[2] = b;
+            vm.cpu.reg[1] = a;
+            vm.cpu.reg[2] = b;
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], a);
-            assert_eq!(vm.reg[2], res);
+            assert_eq!(vm.cpu.reg[1], a);
+            assert_eq!(vm.cpu.reg[2], res);
         }
 
         fn TEST_RR_SRC12_EQ_DEST(_test: u8, op: &str, res: u32, a: u32) {
@@ -107,13 +107,13 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 x1", op)));
 
             // Load the registers
-            vm.reg[1] = a;
+            vm.cpu.reg[1] = a;
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], res);
+            assert_eq!(vm.cpu.reg[1], res);
         }
 
         fn TEST_RR_ZEROSRC1(_test: u8, op: &str, r: u32, b: u32) {
@@ -121,18 +121,18 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 x2", op)));
 
             // Load the registers
-            vm.reg[2] = b;
+            vm.cpu.reg[2] = b;
 
             // Validate
-            assert_eq!(vm.reg[1], 0);
+            assert_eq!(vm.cpu.reg[1], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[0], 0);
-            assert_eq!(vm.reg[1], r);
-            assert_eq!(vm.reg[2], b);
+            assert_eq!(vm.cpu.reg[0], 0);
+            assert_eq!(vm.cpu.reg[1], r);
+            assert_eq!(vm.cpu.reg[2], b);
         }
 
         fn TEST_RR_ZEROSRC2(_test: u8, op: &str, r: u32, a: u32) {
@@ -140,18 +140,18 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x2 x0", op)));
 
             // Load the registers
-            vm.reg[2] = a;
+            vm.cpu.reg[2] = a;
 
             // Validate
-            assert_eq!(vm.reg[1], 0);
+            assert_eq!(vm.cpu.reg[1], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[0], 0);
-            assert_eq!(vm.reg[1], r);
-            assert_eq!(vm.reg[2], a);
+            assert_eq!(vm.cpu.reg[0], 0);
+            assert_eq!(vm.cpu.reg[1], r);
+            assert_eq!(vm.cpu.reg[2], a);
         }
 
         fn TEST_RR_ZEROSRC12(_test: u8, op: &str, r: u32) {
@@ -159,14 +159,14 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 x0", op)));
 
             // Validate
-            assert_eq!(vm.reg[1], 0);
+            assert_eq!(vm.cpu.reg[1], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[0], 0);
-            assert_eq!(vm.reg[1], r);
+            assert_eq!(vm.cpu.reg[0], 0);
+            assert_eq!(vm.cpu.reg[1], r);
         }
 
         fn TEST_RR_ZERODEST(_test: u8, op: &str, a: u32, b: u32) {
@@ -174,16 +174,16 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x0 x1 x2", op)));
 
             // Load the registers
-            vm.reg[1] = a;
-            vm.reg[2] = b;
+            vm.cpu.reg[1] = a;
+            vm.cpu.reg[2] = b;
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[0], 0);
-            assert_eq!(vm.reg[1], a);
-            assert_eq!(vm.reg[2], b);
+            assert_eq!(vm.cpu.reg[0], 0);
+            assert_eq!(vm.cpu.reg[1], a);
+            assert_eq!(vm.cpu.reg[2], b);
         }
 
         fn TEST_RR_DEST_BYPASS(test: u8, _n: u32, op: &str, res: u32, a: u32, b: u32) {
@@ -226,17 +226,17 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x2 x1 0x{:08x}", op, imm)));
 
             // Load the registers
-            vm.reg[1] = a;
+            vm.cpu.reg[1] = a;
 
             // Validate
-            assert_eq!(vm.reg[2], 0);
+            assert_eq!(vm.cpu.reg[2], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], a);
-            assert_eq!(vm.reg[2], res);
+            assert_eq!(vm.cpu.reg[1], a);
+            assert_eq!(vm.cpu.reg[2], res);
         }
 
         fn TEST_IMM_SRC1_EQ_DEST(_test: u8, op: &str, res: u32, a: u32, imm: u32) {
@@ -244,13 +244,13 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x1 0x{:08x}", op, imm)));
 
             // Load the registers
-            vm.reg[1] = a;
+            vm.cpu.reg[1] = a;
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], res);
+            assert_eq!(vm.cpu.reg[1], res);
         }
 
         fn TEST_IMM_ZEROSRC1(_test: u8, op: &str, res: u32, imm: u32) {
@@ -258,14 +258,14 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x1 x0 0x{:08x}", op, imm)));
 
             // Validate
-            assert_eq!(vm.reg[2], 0);
+            assert_eq!(vm.cpu.reg[2], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[0], 0);
-            assert_eq!(vm.reg[1], res);
+            assert_eq!(vm.cpu.reg[0], 0);
+            assert_eq!(vm.cpu.reg[1], res);
         }
 
         fn TEST_IMM_ZERODEST(_test: u8, op: &str, a: u32, imm: u32) {
@@ -273,14 +273,14 @@ mod op_tests {
             let mut vm = Emul32::new_with_rom(generate_rom(&format!("{} x0 x1 0x{:08x}", op, imm)));
 
             // Load the registers
-            vm.reg[1] = a;
+            vm.cpu.reg[1] = a;
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[0], 0);
-            assert_eq!(vm.reg[1], a);
+            assert_eq!(vm.cpu.reg[0], 0);
+            assert_eq!(vm.cpu.reg[1], a);
         }
 
         fn TEST_IMM_DEST_BYPASS(test: u8, _n: u32, op: &str, res: u32, a: u32, imm: u32) {
@@ -334,34 +334,34 @@ mod op_tests {
             );
 
             // Load the registers
-            vm.reg[1] = val1;
-            vm.reg[2] = val2;
+            vm.cpu.reg[1] = val1;
+            vm.cpu.reg[2] = val2;
 
             // Validate - A bit complicated, but basically we want to always take the branch
             // The sentinel here is x3, x4, and x5, and x6 to confirm completion
-            assert_eq!(vm.reg[3], 0);
-            assert_eq!(vm.reg[4], 0);
-            assert_eq!(vm.reg[5], 0);
-            assert_eq!(vm.reg[6], 0);
-            assert_eq!(vm.reg[7], 0);
-            assert_eq!(vm.reg[8], 0);
-            assert_eq!(vm.reg[9], 0);
-            assert_eq!(vm.reg[10], 0);
+            assert_eq!(vm.cpu.reg[3], 0);
+            assert_eq!(vm.cpu.reg[4], 0);
+            assert_eq!(vm.cpu.reg[5], 0);
+            assert_eq!(vm.cpu.reg[6], 0);
+            assert_eq!(vm.cpu.reg[7], 0);
+            assert_eq!(vm.cpu.reg[8], 0);
+            assert_eq!(vm.cpu.reg[9], 0);
+            assert_eq!(vm.cpu.reg[10], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], val1);
-            assert_eq!(vm.reg[2], val2);
-            assert_eq!(vm.reg[3], 0x1); // Jumped to
-            assert_eq!(vm.reg[4], 0); // Jumped over
-            assert_eq!(vm.reg[5], 0x1); // jumped to
-            assert_eq!(vm.reg[6], 0); // jumped over
-            assert_eq!(vm.reg[7], 0x1); // jumped to
-            assert_eq!(vm.reg[8], 0); // jumped over
-            assert_eq!(vm.reg[9], 0x1); // jumped to
-            assert_eq!(vm.reg[10], 0x1); // Finished
+            assert_eq!(vm.cpu.reg[1], val1);
+            assert_eq!(vm.cpu.reg[2], val2);
+            assert_eq!(vm.cpu.reg[3], 0x1); // Jumped to
+            assert_eq!(vm.cpu.reg[4], 0); // Jumped over
+            assert_eq!(vm.cpu.reg[5], 0x1); // jumped to
+            assert_eq!(vm.cpu.reg[6], 0); // jumped over
+            assert_eq!(vm.cpu.reg[7], 0x1); // jumped to
+            assert_eq!(vm.cpu.reg[8], 0); // jumped over
+            assert_eq!(vm.cpu.reg[9], 0x1); // jumped to
+            assert_eq!(vm.cpu.reg[10], 0x1); // Finished
         }
 
         fn TEST_BR2_OP_NOTTAKEN(_test: u8, inst: &str, val1: u32, val2: u32) {
@@ -387,34 +387,34 @@ mod op_tests {
             );
 
             // Load the registers
-            vm.reg[1] = val1;
-            vm.reg[2] = val2;
+            vm.cpu.reg[1] = val1;
+            vm.cpu.reg[2] = val2;
 
             // Validate - A bit complicated, but basically we want to always not take the branch
             // The sentinel here is x3, x4, and x5, and x6 to confirm completion
-            assert_eq!(vm.reg[3], 0);
-            assert_eq!(vm.reg[4], 0);
-            assert_eq!(vm.reg[5], 0);
-            assert_eq!(vm.reg[6], 0);
-            assert_eq!(vm.reg[7], 0);
-            assert_eq!(vm.reg[8], 0);
-            assert_eq!(vm.reg[9], 0);
-            assert_eq!(vm.reg[10], 0);
+            assert_eq!(vm.cpu.reg[3], 0);
+            assert_eq!(vm.cpu.reg[4], 0);
+            assert_eq!(vm.cpu.reg[5], 0);
+            assert_eq!(vm.cpu.reg[6], 0);
+            assert_eq!(vm.cpu.reg[7], 0);
+            assert_eq!(vm.cpu.reg[8], 0);
+            assert_eq!(vm.cpu.reg[9], 0);
+            assert_eq!(vm.cpu.reg[10], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], val1);
-            assert_eq!(vm.reg[2], val2);
-            assert_eq!(vm.reg[3], 0x1);
-            assert_eq!(vm.reg[4], 0x1);
-            assert_eq!(vm.reg[5], 0x1);
-            assert_eq!(vm.reg[6], 0x1);
-            assert_eq!(vm.reg[7], 0x1);
-            assert_eq!(vm.reg[8], 0x1);
-            assert_eq!(vm.reg[9], 0x1);
-            assert_eq!(vm.reg[10], 0x1);
+            assert_eq!(vm.cpu.reg[1], val1);
+            assert_eq!(vm.cpu.reg[2], val2);
+            assert_eq!(vm.cpu.reg[3], 0x1);
+            assert_eq!(vm.cpu.reg[4], 0x1);
+            assert_eq!(vm.cpu.reg[5], 0x1);
+            assert_eq!(vm.cpu.reg[6], 0x1);
+            assert_eq!(vm.cpu.reg[7], 0x1);
+            assert_eq!(vm.cpu.reg[8], 0x1);
+            assert_eq!(vm.cpu.reg[9], 0x1);
+            assert_eq!(vm.cpu.reg[10], 0x1);
         }
     }
 
@@ -440,13 +440,13 @@ mod op_tests {
             );
 
             // Validate
-            assert_eq!(vm.reg[1], 0);
+            assert_eq!(vm.cpu.reg[1], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], 0x8); // AUIPC is at PC=0, 2f is at 0x8
+            assert_eq!(vm.cpu.reg[1], 0x8); // AUIPC is at PC=0, 2f is at 0x8
         }
 
         #[test]
@@ -473,33 +473,33 @@ mod op_tests {
             );
 
             // Validate - want to skip over x3, x5, x7
-            assert_eq!(vm.reg[1], 0);
-            assert_eq!(vm.reg[2], 0);
-            assert_eq!(vm.reg[3], 0);
-            assert_eq!(vm.reg[4], 0);
-            assert_eq!(vm.reg[5], 0);
-            assert_eq!(vm.reg[6], 0);
-            assert_eq!(vm.reg[7], 0);
-            assert_eq!(vm.reg[8], 0);
-            assert_eq!(vm.reg[9], 0);
-            assert_eq!(vm.reg[10], 0);
-            assert_eq!(vm.reg[11], 0);
+            assert_eq!(vm.cpu.reg[1], 0);
+            assert_eq!(vm.cpu.reg[2], 0);
+            assert_eq!(vm.cpu.reg[3], 0);
+            assert_eq!(vm.cpu.reg[4], 0);
+            assert_eq!(vm.cpu.reg[5], 0);
+            assert_eq!(vm.cpu.reg[6], 0);
+            assert_eq!(vm.cpu.reg[7], 0);
+            assert_eq!(vm.cpu.reg[8], 0);
+            assert_eq!(vm.cpu.reg[9], 0);
+            assert_eq!(vm.cpu.reg[10], 0);
+            assert_eq!(vm.cpu.reg[11], 0);
 
             // Run
             vm.run();
 
             // Validate - want to skip over x3, x5, x7
-            assert_eq!(vm.reg[1], 0x1);
-            assert_eq!(vm.reg[2], 0x8); // JALR pc + 4
-            assert_eq!(vm.reg[3], 0x0);
-            assert_eq!(vm.reg[4], 0x1);
-            assert_eq!(vm.reg[5], 0x0);
-            assert_eq!(vm.reg[6], 0x1);
-            assert_eq!(vm.reg[7], 0x0);
-            assert_eq!(vm.reg[8], 0x1);
-            assert_eq!(vm.reg[9], 0x34); // JALR pc + 4
-            assert_eq!(vm.reg[10], 0x1);
-            assert_eq!(vm.reg[11], 0x18); // LUI/addi address of 2b
+            assert_eq!(vm.cpu.reg[1], 0x1);
+            assert_eq!(vm.cpu.reg[2], 0x8); // JALR pc + 4
+            assert_eq!(vm.cpu.reg[3], 0x0);
+            assert_eq!(vm.cpu.reg[4], 0x1);
+            assert_eq!(vm.cpu.reg[5], 0x0);
+            assert_eq!(vm.cpu.reg[6], 0x1);
+            assert_eq!(vm.cpu.reg[7], 0x0);
+            assert_eq!(vm.cpu.reg[8], 0x1);
+            assert_eq!(vm.cpu.reg[9], 0x34); // JALR pc + 4
+            assert_eq!(vm.cpu.reg[10], 0x1);
+            assert_eq!(vm.cpu.reg[11], 0x18); // LUI/addi address of 2b
         }
 
         #[test]
@@ -517,21 +517,21 @@ mod op_tests {
             );
 
             // Validate
-            assert_eq!(vm.reg[1], 0);
-            assert_eq!(vm.reg[2], 0);
-            assert_eq!(vm.reg[3], 0);
-            assert_eq!(vm.reg[4], 0);
-            assert_eq!(vm.reg[5], 0);
+            assert_eq!(vm.cpu.reg[1], 0);
+            assert_eq!(vm.cpu.reg[2], 0);
+            assert_eq!(vm.cpu.reg[3], 0);
+            assert_eq!(vm.cpu.reg[4], 0);
+            assert_eq!(vm.cpu.reg[5], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], 0x1);
-            //assert_eq!(vm.reg[2], 0x8); // Hardcode address, re-validate (la - auipc+addi)
-            assert_eq!(vm.reg[2], vm.reg[5]);
-            assert_eq!(vm.reg[3], 0);
-            assert_eq!(vm.reg[4], 0x1);
+            assert_eq!(vm.cpu.reg[1], 0x1);
+            //assert_eq!(vm.cpu.reg[2], 0x8); // Hardcode address, re-validate (la - auipc+addi)
+            assert_eq!(vm.cpu.reg[2], vm.cpu.reg[5]);
+            assert_eq!(vm.cpu.reg[3], 0);
+            assert_eq!(vm.cpu.reg[4], 0x1);
         }
 
         fn TEST_LUI(_test: u8, res: u32, num: u32, shift: u32) {
@@ -547,13 +547,13 @@ mod op_tests {
             );
 
             // Validate
-            assert_eq!(vm.reg[1], 0);
+            assert_eq!(vm.cpu.reg[1], 0);
 
             // Run
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[1], res);
+            assert_eq!(vm.cpu.reg[1], res);
         }
     }
 
@@ -604,7 +604,7 @@ mod op_tests {
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[2], res);
+            assert_eq!(vm.cpu.reg[2], res);
         }
 
         fn TEST_LD_DEST_BYPASS(test: u8, _n: u32, op: &str, res: u32, off: u32, base: &str) {
@@ -653,7 +653,7 @@ mod op_tests {
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[2], res);
+            assert_eq!(vm.cpu.reg[2], res);
         }
 
         #[test]
@@ -765,7 +765,7 @@ mod op_tests {
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[3], res);
+            assert_eq!(vm.cpu.reg[3], res);
         }
 
         fn test_negative_op(load_op: &str, store_op: &str, res: u32, res2: u32, off1: u32, off2: u32) {
@@ -797,7 +797,7 @@ mod op_tests {
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[3], res2);
+            assert_eq!(vm.cpu.reg[3], res2);
         }
 
         fn test_offset_op(load_op: &str, store_op: &str, res: u32, res2: u32, off1: u32, off2: u32) {
@@ -842,7 +842,7 @@ mod op_tests {
             vm.run();
 
             // Validate
-            assert_eq!(vm.reg[3], res2);
+            assert_eq!(vm.cpu.reg[3], res2);
         }
 
         #[test]
