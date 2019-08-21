@@ -21,14 +21,14 @@ use asm::ast;
 #[derive(Debug, PartialEq)]
 pub enum CImmRef {
     // TODO: MemRef(String),
-    AddrRef(String, parser::AddrRefType),
+    AddrRef(String, ast::AddrRefType),
     Imm(u32),
 }
 
 // TODO: implement support for MemRef here onward
 #[derive(Debug, PartialEq)]
 pub enum CToken {
-    Label(String, parser::LabelType),
+    Label(String, ast::LabelType),
 
     // Padding (number of u8 padding bits needed to align to nearest u32 boundary)
     Padding(usize),
@@ -333,22 +333,22 @@ fn shift_and_mask(n: &u32, shift: usize) -> u8 {
 }
 
 // TODO: not sure if the ordering of the data is correct for in memory
-fn process_data(dt: parser::DataType, n: Vec<u32>) -> VecDeque<CToken> {
+fn process_data(dt: ast::DataType, n: Vec<u32>) -> VecDeque<CToken> {
     let mut ret = VecDeque::new();
 
     match dt {
-        parser::DataType::Byte => {
+        ast::DataType::Byte => {
             for num in &n {
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 0)));
             }
         },
-        parser::DataType::Half => {
+        ast::DataType::Half => {
             for num in &n {
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 0)));
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 8)));
             }
         },
-        parser::DataType::Word => {
+        ast::DataType::Word => {
             for num in &n {
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 0)));
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 8)));
@@ -419,8 +419,8 @@ pub mod cleaner_ast {
         let input = "la: 2: // Comments";
 
         let expected = vec![
-            Some(CToken::Label("la".to_string(), parser::LabelType::Global)),
-            Some(CToken::Label("2".to_string(), parser::LabelType::Local)),
+            Some(CToken::Label("la".to_string(), ast::LabelType::Global)),
+            Some(CToken::Label("2".to_string(), ast::LabelType::Local)),
             None,
         ];
 
@@ -496,19 +496,19 @@ pub mod cleaner_ast {
                 "JALR".to_string(),
                 ast::Reg::X1,
                 ast::Reg::X2,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalForward)
             )),
             Some(CToken::RegRegIL(
                 "JALR".to_string(),
                 ast::Reg::X2,
                 ast::Reg::X3,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalBackward)
             )),
             Some(CToken::RegRegIL(
                 "JALR".to_string(),
                 ast::Reg::X3,
                 ast::Reg::X4,
-                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
+                CImmRef::AddrRef("asdf".to_string(), ast::AddrRefType::Global)
             )),
             None,
         ];
@@ -531,19 +531,19 @@ pub mod cleaner_ast {
                 "ADDI".to_string(),
                 ast::Reg::X1,
                 ast::Reg::X2,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalForward)
             )),
             Some(CToken::RegRegImm(
                 "ADDI".to_string(),
                 ast::Reg::X2,
                 ast::Reg::X3,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalBackward)
             )),
             Some(CToken::RegRegImm(
                 "ADDI".to_string(),
                 ast::Reg::X3,
                 ast::Reg::X4,
-                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
+                CImmRef::AddrRef("asdf".to_string(), ast::AddrRefType::Global)
             )),
             None,
         ];
@@ -578,19 +578,19 @@ pub mod cleaner_ast {
                 "BNE".to_string(),
                 ast::Reg::X1,
                 ast::Reg::X2,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalForward)
             )),
             Some(CToken::RegRegILBranch(
                 "BNE".to_string(),
                 ast::Reg::X2,
                 ast::Reg::X3,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalBackward)
             )),
             Some(CToken::RegRegILBranch(
                 "BNE".to_string(),
                 ast::Reg::X3,
                 ast::Reg::X4,
-                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
+                CImmRef::AddrRef("asdf".to_string(), ast::AddrRefType::Global)
             )),
             None,
         ];
@@ -611,17 +611,17 @@ pub mod cleaner_ast {
             Some(CToken::RegIL(
                 "LUI".to_string(),
                 ast::Reg::X1,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalForward)
             )),
             Some(CToken::RegIL(
                 "LUI".to_string(),
                 ast::Reg::X2,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalBackward)
             )),
             Some(CToken::RegIL(
                 "LUI".to_string(),
                 ast::Reg::X3,
-                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
+                CImmRef::AddrRef("asdf".to_string(), ast::AddrRefType::Global)
             )),
             None,
         ];
@@ -642,17 +642,17 @@ pub mod cleaner_ast {
             Some(CToken::RegILShuffle(
                 "JAL".to_string(),
                 ast::Reg::X1,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalForward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalForward)
             )),
             Some(CToken::RegILShuffle(
                 "JAL".to_string(),
                 ast::Reg::X2,
-                CImmRef::AddrRef("2".to_string(), parser::AddrRefType::LocalBackward)
+                CImmRef::AddrRef("2".to_string(), ast::AddrRefType::LocalBackward)
             )),
             Some(CToken::RegILShuffle(
                 "JAL".to_string(),
                 ast::Reg::X3,
-                CImmRef::AddrRef("asdf".to_string(), parser::AddrRefType::Global)
+                CImmRef::AddrRef("asdf".to_string(), ast::AddrRefType::Global)
             )),
             None,
         ];
@@ -690,10 +690,10 @@ pub mod cleaner_ast {
         let expected = vec![
             Some(CToken::ByteData(0x10)),
             Some(CToken::Padding(3)),
-            Some(CToken::Label("la".to_string(), parser::LabelType::Global)),
+            Some(CToken::Label("la".to_string(), ast::LabelType::Global)),
             Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),
             Some(CToken::ByteData(0x10)),
-            Some(CToken::Label("la".to_string(), parser::LabelType::Global)),
+            Some(CToken::Label("la".to_string(), ast::LabelType::Global)),
             Some(CToken::ByteData(0x10)),
             Some(CToken::Padding(2)),
             Some(CToken::RegRegReg("ADD".to_string(), ast::Reg::X0, ast::Reg::X1, ast::Reg::X2)),

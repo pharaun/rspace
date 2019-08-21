@@ -2,7 +2,7 @@ use std::str::Chars;
 use std::iter::Peekable;
 
 #[derive(Debug, PartialEq)]
-pub enum AddrRefType { Forward, Backward }
+pub enum LocalAddrRefType { Forward, Backward }
 
 // Plain label == AddrRef
 // [label] == MemRef
@@ -14,7 +14,7 @@ pub enum Token {
     Newline,
     Dot,
     MemRef(String), // Only global labels can be a memref
-    AddrRef(String, AddrRefType), // Only support local labels for now
+    AddrRef(String, LocalAddrRefType), // Only support local labels for now
 }
 
 // Lexer
@@ -129,11 +129,11 @@ impl<'a> Lexer<'a> {
                 maybe_digits.push(self.read_char().unwrap());
             } else if c == 'f' {
                 self.discard_char();
-                label = Some(AddrRefType::Forward);
+                label = Some(LocalAddrRefType::Forward);
                 break;
             } else if c == 'b' {
                 self.discard_char();
-                label = Some(AddrRefType::Backward);
+                label = Some(LocalAddrRefType::Backward);
                 break;
             } else {
                 break;
@@ -232,8 +232,8 @@ pub mod lexer_token {
             Some(Token::Num(1)),
             Some(Token::Num(neg as u32)),
             Some(Token::Num(0xAF)),
-            Some(Token::AddrRef("2".to_string(), AddrRefType::Forward)),
-            Some(Token::AddrRef("2".to_string(), AddrRefType::Backward)),
+            Some(Token::AddrRef("2".to_string(), LocalAddrRefType::Forward)),
+            Some(Token::AddrRef("2".to_string(), LocalAddrRefType::Backward)),
             Some(Token::Dot),
             Some(Token::Str("asdf".to_string())),
             Some(Token::MemRef("qwer".to_string())),

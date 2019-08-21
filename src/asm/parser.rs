@@ -1,52 +1,25 @@
 use std::iter::Peekable;
-use asm::lexer;
-
-// Use the reg and csr func here for now
-use asm::ast;
 use std::str::FromStr;
 
+use asm::ast;
+use asm::lexer;
+
 // TODO: parse macro definition and usage here
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum LabelType { Global, Local }
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum AddrRefType { Global, LocalBackward, LocalForward }
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum DataType { Byte, Half, Word }
-
-impl FromStr for DataType {
-    type Err = ParseDataTypeError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "BYTE"  => Ok(DataType::Byte),
-            "HALF"  => Ok(DataType::Half),
-            "WORD"  => Ok(DataType::Word),
-            _           => Err(ParseDataTypeError { _priv: () }),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseDataTypeError { _priv: () }
-
 #[derive(Debug, PartialEq)]
 pub enum Arg {
     Num(u32),
     Reg(ast::Reg),
     Csr(ast::Csr),
-    AddrRef(String, AddrRefType),
+    AddrRef(String, ast::AddrRefType),
     MemRef(String),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum PToken {
-    Label(String, LabelType),
+    Label(String, ast::LabelType),
     Inst(String, Vec<Arg>),
     // Clean up the actual bytes at a later stage
-    Data(DataType, Vec<u32>),
+    Data(ast::DataType, Vec<u32>),
 }
 
 
@@ -92,12 +65,12 @@ impl<'a> Parser<'a> {
                     lexer::Token::Str(s) => {
                         // Is a Global Label
                         self.discard_token();
-                        Some(PToken::Label(s, LabelType::Global))
+                        Some(PToken::Label(s, ast::LabelType::Global))
                     },
                     lexer::Token::Num(n) => {
                         // Is a Local Label
                         self.discard_token();
-                        Some(PToken::Label(n.to_string(), LabelType::Local))
+                        Some(PToken::Label(n.to_string(), ast::LabelType::Local))
                     },
                     lexer::Token::Colon => panic!("Should not see a colon"),
                     lexer::Token::Dot => panic!("Should not see a dot"),
@@ -121,15 +94,15 @@ impl<'a> Parser<'a> {
                                         args.push(Arg::Reg(r));
                                     } else {
                                         // Global Label
-                                        args.push(Arg::AddrRef(s, AddrRefType::Global));
+                                        args.push(Arg::AddrRef(s, ast::AddrRefType::Global));
                                     }
                                 },
                                 lexer::Token::Num(i) => args.push(Arg::Num(i)),
-                                lexer::Token::AddrRef(s, lexer::AddrRefType::Forward) => {
-                                    args.push(Arg::AddrRef(s, AddrRefType::LocalForward))
+                                lexer::Token::AddrRef(s, lexer::LocalAddrRefType::Forward) => {
+                                    args.push(Arg::AddrRef(s, ast::AddrRefType::LocalForward))
                                 },
-                                lexer::Token::AddrRef(s, lexer::AddrRefType::Backward) => {
-                                    args.push(Arg::AddrRef(s, AddrRefType::LocalBackward))
+                                lexer::Token::AddrRef(s, lexer::LocalAddrRefType::Backward) => {
+                                    args.push(Arg::AddrRef(s, ast::AddrRefType::LocalBackward))
                                 },
                                 lexer::Token::MemRef(s) => {
                                     args.push(Arg::MemRef(s))
@@ -153,7 +126,7 @@ impl<'a> Parser<'a> {
                     // then collect to end of line Num into a vec
                     lexer::Token::Dot => {
                         if let Some(lexer::Token::Str(s)) = self.read_token() {
-                            if let Result::Ok(dt) = DataType::from_str(&s.to_ascii_uppercase()) {
+                            if let Result::Ok(dt) = ast::DataType::from_str(&s.to_ascii_uppercase()) {
                                 let mut dat = Vec::new();
 
                                 for t in self.collect_till_eol() {
@@ -205,8 +178,8 @@ pub mod parser_ast {
 
         let neg: i32 = -1;
         let expected = vec![
-            Some(PToken::Label("la".to_string(), LabelType::Global)),
-            Some(PToken::Label("2".to_string(), LabelType::Local)),
+            Some(PToken::Label("la".to_string(), ast::LabelType::Global)),
+            Some(PToken::Label("2".to_string(), ast::LabelType::Local)),
             Some(PToken::Inst("ADDI".to_string(), vec![
                 Arg::Reg(ast::Reg::X0),
                 Arg::Reg(ast::Reg::X8),
@@ -214,15 +187,15 @@ pub mod parser_ast {
                 Arg::Num(neg as u32),
                 Arg::Num(0xAF),
                 // Should have more data here
-                Arg::AddrRef("2".to_string(), AddrRefType::LocalForward),
-                Arg::AddrRef("2".to_string(), AddrRefType::LocalBackward),
-                Arg::AddrRef("asdf".to_string(), AddrRefType::Global),
+                Arg::AddrRef("2".to_string(), ast::AddrRefType::LocalForward),
+                Arg::AddrRef("2".to_string(), ast::AddrRefType::LocalBackward),
+                Arg::AddrRef("asdf".to_string(), ast::AddrRefType::Global),
                 Arg::Csr(ast::Csr::MSTATUS),
                 Arg::MemRef("qwer".to_string()),
             ])),
-            Some(PToken::Data(DataType::Byte, vec![0xDE])),
-            Some(PToken::Data(DataType::Half, vec![0xDF])),
-            Some(PToken::Data(DataType::Word, vec![0xEA, 0xEB])),
+            Some(PToken::Data(ast::DataType::Byte, vec![0xDE])),
+            Some(PToken::Data(ast::DataType::Half, vec![0xDF])),
+            Some(PToken::Data(ast::DataType::Word, vec![0xEA, 0xEB])),
             None,
         ];
 
@@ -240,8 +213,8 @@ pub mod parser_ast {
         let mut parser = Parser::new(lexer::Lexer::new(input));
 
         let expected = vec![
-            Some(PToken::Label("la".to_string(), LabelType::Global)),
-            Some(PToken::Label("2".to_string(), LabelType::Local)),
+            Some(PToken::Label("la".to_string(), ast::LabelType::Global)),
+            Some(PToken::Label("2".to_string(), ast::LabelType::Local)),
             Some(PToken::Inst("FENCE.I".to_string(), vec![
                 Arg::Reg(ast::Reg::X0),
             ])),

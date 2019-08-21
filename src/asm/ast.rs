@@ -1,25 +1,33 @@
 use std::str::FromStr;
 
-#[derive(Debug,Clone)]
-pub enum Labels <'input> {
-    NLabel(&'input str),
-    WLabel(&'input str),
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum LabelType { Global, Local }
+
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum AddrRefType { Global, LocalBackward, LocalForward }
+
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum DataType { Byte, Half, Word }
+
+impl FromStr for DataType {
+    type Err = ParseDataTypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "BYTE"  => Ok(DataType::Byte),
+            "HALF"  => Ok(DataType::Half),
+            "WORD"  => Ok(DataType::Word),
+            _           => Err(ParseDataTypeError { _priv: () }),
+        }
+    }
 }
 
-#[derive(Debug,Clone)]
-pub enum Args <'input> {
-    Num(u32),
-    Reg(Reg),
-    Csr(Csr),
-    Lab(Labels<'input>),
-}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseDataTypeError { _priv: () }
 
-#[derive(Debug)]
-pub enum AsmLine <'input> {
-    Lab(Labels<'input>),
-    Ins(&'input str, Vec<Args <'input>>),
-    Lns(Labels<'input>, &'input str, Vec<Args <'input>>),
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Csr {
