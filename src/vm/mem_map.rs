@@ -138,3 +138,19 @@ fn mem_map_store_read_test() {
     assert_eq!(mem_map.load_byte(1), 0x10);
     assert_eq!(mem_map.load_byte(1+8), 0x11);
 }
+
+#[test]
+fn mem_map_double_store_read_test() {
+    let mut mem_map_one = MemMap::new();
+    mem_map_one.add(Ram::new());
+
+    let mut mem_map = MemMap::new();
+    mem_map.add(Ram::new());
+    mem_map.add(mem_map_one);
+
+    mem_map.store_byte(1, 0x10);
+    mem_map.store_byte(1+8, 0x11);
+
+    assert_eq!(mem_map.load_byte(1), 0x10);
+    assert_eq!(mem_map.load_byte(1+8), 0x11);
+}
