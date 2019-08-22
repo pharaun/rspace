@@ -1,8 +1,8 @@
-pub mod regfile;
-pub mod mem;
-pub mod csr;
+mod regfile;
+mod mem;
+mod csr;
+mod cpu;
 pub mod opcode;
-pub mod cpu;
 
 
 // TODO: design ideas/how

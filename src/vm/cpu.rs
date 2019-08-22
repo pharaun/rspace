@@ -1,9 +1,9 @@
 use twiddle::Twiddle;
 
-use vm::regfile;
-use vm::mem;
-use vm::csr;
-use vm::opcode;
+use crate::vm::regfile;
+use crate::vm::mem;
+use crate::vm::csr;
+use crate::vm::opcode;
 
 
 pub struct Cpu {

@@ -1,8 +1,8 @@
 use std::iter::Peekable;
 use std::str::FromStr;
 
-use asm::ast;
-use asm::lexer;
+use crate::asm::ast;
+use crate::asm::lexer;
 
 // TODO: parse macro definition and usage here
 #[derive(Debug, PartialEq)]

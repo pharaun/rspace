@@ -1,8 +1,7 @@
-use vm::opcode;
-
 use twiddle::Twiddle;
 
-use asm::labeler;
+use crate::vm::opcode;
+use crate::asm::labeler;
 
 
 // TODO: Code quality improvement

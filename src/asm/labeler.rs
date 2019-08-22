@@ -1,5 +1,5 @@
-use asm::cleaner;
-use asm::ast;
+use crate::asm::ast;
+use crate::asm::cleaner;
 
 // TODO: not sure if this is the stage where i want to handle data labels
 // (ie copying the value in a label to a instruction) and/or emitting the raw

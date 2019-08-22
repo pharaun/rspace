@@ -4,7 +4,7 @@ mod op_tests {
     #![allow(non_snake_case)]
     #![allow(overflowing_literals)]
 
-    use asm;
+    use crate::asm;
     use super::*;
     use byteorder::{LittleEndian, WriteBytesExt};
 

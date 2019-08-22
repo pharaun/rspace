@@ -1,11 +1,8 @@
 use std::collections::VecDeque;
 
-use asm::parser;
-
-use vm::opcode;
-
-// Use the reg and csr func here for now
-use asm::ast;
+use crate::vm::opcode;
+use crate::asm::ast;
+use crate::asm::parser;
 
 // TODO:
 // 1. newtype im
@@ -136,7 +133,7 @@ impl<'a> Cleaner<'a> {
                     },
                     // 5. in accumulate label/num, accumulate token till hit a inst
                     // 6. if hit inst, record padding, and then store the whole queue in buffer
-                    parser::PToken::Inst(inst, mut args) => {
+                    parser::PToken::Inst(inst, args) => {
                         // Push a padding token to the buffer, and then append the
                         // label buffer to the master buffer then exit to let the
                         // instruction be handled after we drain the buffer
@@ -401,7 +398,7 @@ impl<'a> Iterator for Cleaner<'a> {
 pub mod cleaner_ast {
     #![allow(non_snake_case)]
 
-    use asm::lexer;
+    use crate::asm::lexer;
     use super::*;
 
     fn assert_eq(input: &str, expected: Vec<Option<CToken>>) {
