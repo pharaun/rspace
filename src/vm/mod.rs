@@ -4,6 +4,7 @@ mod csr;
 mod cpu;
 pub mod opcode;
 
+mod mem_map;
 
 // TODO: design ideas/how
 //
