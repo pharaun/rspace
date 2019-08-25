@@ -2,9 +2,9 @@ use twiddle::Twiddle;
 
 use crate::vm::regfile;
 use crate::vm::mem;
+use crate::vm::mem::Mem;
 use crate::vm::csr;
 use crate::vm::opcode;
-
 
 pub struct Cpu {
     // TODO: make private when tests are broken up better
@@ -21,7 +21,7 @@ impl Cpu {
     }
 
     // TODO: move some error recovery out of this (ie the break;)
-    pub fn run(&mut self, memory: &mut mem::Memory, csrfile: &mut csr::Csr) {
+    pub fn run(&mut self, memory: &mut mem::MemMap, csrfile: &mut csr::Csr) {
         // VM loop
         loop {
             // TODO: if inst is read from a non u32 aligned address, error out (ISA specifies this)

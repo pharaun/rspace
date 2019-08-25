@@ -4,8 +4,6 @@ mod csr;
 mod cpu;
 pub mod opcode;
 
-mod mem_map;
-
 // TODO: design ideas/how
 //
 // We need to have a way for various component to have these features:
@@ -41,21 +39,25 @@ mod mem_map;
 // counters)
 
 pub struct Emul32 {
-    mem: mem::Memory,
+    mem: mem::MemMap,
     csr: csr::Csr,
     cpu: cpu::Cpu,
 }
 
 impl Emul32 {
     pub fn new_with_rom(rom: [u8; 4096]) -> Emul32 {
+        let mut mem_map = mem::MemMap::new();
+        mem_map.add(0x0,    0x1000, mem::rom::Rom::new(rom));
+        mem_map.add(0x1000, 0x2000, mem::ram::Ram::new());
+
         Emul32 {
-            mem: mem::Memory::new(rom, [0; 4096]),
+            mem: mem_map,
             csr: csr::Csr::new([0; 4096]),
             cpu: cpu::Cpu::new(regfile::RegFile::new([0; 31]), 0),
         }
     }
 
-    pub fn new(reg: regfile::RegFile, mem: mem::Memory, csr: csr::Csr, pc: usize) -> Emul32 {
+    pub fn new(reg: regfile::RegFile, mem: mem::MemMap, csr: csr::Csr, pc: usize) -> Emul32 {
         Emul32 {
             mem: mem,
             csr: csr,
