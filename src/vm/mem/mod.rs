@@ -70,63 +70,76 @@ impl MemMap {
     }
 }
 
-impl Mem for MemMap {
-    fn load_byte(&self, idx: usize) -> u32 {
-        let u32_idx = idx as u32;
-        let mut ret = Err(());
 
-        for t in self.map.iter() {
-            let (start, end, mem) = t;
+// Macro for handling the lookup of the memory table
+macro_rules! dispatch_to {
+    ($self:ident, $func:ident, $idx:expr) => {
+        {
+            let mut ret = Err(());
 
-            if (u32_idx >= *start) && (u32_idx < *end) {
-                ret = Ok(mem.load_byte((u32_idx - *start) as usize));
-                break;
+            for t in $self.map.iter() {
+                let (start, end, mem) = t;
+
+                if ($idx >= *start) && ($idx < *end) {
+                    ret = Ok(mem.$func(($idx - *start) as usize));
+                    break;
+                }
+            }
+
+            match ret {
+                Err(_) => panic!("No memory block at: 0x{:08x}", $idx),
+                Ok(x)  => x,
             }
         }
+    }
+}
 
-        match ret {
-            Err(_) => panic!("No memory block at: 0x{:08x}", u32_idx),
-            Ok(x)  => x,
+macro_rules! mut_dispatch_to {
+    ($self:ident, $func:ident, $idx:expr, $data:expr) => {
+        {
+            let mut success = false;
+
+            for t in $self.map.iter_mut() {
+                let (start, end, mem) = t;
+
+                if ($idx >= *start) && ($idx < *end) {
+                    mem.$func(($idx - *start) as usize, $data);
+                    success = true;
+                    break;
+                }
+            }
+
+            if !success {
+                panic!("No memory block at: 0x{:08x}", $idx);
+            }
         }
     }
+}
 
-    // TODO: implement these properly (by delegating to the trait implentor)
+
+impl Mem for MemMap {
+    fn load_byte(&self, idx: usize) -> u32 {
+        dispatch_to!(self, load_byte, idx as u32)
+    }
+
     fn load_half(&self, idx: usize) -> u32 {
-        self.load_byte(idx) | (self.load_byte(idx+1) << 8)
+        dispatch_to!(self, load_half, idx as u32)
     }
 
     fn load_word(&self, idx: usize) -> u32 {
-        self.load_half(idx) | (self.load_half(idx+2) << 16)
+        dispatch_to!(self, load_word, idx as u32)
     }
 
     fn store_byte(&mut self, idx: usize, data: u32) {
-        let u32_idx = idx as u32;
-        let mut success = false;
-
-        for t in self.map.iter_mut() {
-            let (start, end, mem) = t;
-
-            if (u32_idx >= *start) && (u32_idx < *end) {
-                mem.store_byte((u32_idx - *start) as usize, data);
-                success = true;
-                break;
-            }
-        }
-
-        if !success {
-            panic!("No memory block at: 0x{:08x}", u32_idx);
-        }
+        mut_dispatch_to!(self, store_byte, idx as u32, data);
     }
 
-    // TODO: implement these properly (by delegating to the trait implentor)
     fn store_half(&mut self, idx: usize, data: u32) {
-        self.store_byte(idx, data);
-        self.store_byte(idx+1, data >> 8);
+        mut_dispatch_to!(self, store_half, idx as u32, data);
     }
 
     fn store_word(&mut self, idx: usize, data: u32) {
-        self.store_half(idx, data);
-        self.store_half(idx+2, data >> 16);
+        mut_dispatch_to!(self, store_word, idx as u32, data);
     }
 }
 
