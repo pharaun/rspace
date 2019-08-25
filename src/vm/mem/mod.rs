@@ -66,36 +66,68 @@ impl MemMap {
     // TODO: for now impl a instruction fetch
     // TODO: make this raise an error or cause the cpu to enter a trap state on unaligned access
     pub fn fetch_instruction(&self, idx: usize) -> u32 {
-        0x0
+        self.load_word(idx)
     }
-
-    //fn store_byte(&mut self, idx: usize, data: u8) {
-    //    let mut cur_idx = idx;
-    //    for t in self.map.iter_mut() {
-    //        if cur_idx > t.size() {
-    //            cur_idx -= t.size();
-    //        } else {
-    //            t.store_byte(cur_idx, data);
-    //            break;
-    //        }
-    //    }
-    //}
 }
 
 impl Mem for MemMap {
     fn load_byte(&self, idx: usize) -> u32 {
-        0x0
-    }
-    fn load_half(&self, idx: usize) -> u32 {
-        0x0
-    }
-    fn load_word(&self, idx: usize) -> u32 {
-        0x0
+        let u32_idx = idx as u32;
+        let mut ret = Err(());
+
+        for t in self.map.iter() {
+            let (start, end, mem) = t;
+
+            if (u32_idx >= *start) && (u32_idx < *end) {
+                ret = Ok(mem.load_byte((u32_idx - *start) as usize));
+                break;
+            }
+        }
+
+        match ret {
+            Err(_) => panic!("No memory block at: 0x{:08x}", u32_idx),
+            Ok(x)  => x,
+        }
     }
 
-    fn store_byte(&mut self, idx: usize, data: u32) {}
-    fn store_half(&mut self, idx: usize, data: u32) {}
-    fn store_word(&mut self, idx: usize, data: u32) {}
+    // TODO: implement these properly (by delegating to the trait implentor)
+    fn load_half(&self, idx: usize) -> u32 {
+        self.load_byte(idx) | (self.load_byte(idx+1) << 8)
+    }
+
+    fn load_word(&self, idx: usize) -> u32 {
+        self.load_half(idx) | (self.load_half(idx+2) << 16)
+    }
+
+    fn store_byte(&mut self, idx: usize, data: u32) {
+        let u32_idx = idx as u32;
+        let mut success = false;
+
+        for t in self.map.iter_mut() {
+            let (start, end, mem) = t;
+
+            if (u32_idx >= *start) && (u32_idx < *end) {
+                mem.store_byte((u32_idx - *start) as usize, data);
+                success = true;
+                break;
+            }
+        }
+
+        if !success {
+            panic!("No memory block at: 0x{:08x}", u32_idx);
+        }
+    }
+
+    // TODO: implement these properly (by delegating to the trait implentor)
+    fn store_half(&mut self, idx: usize, data: u32) {
+        self.store_byte(idx, data);
+        self.store_byte(idx+1, data >> 8);
+    }
+
+    fn store_word(&mut self, idx: usize, data: u32) {
+        self.store_half(idx, data);
+        self.store_half(idx+2, data >> 16);
+    }
 }
 
 
