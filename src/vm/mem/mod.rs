@@ -144,57 +144,46 @@ impl Mem for MemMap {
 }
 
 
-//#[test]
-//fn ram_test() {
-//    let mut ram = Ram::new();
-//
-//    ram.store_byte(1, 0x10);
-//    ram.store_byte(2, 0x11);
-//
-//    assert_eq!(ram.ram[1], 0x10);
-//    assert_eq!(ram.ram[2], 0x11);
-//
-//    assert_eq!(ram.load_byte(1), 0x10);
-//    assert_eq!(ram.load_byte(2), 0x11);
-//}
-//
-//#[test]
-//fn mem_map_size_test() {
-//    let mut mem_map = MemMap::new();
-//    assert_eq!(mem_map.size(), 0);
-//
-//    mem_map.add(Ram::new());
-//    assert_eq!(mem_map.size(), 8);
-//
-//    mem_map.add(Ram::new());
-//    assert_eq!(mem_map.size(), 16);
-//}
-//
-//#[test]
-//fn mem_map_store_read_test() {
-//    let mut mem_map = MemMap::new();
-//    mem_map.add(Ram::new());
-//    mem_map.add(Ram::new());
-//
-//    mem_map.store_byte(1, 0x10);
-//    mem_map.store_byte(1+8, 0x11);
-//
-//    assert_eq!(mem_map.load_byte(1), 0x10);
-//    assert_eq!(mem_map.load_byte(1+8), 0x11);
-//}
-//
-//#[test]
-//fn mem_map_double_store_read_test() {
-//    let mut mem_map_one = MemMap::new();
-//    mem_map_one.add(Ram::new());
-//
-//    let mut mem_map = MemMap::new();
-//    mem_map.add(Ram::new());
-//    mem_map.add(mem_map_one);
-//
-//    mem_map.store_byte(1, 0x10);
-//    mem_map.store_byte(1+8, 0x11);
-//
-//    assert_eq!(mem_map.load_byte(1), 0x10);
-//    assert_eq!(mem_map.load_byte(1+8), 0x11);
-//}
+#[test]
+fn roundtrip_byte() {
+    let mut mem_map = MemMap::new();
+    mem_map.add(0x0, 0x1000, ram::Ram::new());
+
+    mem_map.store_byte(1, 0x10);
+    assert_eq!(mem_map.load_byte(1), 0x10);
+}
+
+#[test]
+fn roundtrip_half() {
+    let mut mem_map = MemMap::new();
+    mem_map.add(0x0, 0x1000, ram::Ram::new());
+
+    mem_map.store_half(1, 0x2010);
+    assert_eq!(mem_map.load_half(1), 0x2010);
+}
+
+#[test]
+fn roundtrip_word() {
+    let mut mem_map = MemMap::new();
+    mem_map.add(0x0, 0x1000, ram::Ram::new());
+
+    mem_map.store_word(1, 0x40302010);
+    assert_eq!(mem_map.load_word(1), 0x40302010);
+}
+
+#[test]
+fn dispatch_test() {
+    let mut mem1 = [0; 4096];
+    mem1[10] = 0x10;
+
+    let mut mem2 = [0; 4096];
+    mem2[20] = 0x20;
+
+    let mut mem_map = MemMap::new();
+    mem_map.add(0x0000, 0x1000, rom::Rom::new(mem1));
+    mem_map.add(0x1000, 0x2000, rom::Rom::new(mem2));
+
+    // Ensure its where we expect it to be
+    assert_eq!(mem_map.load_byte(10), 0x10);
+    assert_eq!(mem_map.load_byte(20 + 0x1000), 0x20);
+}

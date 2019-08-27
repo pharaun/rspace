@@ -41,3 +41,47 @@ impl Mem for Ram {
         self.store_half(idx+2, data >> 16);
     }
 }
+
+#[test]
+fn byte() {
+    let mut ram = Ram::new();
+
+    assert_eq!(ram.ram[1], 0x0);
+
+    ram.store_byte(1, 0x10);
+    assert_eq!(ram.load_byte(1), 0x10);
+
+    assert_eq!(ram.ram[1], 0x10);
+}
+
+#[test]
+fn half() {
+    let mut ram = Ram::new();
+
+    assert_eq!(ram.ram[1], 0x0);
+    assert_eq!(ram.ram[2], 0x0);
+
+    ram.store_half(1, 0x2010);
+    assert_eq!(ram.load_half(1), 0x2010);
+
+    assert_eq!(ram.ram[1], 0x10);
+    assert_eq!(ram.ram[2], 0x20);
+}
+
+#[test]
+fn word() {
+    let mut ram = Ram::new();
+
+    assert_eq!(ram.ram[1], 0x0);
+    assert_eq!(ram.ram[2], 0x0);
+    assert_eq!(ram.ram[3], 0x0);
+    assert_eq!(ram.ram[4], 0x0);
+
+    ram.store_word(1, 0x40302010);
+    assert_eq!(ram.load_word(1), 0x40302010);
+
+    assert_eq!(ram.ram[1], 0x10);
+    assert_eq!(ram.ram[2], 0x20);
+    assert_eq!(ram.ram[3], 0x30);
+    assert_eq!(ram.ram[4], 0x40);
+}
