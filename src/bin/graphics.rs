@@ -365,7 +365,7 @@ impl MainState {
 
 // Main stuff
 fn main() {
-    use glium::{glutin, Surface};
+    use glium::glutin;
 
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new();

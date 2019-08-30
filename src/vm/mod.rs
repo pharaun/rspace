@@ -1,5 +1,6 @@
 mod regfile;
 mod mem;
+mod mio;
 mod csr;
 mod cpu;
 pub mod opcode;
@@ -49,6 +50,9 @@ impl Emul32 {
         let mut mem_map = mem::MemMap::new();
         mem_map.add(0x0,    0x1000, mem::rom::Rom::new(rom));
         mem_map.add(0x1000, 0x2000, mem::ram::Ram::new());
+
+        // MIO region
+        mem_map.add(0x2000, 0x2010, mio::timer::Timer::new(0, 0, 0x2000));
 
         Emul32 {
             mem: mem_map,

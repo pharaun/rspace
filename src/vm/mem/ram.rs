@@ -28,7 +28,7 @@ impl Mem for Ram {
     }
 
     fn store_byte(&mut self, idx: usize, data: u32) {
-        self.ram[idx] = ((data & 0x00_00_00_FF) as u8);
+        self.ram[idx] = (data & 0x00_00_00_FF) as u8;
     }
 
     fn store_half(&mut self, idx: usize, data: u32) {
