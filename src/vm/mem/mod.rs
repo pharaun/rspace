@@ -37,6 +37,7 @@ pub trait Mem {
     fn load_half(&self, idx: usize) -> u32;
     fn load_word(&self, idx: usize) -> u32;
 
+    // TODO: consider maybe two memory traits (one for read one for write)?
     fn store_byte(&mut self, idx: usize, data: u32);
     fn store_half(&mut self, idx: usize, data: u32);
     fn store_word(&mut self, idx: usize, data: u32);

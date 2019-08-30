@@ -39,6 +39,7 @@ pub mod opcode;
 // For bits (such as counters) that would be readable/usable from the cpu for eg (simple cycle
 // counters)
 
+// TODO: consider renaming to system/machine?
 pub struct Emul32 {
     mem: mem::MemMap,
     csr: csr::Csr,
@@ -52,7 +53,15 @@ impl Emul32 {
         mem_map.add(0x1000, 0x2000, mem::ram::Ram::new());
 
         // MIO region
+        // TODO: may need to make mem_map take some other data structure so we can keep ownership
+        //       of the mio bits for ticking em (and handing this one a csr interrupt thing so it
+        //       can trigger an timer interrupt)
         mem_map.add(0x2000, 0x2010, mio::timer::Timer::new(0, 0, 0x2000));
+
+        // TODO: implement a csr_map construct (to handle similiar things to mem_map but for csr)
+        // CSR & MIO is the main 2 way for an external system to interact with the cpu, maaybe
+        // interrupts (but that's going to be our own PIC which probs will use CSR & MIO for
+        // working with external interrupts)
 
         Emul32 {
             mem: mem_map,
@@ -69,6 +78,7 @@ impl Emul32 {
         }
     }
 
+    // TODO: move the loop out of self.cpu so that we can tick it here
     pub fn run(&mut self) {
         self.cpu.run(
             &mut self.mem,

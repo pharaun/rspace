@@ -22,6 +22,10 @@ impl Timer {
 }
 
 
+// TODO: look into providing common utilities for '8/16/32 bit memory read/write' to various
+// integer fields so that this can be abstracted a bit and made nicer for new hardware to be wired
+// up to the mio
+//
 // Macro for handling the bounds check for read/write
 macro_rules! bound_read {
     ($self:ident, $bounds:expr, $idx:expr) => {
