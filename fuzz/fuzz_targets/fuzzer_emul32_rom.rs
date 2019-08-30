@@ -4,7 +4,6 @@ extern crate libfuzzer_sys;
 extern crate rspace;
 
 fuzz_target!(|data: &[u8]| {
-    // fuzzed code goes here
     let rom = {
         let mut rom: [u8; 4096] = [0; 4096];
         for i in 0..data.len() {
@@ -13,6 +12,7 @@ fuzz_target!(|data: &[u8]| {
         rom
     };
 
+    // fuzzed code goes here
     let mut vm = rspace::vm::Emul32::new_with_rom(rom);
     vm.run();
 });
