@@ -17,7 +17,7 @@ impl Rom {
 
 impl Mem for Rom {
     fn load_byte(&self, idx: usize) -> Result<u32, Trap> {
-        if idx > MEM_SIZE {
+        if idx >= MEM_SIZE {
             Err(Trap::IllegalMemoryAccess(idx as u32))
         } else {
             Ok(self.rom[idx] as u32)

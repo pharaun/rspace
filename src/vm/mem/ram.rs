@@ -17,7 +17,7 @@ impl Ram {
 
 impl Mem for Ram {
     fn load_byte(&self, idx: usize) -> Result<u32, Trap> {
-        if idx > MEM_SIZE {
+        if idx >= MEM_SIZE {
             Err(Trap::IllegalMemoryAccess(idx as u32))
         } else {
             Ok(self.ram[idx] as u32)
@@ -41,7 +41,7 @@ impl Mem for Ram {
     }
 
     fn store_byte(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
-        if idx > MEM_SIZE {
+        if idx >= MEM_SIZE {
             Err(Trap::IllegalMemoryAccess(idx as u32))
         } else {
             self.ram[idx] = (data & 0x00_00_00_FF) as u8;
