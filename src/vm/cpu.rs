@@ -242,8 +242,9 @@ impl Cpu {
                 // JALR
                 self.reg[rd] = (self.pc + 4) as u32;
                 // Need to zero the last value
-                self.pc = ((self.reg[rs1] + i_imm - 4) & 0xff_ff_ff_fe) as usize;
+                //self.pc = ((self.reg[rs1] + i_imm - 4) & 0xff_ff_ff_fe) as usize;
                 // Because after this inst complete the pc will +4 at the end)
+                self.pc = ((self.reg[rs1] + i_imm) & 0xff_ff_ff_fe) as usize;
             },
 
             // RV32 I
@@ -318,7 +319,7 @@ impl Cpu {
                         // EBREAK
                         // NOP instruction
                     },
-                    _ => panic!("FIXME"),
+                    _ => return Err(Trap::IllegalInstruction(inst)),
                 }
             },
 
@@ -413,42 +414,54 @@ impl Cpu {
                 // BEQ
                 if self.reg[rs1] == self.reg[rs2] {
                     self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
-                    self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                    //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                } else {
+                    self.pc += 4;
                 }
             },
             (        _, 0b001, opcode::BRANCH) => {
                 // BNE
                 if self.reg[rs1] != self.reg[rs2] {
                     self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
-                    self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                    //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                } else {
+                    self.pc += 4;
                 }
             },
             (        _, 0b100, opcode::BRANCH) => {
                 // BLT
                 if (self.reg[rs1] as i32) < (self.reg[rs2] as i32) {
                     self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
-                    self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                    //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                } else {
+                    self.pc += 4;
                 }
             },
             (        _, 0b101, opcode::BRANCH) => {
                 // BGE
                 if (self.reg[rs1] as i32) >= (self.reg[rs2] as i32) {
                     self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
-                    self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                    //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                } else {
+                    self.pc += 4;
                 }
             },
             (        _, 0b110, opcode::BRANCH) => {
                 // BLTU
                 if self.reg[rs1] < self.reg[rs2] {
                     self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
-                    self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                    //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                } else {
+                    self.pc += 4;
                 }
             },
             (        _, 0b111, opcode::BRANCH) => {
                 // BGEU
                 if self.reg[rs1] >= self.reg[rs2] {
                     self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
-                    self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                    //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                } else {
+                    self.pc += 4;
                 }
             },
 
@@ -468,7 +481,7 @@ impl Cpu {
                 self.reg[rd] = (self.pc + 4) as u32;
 
                 self.pc = (sign_extend(inst, uj_imm).wrapping_add(self.pc as u32)) as usize;
-                self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
+                //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
             },
 
             // TODO: handle instruction decoding failure
@@ -493,7 +506,15 @@ impl Cpu {
         }
 
         println!("FINE PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", self.pc, func7, func3, opcode);
-        self.pc += 4;
+
+        // TODO: this is a hack to handle Branch + JAL instruction, the branch will INC the PC if
+        // they don't branch
+        match opcode {
+            opcode::JAL     => (),
+            opcode::JALR    => (),
+            opcode::BRANCH  => (),
+            _               => self.pc += 4,
+        }
 
         // Everything's fine in this step
         Ok(())

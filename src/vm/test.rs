@@ -534,6 +534,32 @@ mod op_tests {
             assert_eq!(vm.cpu.reg[4], 0x1);
         }
 
+        #[test]
+        fn jal_jump_to_zero_inst() {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    "jal x0 0"
+                )
+            );
+
+            // This will infinite loop if used with run()
+            vm.step().unwrap();
+        }
+
+        #[test]
+        fn jalr_jump_to_zero_inst() {
+            // load the rom
+            let mut vm = Emul32::new_with_rom(
+                generate_rom(
+                    "jalr x0 x0 0x0"
+                )
+            );
+
+            // This will infinite loop if used with run()
+            vm.step().unwrap();
+        }
+
         fn TEST_LUI(_test: u8, res: u32, num: u32, shift: u32) {
             // load the rom
             let mut vm = Emul32::new_with_rom(
