@@ -39,6 +39,16 @@ pub mod opcode;
 // For bits (such as counters) that would be readable/usable from the cpu for eg (simple cycle
 // counters)
 
+// Support for Traps and Interrupts
+// TODO: improve this, but for now this will do
+#[derive(Debug, PartialEq)]
+pub enum Trap {
+    IllegalInstruction(u32),
+    IllegalMemoryAccess(u32),
+    InterruptTimer,
+}
+
+
 // TODO: consider renaming to system/machine?
 pub struct Emul32 {
     mem: mem::MemMap,
@@ -78,12 +88,21 @@ impl Emul32 {
         }
     }
 
-    // TODO: move the loop out of self.cpu so that we can tick it here
     pub fn run(&mut self) {
-        self.cpu.run(
+        loop {
+            match self.step() {
+                Ok(_)  => (),
+                Err(_) => break,
+            }
+        }
+    }
+
+    // TODO: for now just return an option
+    pub fn step(&mut self) -> Result<(), Trap> {
+        self.cpu.step(
             &mut self.mem,
             &mut self.csr,
-        );
+        )
     }
 }
 

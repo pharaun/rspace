@@ -1,6 +1,8 @@
 pub mod ram;
 pub mod rom;
 
+use crate::vm::Trap;
+
 // Memory access stuff
 // TODO: compile time size, instead of hardcoded
 //
@@ -33,14 +35,14 @@ pub mod rom;
 // for xyz) (see sector 3.5 - PMA - physical memory attributes)
 // - 3.5.1 Main Memory versus I/O versus Empty Regions
 pub trait Mem {
-    fn load_byte(&self, idx: usize) -> u32;
-    fn load_half(&self, idx: usize) -> u32;
-    fn load_word(&self, idx: usize) -> u32;
+    fn load_byte(&self, idx: usize) -> Result<u32, Trap>;
+    fn load_half(&self, idx: usize) -> Result<u32, Trap>;
+    fn load_word(&self, idx: usize) -> Result<u32, Trap>;
 
     // TODO: consider maybe two memory traits (one for read one for write)?
-    fn store_byte(&mut self, idx: usize, data: u32);
-    fn store_half(&mut self, idx: usize, data: u32);
-    fn store_word(&mut self, idx: usize, data: u32);
+    fn store_byte(&mut self, idx: usize, data: u32) -> Result<(), Trap>;
+    fn store_half(&mut self, idx: usize, data: u32) -> Result<(), Trap>;
+    fn store_word(&mut self, idx: usize, data: u32) -> Result<(), Trap>;
 }
 
 
@@ -67,7 +69,7 @@ impl MemMap {
     // TODO: for now impl a instruction fetch
     // TODO: make this raise an error or cause the cpu to enter a trap state on unaligned access
     pub fn fetch_instruction(&self, idx: usize) -> u32 {
-        self.load_word(idx)
+        self.load_word(idx).unwrap()
     }
 }
 
@@ -76,21 +78,24 @@ impl MemMap {
 macro_rules! dispatch_to {
     ($self:ident, $func:ident, $idx:expr) => {
         {
-            let mut ret = Err(());
+            // TODO: outside bounds of memory map
+            let mut ret = Err(Trap::IllegalMemoryAccess($idx));
 
             for t in $self.map.iter() {
                 let (start, end, mem) = t;
 
                 if ($idx >= *start) && ($idx < *end) {
-                    ret = Ok(mem.$func(($idx - *start) as usize));
+                    ret = match mem.$func(($idx - *start) as usize) {
+                        Ok(x)   => Ok(x),
+                        Err(_)  => ret,
+                    };
+
                     break;
                 }
             }
 
-            match ret {
-                Err(_) => panic!("No memory block at: 0x{:08x}", $idx),
-                Ok(x)  => x,
-            }
+            // panic!("No memory block at: 0x{:08x}", $idx);
+            ret
         }
     }
 }
@@ -98,20 +103,26 @@ macro_rules! dispatch_to {
 macro_rules! mut_dispatch_to {
     ($self:ident, $func:ident, $idx:expr, $data:expr) => {
         {
+            // TODO: outside bounds of memory map
             let mut success = false;
 
             for t in $self.map.iter_mut() {
                 let (start, end, mem) = t;
 
                 if ($idx >= *start) && ($idx < *end) {
-                    mem.$func(($idx - *start) as usize, $data);
-                    success = true;
+                    match mem.$func(($idx - *start) as usize, $data) {
+                        Ok(_)   => success = true,
+                        Err(_)  => (),
+                    };
                     break;
                 }
             }
 
-            if !success {
-                panic!("No memory block at: 0x{:08x}", $idx);
+            if success {
+                Ok(())
+            } else {
+                // panic!("No memory block at: 0x{:08x}", $idx);
+                Err(Trap::IllegalMemoryAccess($idx))
             }
         }
     }
@@ -119,28 +130,28 @@ macro_rules! mut_dispatch_to {
 
 
 impl Mem for MemMap {
-    fn load_byte(&self, idx: usize) -> u32 {
+    fn load_byte(&self, idx: usize) -> Result<u32, Trap> {
         dispatch_to!(self, load_byte, idx as u32)
     }
 
-    fn load_half(&self, idx: usize) -> u32 {
+    fn load_half(&self, idx: usize) -> Result<u32, Trap> {
         dispatch_to!(self, load_half, idx as u32)
     }
 
-    fn load_word(&self, idx: usize) -> u32 {
+    fn load_word(&self, idx: usize) -> Result<u32, Trap> {
         dispatch_to!(self, load_word, idx as u32)
     }
 
-    fn store_byte(&mut self, idx: usize, data: u32) {
-        mut_dispatch_to!(self, store_byte, idx as u32, data);
+    fn store_byte(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
+        mut_dispatch_to!(self, store_byte, idx as u32, data)
     }
 
-    fn store_half(&mut self, idx: usize, data: u32) {
-        mut_dispatch_to!(self, store_half, idx as u32, data);
+    fn store_half(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
+        mut_dispatch_to!(self, store_half, idx as u32, data)
     }
 
-    fn store_word(&mut self, idx: usize, data: u32) {
-        mut_dispatch_to!(self, store_word, idx as u32, data);
+    fn store_word(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
+        mut_dispatch_to!(self, store_word, idx as u32, data)
     }
 }
 
@@ -150,8 +161,8 @@ fn roundtrip_byte() {
     let mut mem_map = MemMap::new();
     mem_map.add(0x0, 0x1000, ram::Ram::new());
 
-    mem_map.store_byte(1, 0x10);
-    assert_eq!(mem_map.load_byte(1), 0x10);
+    mem_map.store_byte(1, 0x10).unwrap();
+    assert_eq!(mem_map.load_byte(1).unwrap(), 0x10);
 }
 
 #[test]
@@ -159,8 +170,8 @@ fn roundtrip_half() {
     let mut mem_map = MemMap::new();
     mem_map.add(0x0, 0x1000, ram::Ram::new());
 
-    mem_map.store_half(1, 0x2010);
-    assert_eq!(mem_map.load_half(1), 0x2010);
+    mem_map.store_half(1, 0x2010).unwrap();
+    assert_eq!(mem_map.load_half(1).unwrap(), 0x2010);
 }
 
 #[test]
@@ -168,8 +179,8 @@ fn roundtrip_word() {
     let mut mem_map = MemMap::new();
     mem_map.add(0x0, 0x1000, ram::Ram::new());
 
-    mem_map.store_word(1, 0x40302010);
-    assert_eq!(mem_map.load_word(1), 0x40302010);
+    mem_map.store_word(1, 0x40302010).unwrap();
+    assert_eq!(mem_map.load_word(1).unwrap(), 0x40302010);
 }
 
 #[test]
@@ -185,6 +196,6 @@ fn dispatch_test() {
     mem_map.add(0x1000, 0x2000, rom::Rom::new(mem2));
 
     // Ensure its where we expect it to be
-    assert_eq!(mem_map.load_byte(10), 0x10);
-    assert_eq!(mem_map.load_byte(20 + 0x1000), 0x20);
+    assert_eq!(mem_map.load_byte(10).unwrap(), 0x10);
+    assert_eq!(mem_map.load_byte(20 + 0x1000).unwrap(), 0x20);
 }
