@@ -45,6 +45,7 @@ pub mod opcode;
 pub enum Trap {
     IllegalInstruction(u32),
     IllegalMemoryAccess(u32),
+    UnalignedInstructionAccess(u32),
     InterruptTimer,
 }
 

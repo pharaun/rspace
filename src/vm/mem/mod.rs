@@ -66,10 +66,25 @@ impl MemMap {
         );
     }
 
-    // TODO: for now impl a instruction fetch
-    // TODO: make this raise an error or cause the cpu to enter a trap state on unaligned access
-    pub fn fetch_instruction(&self, idx: usize) -> u32 {
-        self.load_word(idx).unwrap()
+    pub fn fetch_instruction(&self, idx: usize) -> Result<u32, Trap> {
+        // If inst is read from non u32 aligned address, error out (ISA specifies this)
+        if idx % 4 != 0 {
+            Err(Trap::UnalignedInstructionAccess(idx as u32))
+        } else {
+            match self.load_word(idx) {
+                Ok(x)   => {
+                    // If inst is all 0 or all 1's error out (illegal instruction)
+                    if x == 0x0 {
+                        Err(Trap::IllegalInstruction(x))
+                    } else if x == 0xFF_FF_FF_FF {
+                        Err(Trap::IllegalInstruction(x))
+                    } else {
+                        Ok(x)
+                    }
+                },
+                Err(x)  => Err(x),
+            }
+        }
     }
 }
 

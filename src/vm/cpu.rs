@@ -22,9 +22,10 @@ impl Cpu {
     }
 
     pub fn step(&mut self, memory: &mut mem::MemMap, csrfile: &mut csr::Csr) -> Result<(), Trap> {
-        // TODO: if inst is read from a non u32 aligned address, error out (ISA specifies this)
-        // TODO: instruction that is all zero or all ones is an illegal instruction (trap)
-        let inst = memory.fetch_instruction(self.pc);
+        let inst = match memory.fetch_instruction(self.pc) {
+            Err(x)  => return Err(x),
+            Ok(x)   => x,
+        };
 
         // Decode opcode
         let opcode  = select_and_shift(inst, 6, 0);
