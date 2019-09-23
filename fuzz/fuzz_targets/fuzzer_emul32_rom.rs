@@ -16,7 +16,7 @@ fuzz_target!(|data: &[u8]| {
     let mut vm = rspace::vm::Emul32::new_with_rom(rom);
 
     // Can't infinite run, so do a hundred (?) steps then call it quits
-    for _ in 0..100 {
+    for _ in 0..200 {
         vm.step();
     }
 });
