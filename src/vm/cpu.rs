@@ -244,7 +244,7 @@ impl Cpu {
                 // Need to zero the last value
                 //self.pc = ((self.reg[rs1] + i_imm - 4) & 0xff_ff_ff_fe) as usize;
                 // Because after this inst complete the pc will +4 at the end)
-                self.pc = ((self.reg[rs1] + i_imm) & 0xff_ff_ff_fe) as usize;
+                self.pc = ((self.reg[rs1].wrapping_add(i_imm)) & 0xff_ff_ff_fe) as usize;
             },
 
             // RV32 I
