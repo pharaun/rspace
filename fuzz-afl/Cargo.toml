@@ -1,6 +1,5 @@
-
 [package]
-name = "rspace-fuzz"
+name = "rspace-fuzz-afl"
 version = "0.0.1"
 authors = ["Automatically generated"]
 publish = false
@@ -8,16 +7,21 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
+[dependencies]
+# AFL fuzzing
+afl = "0.4.4"
+
 [dependencies.rspace]
 path = ".."
-
-[dependencies.libfuzzer-sys]
-git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 
 # Prevent this from interfering with workspaces
 [workspace]
 members = ["."]
 
 [[bin]]
-name = "fuzzer_emul32_rom"
-path = "fuzz_targets/fuzzer_emul32_rom.rs"
+name = "afl-fuzz-emul32-rom"
+path = "fuzz_targets/afl-fuzz-emul32-rom.rs"
+
+[[bin]]
+name = "crash"
+path = "fuzz_targets/crash.rs"
