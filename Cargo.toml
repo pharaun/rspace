@@ -4,7 +4,11 @@ version = "0.1.0"
 authors = ["Anja Berens <pharaun666@gmail.com>"]
 edition = "2018"
 
-build = "build.rs" # phf_codegen
+# phf_codegen
+build = "build.rs"
+
+[dev-dependencies]
+criterion = "0.3"
 
 [build-dependencies]
 phf_codegen = "0.7.21"
@@ -18,3 +22,20 @@ byteorder = "1.2.1"
 
 # phf runtime library:
 phf = "0.7.21"
+
+[lib]
+bench = false
+
+[[bin]]
+name = "assembler"
+path = "src/bin/assembler.rs"
+bench = false
+
+[[bin]]
+name = "emulator"
+path = "src/bin/emulator.rs"
+bench = false
+
+[[bench]]
+name = "benchmark_emul32_rom"
+harness = false
