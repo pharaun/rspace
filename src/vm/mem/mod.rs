@@ -35,14 +35,14 @@ use crate::vm::Trap;
 // for xyz) (see sector 3.5 - PMA - physical memory attributes)
 // - 3.5.1 Main Memory versus I/O versus Empty Regions
 pub trait Mem {
-    fn load_byte(&self, idx: usize) -> Result<u32, Trap>;
-    fn load_half(&self, idx: usize) -> Result<u32, Trap>;
-    fn load_word(&self, idx: usize) -> Result<u32, Trap>;
+    fn load_byte(&self, idx: u32) -> Result<u32, Trap>;
+    fn load_half(&self, idx: u32) -> Result<u32, Trap>;
+    fn load_word(&self, idx: u32) -> Result<u32, Trap>;
 
     // TODO: consider maybe two memory traits (one for read one for write)?
-    fn store_byte(&mut self, idx: usize, data: u32) -> Result<(), Trap>;
-    fn store_half(&mut self, idx: usize, data: u32) -> Result<(), Trap>;
-    fn store_word(&mut self, idx: usize, data: u32) -> Result<(), Trap>;
+    fn store_byte(&mut self, idx: u32, data: u32) -> Result<(), Trap>;
+    fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap>;
+    fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap>;
 }
 
 
@@ -66,24 +66,21 @@ impl MemMap {
         );
     }
 
-    pub fn fetch_instruction(&self, idx: usize) -> Result<u32, Trap> {
+    pub fn fetch_instruction(&self, idx: u32) -> Result<u32, Trap> {
         // If inst is read from non u32 aligned address, error out (ISA specifies this)
         if idx % 4 != 0 {
-            Err(Trap::UnalignedInstructionAccess(idx as u32))
+            Err(Trap::UnalignedInstructionAccess(idx))
         } else {
-            match self.load_word(idx) {
-                Ok(x)   => {
-                    // If inst is all 0 or all 1's error out (illegal instruction)
-                    if x == 0x0 {
-                        Err(Trap::IllegalInstruction(x))
-                    } else if x == 0xFF_FF_FF_FF {
-                        Err(Trap::IllegalInstruction(x))
-                    } else {
-                        Ok(x)
-                    }
-                },
-                Err(x)  => Err(x),
-            }
+            self.load_word(idx).and_then(|x|
+                // If inst is all 0 or all 1's error out (illegal instruction)
+                if x == 0x0 {
+                    Err(Trap::IllegalInstruction(x))
+                } else if x == 0xFF_FF_FF_FF {
+                    Err(Trap::IllegalInstruction(x))
+                } else {
+                    Ok(x)
+                }
+            )
         }
     }
 }
@@ -93,24 +90,19 @@ impl MemMap {
 macro_rules! dispatch_to {
     ($self:ident, $func:ident, $idx:expr) => {
         {
-            // TODO: outside bounds of memory map
-            let mut ret = Err(Trap::IllegalMemoryAccess($idx));
-
             for t in $self.map.iter() {
                 let (start, end, mem) = t;
 
                 if ($idx >= *start) && ($idx < *end) {
-                    ret = match mem.$func(($idx - *start) as usize) {
-                        Ok(x)   => Ok(x),
-                        Err(_)  => ret,
-                    };
-
-                    break;
+                    return mem.$func($idx - *start).or(
+                        Err(Trap::IllegalMemoryAccess($idx))
+                    );
                 }
             }
 
+            // TODO: outside bounds of memory map
             // panic!("No memory block at: 0x{:08x}", $idx);
-            ret
+            Err(Trap::IllegalMemoryAccess($idx))
         }
     }
 }
@@ -118,55 +110,47 @@ macro_rules! dispatch_to {
 macro_rules! mut_dispatch_to {
     ($self:ident, $func:ident, $idx:expr, $data:expr) => {
         {
-            // TODO: outside bounds of memory map
-            let mut success = false;
-
             for t in $self.map.iter_mut() {
                 let (start, end, mem) = t;
 
                 if ($idx >= *start) && ($idx < *end) {
-                    match mem.$func(($idx - *start) as usize, $data) {
-                        Ok(_)   => success = true,
-                        Err(_)  => (),
-                    };
-                    break;
+                    return mem.$func($idx - *start, $data).or(
+                        Err(Trap::IllegalMemoryAccess($idx))
+                    );
                 }
             }
 
-            if success {
-                Ok(())
-            } else {
-                // panic!("No memory block at: 0x{:08x}", $idx);
-                Err(Trap::IllegalMemoryAccess($idx))
-            }
+            // TODO: outside bounds of memory map
+            // panic!("No memory block at: 0x{:08x}", $idx);
+            Err(Trap::IllegalMemoryAccess($idx))
         }
     }
 }
 
 
 impl Mem for MemMap {
-    fn load_byte(&self, idx: usize) -> Result<u32, Trap> {
-        dispatch_to!(self, load_byte, idx as u32)
+    fn load_byte(&self, idx: u32) -> Result<u32, Trap> {
+        dispatch_to!(self, load_byte, idx)
     }
 
-    fn load_half(&self, idx: usize) -> Result<u32, Trap> {
-        dispatch_to!(self, load_half, idx as u32)
+    fn load_half(&self, idx: u32) -> Result<u32, Trap> {
+        dispatch_to!(self, load_half, idx)
     }
 
-    fn load_word(&self, idx: usize) -> Result<u32, Trap> {
-        dispatch_to!(self, load_word, idx as u32)
+    fn load_word(&self, idx: u32) -> Result<u32, Trap> {
+        dispatch_to!(self, load_word, idx)
     }
 
-    fn store_byte(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
-        mut_dispatch_to!(self, store_byte, idx as u32, data)
+    fn store_byte(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        mut_dispatch_to!(self, store_byte, idx, data)
     }
 
-    fn store_half(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
-        mut_dispatch_to!(self, store_half, idx as u32, data)
+    fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        mut_dispatch_to!(self, store_half, idx, data)
     }
 
-    fn store_word(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
-        mut_dispatch_to!(self, store_word, idx as u32, data)
+    fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        mut_dispatch_to!(self, store_word, idx, data)
     }
 }
 

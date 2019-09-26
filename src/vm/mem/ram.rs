@@ -16,15 +16,15 @@ impl Ram {
 }
 
 impl Mem for Ram {
-    fn load_byte(&self, idx: usize) -> Result<u32, Trap> {
-        if idx >= MEM_SIZE {
-            Err(Trap::IllegalMemoryAccess(idx as u32))
+    fn load_byte(&self, idx: u32) -> Result<u32, Trap> {
+        if idx >= (MEM_SIZE as u32) {
+            Err(Trap::IllegalMemoryAccess(idx))
         } else {
-            Ok(self.ram[idx] as u32)
+            Ok(self.ram[idx as usize] as u32)
         }
     }
 
-    fn load_half(&self, idx: usize) -> Result<u32, Trap> {
+    fn load_half(&self, idx: u32) -> Result<u32, Trap> {
         match (self.load_byte(idx), self.load_byte(idx+1)) {
             (Ok(x), Ok(y))  => Ok(x | (y << 8)),
             (Err(x), _)     => Err(x),
@@ -32,7 +32,7 @@ impl Mem for Ram {
         }
     }
 
-    fn load_word(&self, idx: usize) -> Result<u32, Trap> {
+    fn load_word(&self, idx: u32) -> Result<u32, Trap> {
         match (self.load_half(idx), self.load_half(idx+2)) {
             (Ok(x), Ok(y))  => Ok(x | (y << 16)),
             (Err(x), _)     => Err(x),
@@ -40,16 +40,16 @@ impl Mem for Ram {
         }
     }
 
-    fn store_byte(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
-        if idx >= MEM_SIZE {
-            Err(Trap::IllegalMemoryAccess(idx as u32))
+    fn store_byte(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        if idx >= (MEM_SIZE as u32) {
+            Err(Trap::IllegalMemoryAccess(idx))
         } else {
-            self.ram[idx] = (data & 0x00_00_00_FF) as u8;
+            self.ram[idx as usize] = (data & 0x00_00_00_FF) as u8;
             Ok(())
         }
     }
 
-    fn store_half(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
+    fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
         match (self.store_byte(idx, data), self.store_byte(idx+1, data >> 8)) {
             (Ok(_), Ok(_))  => Ok(()),
             (Err(x), _)     => Err(x),
@@ -57,7 +57,7 @@ impl Mem for Ram {
         }
     }
 
-    fn store_word(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
+    fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
         match (self.store_half(idx, data), self.store_half(idx+2, data >> 16)) {
             (Ok(_), Ok(_))  => Ok(()),
             (Err(x), _)     => Err(x),

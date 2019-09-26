@@ -81,7 +81,7 @@ impl Emul32 {
         }
     }
 
-    pub fn new(reg: regfile::RegFile, mem: mem::MemMap, csr: csr::Csr, pc: usize) -> Emul32 {
+    pub fn new(reg: regfile::RegFile, mem: mem::MemMap, csr: csr::Csr, pc: u32) -> Emul32 {
         Emul32 {
             mem: mem,
             csr: csr,

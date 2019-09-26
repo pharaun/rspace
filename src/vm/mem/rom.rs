@@ -16,15 +16,15 @@ impl Rom {
 }
 
 impl Mem for Rom {
-    fn load_byte(&self, idx: usize) -> Result<u32, Trap> {
-        if idx >= MEM_SIZE {
-            Err(Trap::IllegalMemoryAccess(idx as u32))
+    fn load_byte(&self, idx: u32) -> Result<u32, Trap> {
+        if idx >= (MEM_SIZE as u32) {
+            Err(Trap::IllegalMemoryAccess(idx))
         } else {
-            Ok(self.rom[idx] as u32)
+            Ok(self.rom[idx as usize] as u32)
         }
     }
 
-    fn load_half(&self, idx: usize) -> Result<u32, Trap> {
+    fn load_half(&self, idx: u32) -> Result<u32, Trap> {
         match (self.load_byte(idx), self.load_byte(idx+1)) {
             (Ok(x), Ok(y))  => Ok(x | (y << 8)),
             (Err(x), _)     => Err(x),
@@ -32,7 +32,7 @@ impl Mem for Rom {
         }
     }
 
-    fn load_word(&self, idx: usize) -> Result<u32, Trap> {
+    fn load_word(&self, idx: u32) -> Result<u32, Trap> {
         match (self.load_half(idx), self.load_half(idx+2)) {
             (Ok(x), Ok(y))  => Ok(x | (y << 16)),
             (Err(x), _)     => Err(x),
@@ -40,17 +40,17 @@ impl Mem for Rom {
         }
     }
 
-    fn store_byte(&mut self, idx: usize, _data: u32) -> Result<(), Trap> {
+    fn store_byte(&mut self, idx: u32, _data: u32) -> Result<(), Trap> {
         //panic!("Tried to write 0x{:02x} to 0x{:08x}", data, idx);
-        Err(Trap::IllegalMemoryAccess(idx as u32))
+        Err(Trap::IllegalMemoryAccess(idx))
     }
-    fn store_half(&mut self, idx: usize, _data: u32) -> Result<(), Trap> {
+    fn store_half(&mut self, idx: u32, _data: u32) -> Result<(), Trap> {
         //panic!("Tried to write 0x{:02x} to 0x{:08x}", data, idx);
-        Err(Trap::IllegalMemoryAccess(idx as u32))
+        Err(Trap::IllegalMemoryAccess(idx))
     }
-    fn store_word(&mut self, idx: usize, _data: u32) -> Result<(), Trap> {
+    fn store_word(&mut self, idx: u32, _data: u32) -> Result<(), Trap> {
         //panic!("Tried to write 0x{:02x} to 0x{:08x}", data, idx);
-        Err(Trap::IllegalMemoryAccess(idx as u32))
+        Err(Trap::IllegalMemoryAccess(idx))
     }
 }
 
@@ -63,7 +63,7 @@ fn load_byte() {
     mem[3] = 0x30;
     mem[4] = 0x40;
 
-    let mut rom = Rom::new(mem);
+    let rom = Rom::new(mem);
 
     assert_eq!(rom.load_byte(1).unwrap(), 0x10);
 }
@@ -76,7 +76,7 @@ fn load_half() {
     mem[3] = 0x30;
     mem[4] = 0x40;
 
-    let mut rom = Rom::new(mem);
+    let rom = Rom::new(mem);
 
     assert_eq!(rom.load_half(1).unwrap(), 0x2010);
 }
@@ -89,7 +89,7 @@ fn load_word() {
     mem[3] = 0x30;
     mem[4] = 0x40;
 
-    let mut rom = Rom::new(mem);
+    let rom = Rom::new(mem);
 
     assert_eq!(rom.load_word(1).unwrap(), 0x40302010);
 }

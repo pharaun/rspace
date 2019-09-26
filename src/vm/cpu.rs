@@ -10,11 +10,11 @@ use crate::vm::Trap;
 pub struct Cpu {
     // TODO: make private when tests are broken up better
     pub reg: regfile::RegFile,
-    pc: usize
+    pc: u32
 }
 
 impl Cpu {
-    pub fn new(reg: regfile::RegFile, pc: usize) -> Cpu {
+    pub fn new(reg: regfile::RegFile, pc: u32) -> Cpu {
         Cpu {
             reg: reg,
             pc: pc
@@ -22,10 +22,7 @@ impl Cpu {
     }
 
     pub fn step(&mut self, memory: &mut mem::MemMap, csrfile: &mut csr::Csr) -> Result<(), Trap> {
-        let inst = match memory.fetch_instruction(self.pc) {
-            Err(x)  => return Err(x),
-            Ok(x)   => x,
-        };
+        let inst = memory.fetch_instruction(self.pc)?;
 
         // Decode opcode
         let opcode  = select_and_shift(inst, 6, 0);
@@ -46,20 +43,21 @@ impl Cpu {
         // IMM types - Probably can be put in the asm steps
         let shamt   = select_and_shift(inst, 24, 20);
         // TODO: handle sign extend and so on as needed
-        let i_imm   = select_and_shift(inst, 31, 20);
+        let i_imm   = select_and_shift(inst, 31, 20); // Some inst needs a non-sign extend?
         let s_imm   = (select_and_shift(inst, 31, 25) << 5)
                     | select_and_shift(inst, 11, 7);
         let sb_imm  = (select_and_shift(inst, 31, 31) << 12)
                     | (select_and_shift(inst, 7, 7) << 11)
                     | (select_and_shift(inst, 30, 25) << 5)
                     | (select_and_shift(inst, 11, 8) << 1);
-        let u_imm   = select_and_shift(inst, 31, 12) << 12;
+        let u_imm   = select_and_shift(inst, 31, 12) << 12; // LUI doesn't sign extend?
         let uj_imm  = (select_and_shift(inst, 31, 31) << 20)
                     | (select_and_shift(inst, 19, 12) << 12)
                     | (select_and_shift(inst, 20, 20) << 11)
                     | (select_and_shift(inst, 30, 21) << 1);
 
         // CSR related
+        // TODO: do we need to sign extend the csr_imm?
         let csr     = select_and_shift(inst, 31, 20) as usize; // functionally same as i_imm
         let csr_imm = select_and_shift(inst, 24, 20); // functionally same as rs2
 
@@ -240,58 +238,47 @@ impl Cpu {
             // RV32 I
             (        _, 0b000, opcode::JALR) => {
                 // JALR
-                self.reg[rd] = (self.pc + 4) as u32;
+                self.reg[rd] = self.pc + 4;
                 // Need to zero the last value
-                //self.pc = ((self.reg[rs1] + i_imm - 4) & 0xff_ff_ff_fe) as usize;
+                //self.pc = (self.reg[rs1] + i_imm - 4) & 0xff_ff_ff_fe;
                 // Because after this inst complete the pc will +4 at the end)
-                self.pc = ((self.reg[rs1].wrapping_add(i_imm)) & 0xff_ff_ff_fe) as usize;
+                self.pc = (self.reg[rs1].wrapping_add(i_imm)) & 0xff_ff_ff_fe;
             },
 
             // RV32 I
             (        _, 0b000, opcode::LOAD) => {
                 // LB
-                match memory.load_byte(
-                    (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
-                ) {
-                    Ok(x)   => self.reg[rd] = sign_extend_8_to_32(x),
-                    Err(x)  => return Err(x),
-                }
+                self.reg[rd] = sign_extend_8_to_32(
+                    memory.load_byte(
+                        self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))
+                    )?
+                );
             },
             (        _, 0b001, opcode::LOAD) => {
                 // LH
-                match memory.load_half(
-                    (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
-                ) {
-                    Ok(x)   => self.reg[rd] = sign_extend_16_to_32(x),
-                    Err(x)  => return Err(x),
-                }
+                self.reg[rd] = sign_extend_16_to_32(
+                    memory.load_half(
+                        self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))
+                    )?
+                );
             },
             (        _, 0b010, opcode::LOAD) => {
                 // LW
-                match memory.load_word(
-                    (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
-                ) {
-                    Ok(x)   => self.reg[rd] = x,
-                    Err(x)  => return Err(x),
-                }
+                self.reg[rd] = memory.load_word(
+                    self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))
+                )?;
             },
             (        _, 0b100, opcode::LOAD) => {
                 // LBU
-                match memory.load_byte(
-                    (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
-                ) {
-                    Ok(x)   => self.reg[rd] = x,
-                    Err(x)  => return Err(x),
-                }
+                self.reg[rd] = memory.load_byte(
+                    self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))
+                )?;
             },
             (        _, 0b101, opcode::LOAD) => {
                 // LHU
-                match memory.load_half(
-                    (self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))) as usize
-                ) {
-                    Ok(x)   => self.reg[rd] = x,
-                    Err(x)  => return Err(x),
-                }
+                self.reg[rd] = memory.load_half(
+                    self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))
+                )?;
             },
 
             // RV32 I
@@ -380,40 +367,31 @@ impl Cpu {
             // RV32 I
             (        _, 0b000, opcode::STORE) => {
                 // SB
-                match memory.store_byte(
-                    (self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize,
+                memory.store_byte(
+                    self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)),
                     self.reg[rs2],
-                ) {
-                    Ok(_)   => (),
-                    Err(x)  => return Err(x),
-                }
+                )?;
             },
             (        _, 0b001, opcode::STORE) => {
                 // SH
-                match memory.store_half(
-                    (self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize,
+                memory.store_half(
+                    self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)),
                     self.reg[rs2],
-                ) {
-                    Ok(_)   => (),
-                    Err(x)  => return Err(x),
-                }
+                )?;
             },
             (        _, 0b010, opcode::STORE) => {
                 // SW
-                match memory.store_word(
-                    (self.reg[rs1].wrapping_add(sign_extend(inst, s_imm))) as usize,
+                memory.store_word(
+                    self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)),
                     self.reg[rs2],
-                ) {
-                    Ok(_)   => (),
-                    Err(x)  => return Err(x),
-                }
+                )?;
             },
 
             // RV32 I
             (        _, 0b000, opcode::BRANCH) => {
                 // BEQ
                 if self.reg[rs1] == self.reg[rs2] {
-                    self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
+                    self.pc = sign_extend(inst, sb_imm).wrapping_add(self.pc);
                     //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                 } else {
                     self.pc += 4;
@@ -422,7 +400,7 @@ impl Cpu {
             (        _, 0b001, opcode::BRANCH) => {
                 // BNE
                 if self.reg[rs1] != self.reg[rs2] {
-                    self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
+                    self.pc = sign_extend(inst, sb_imm).wrapping_add(self.pc);
                     //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                 } else {
                     self.pc += 4;
@@ -431,7 +409,7 @@ impl Cpu {
             (        _, 0b100, opcode::BRANCH) => {
                 // BLT
                 if (self.reg[rs1] as i32) < (self.reg[rs2] as i32) {
-                    self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
+                    self.pc = sign_extend(inst, sb_imm).wrapping_add(self.pc);
                     //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                 } else {
                     self.pc += 4;
@@ -440,7 +418,7 @@ impl Cpu {
             (        _, 0b101, opcode::BRANCH) => {
                 // BGE
                 if (self.reg[rs1] as i32) >= (self.reg[rs2] as i32) {
-                    self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
+                    self.pc = sign_extend(inst, sb_imm).wrapping_add(self.pc);
                     //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                 } else {
                     self.pc += 4;
@@ -449,7 +427,7 @@ impl Cpu {
             (        _, 0b110, opcode::BRANCH) => {
                 // BLTU
                 if self.reg[rs1] < self.reg[rs2] {
-                    self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
+                    self.pc = sign_extend(inst, sb_imm).wrapping_add(self.pc);
                     //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                 } else {
                     self.pc += 4;
@@ -458,7 +436,7 @@ impl Cpu {
             (        _, 0b111, opcode::BRANCH) => {
                 // BGEU
                 if self.reg[rs1] >= self.reg[rs2] {
-                    self.pc = (sign_extend(inst, sb_imm).wrapping_add(self.pc as u32)) as usize;
+                    self.pc = sign_extend(inst, sb_imm).wrapping_add(self.pc);
                     //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
                 } else {
                     self.pc += 4;
@@ -473,14 +451,14 @@ impl Cpu {
             (        _,     _, opcode::AUIPC) => {
                 // AUIPC
                 // TODO: TEST - don't really have a way to test yet
-                //self.reg[rd] = u_imm.wrapping_add(self.pc as u32);
+                //self.reg[rd] = u_imm.wrapping_add(self.pc);
                 panic!("Auipc isn't really supported by the assembler yet");
             },
             (        _,     _, opcode::JAL) => {
                 // JAL
-                self.reg[rd] = (self.pc + 4) as u32;
+                self.reg[rd] = self.pc + 4;
 
-                self.pc = (sign_extend(inst, uj_imm).wrapping_add(self.pc as u32)) as usize;
+                self.pc = sign_extend(inst, uj_imm).wrapping_add(self.pc);
                 //self.pc = self.pc - 4; // Because after this inst complete the pc will +4 at the end)
             },
 
@@ -509,6 +487,8 @@ impl Cpu {
 
         // TODO: this is a hack to handle Branch + JAL instruction, the branch will INC the PC if
         // they don't branch
+        // TODO: need to verify if we want the self.pc to wrap around to 0 upon hitting upper
+        // bounds
         match opcode {
             opcode::JAL     => (),
             opcode::JALR    => (),

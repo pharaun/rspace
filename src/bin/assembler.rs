@@ -213,7 +213,5 @@ fn main() -> std::io::Result<()> {
     };
 
     let mut file = File::create("/tmp/test")?;
-    file.write_all(&binary_code[..]);
-
-    Ok(())
+    file.write_all(&binary_code[..])
 }

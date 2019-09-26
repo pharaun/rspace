@@ -9,11 +9,11 @@ use crate::vm::Trap;
 pub struct Timer {
     time: u64,
     timecmp: u64,
-    addr: usize,
+    addr: u32,
 }
 
 impl Timer {
-    pub fn new(time: u64, timecmp: u64, addr: usize) -> Timer {
+    pub fn new(time: u64, timecmp: u64, addr: u32) -> Timer {
         Timer {
             time: time,
             timecmp: timecmp,
@@ -40,7 +40,7 @@ macro_rules! bound_read {
                 Ok(((combo >> (addr_idx * 8)) as u32) & $mask)
             } else {
                 //panic!("Attempting to read at: 0x{:08x} timer base addr is: 0x{:08x}", $idx, $self.addr);
-                Err(Trap::IllegalMemoryAccess($idx as u32))
+                Err(Trap::IllegalMemoryAccess($idx))
             }
         }
     }
@@ -70,7 +70,7 @@ macro_rules! bound_write {
                 Ok(())
             } else {
                 //panic!("Attempting to write at: 0x{:08x} timer base addr is: 0x{:08x} data: 0x{:08x}", $idx, $self.addr, $data);
-                Err(Trap::IllegalMemoryAccess($idx as u32))
+                Err(Trap::IllegalMemoryAccess($idx))
             }
         }
     }
@@ -81,27 +81,27 @@ macro_rules! bound_write {
 // [4 byte] [4 byte] [4 byte] [4 byte]
 //  F E D C  B A 9 8  7 6 5 4  3 2 1 0
 impl Mem for Timer {
-    fn load_byte(&self, idx: usize) -> Result<u32, Trap> {
+    fn load_byte(&self, idx: u32) -> Result<u32, Trap> {
         bound_read!(self, 12, 0x00_00_00_FF, idx)
     }
 
-    fn load_half(&self, idx: usize) -> Result<u32, Trap> {
+    fn load_half(&self, idx: u32) -> Result<u32, Trap> {
         bound_read!(self, 12, 0x00_00_FF_FF, idx)
     }
 
-    fn load_word(&self, idx: usize) -> Result<u32, Trap> {
+    fn load_word(&self, idx: u32) -> Result<u32, Trap> {
         bound_read!(self, 12, 0xFF_FF_FF_FF, idx)
     }
 
-    fn store_byte(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
+    fn store_byte(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
         bound_write!(self, 16, 0x00_00_00_FF, idx, data)
     }
 
-    fn store_half(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
+    fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
         bound_write!(self, 14, 0x00_00_FF_FF, idx, data)
     }
 
-    fn store_word(&mut self, idx: usize, data: u32) -> Result<(), Trap> {
+    fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
         bound_write!(self, 12, 0xFF_FF_FF_FF, idx, data)
     }
 }
@@ -109,7 +109,7 @@ impl Mem for Timer {
 
 #[test]
 fn time_read_word() {
-    let mut timer = Timer::new(0x10_20_30_40_50_60_70_80, 0, 0x100);
+    let timer = Timer::new(0x10_20_30_40_50_60_70_80, 0, 0x100);
 
     assert_eq!(timer.load_word(0x100).unwrap(), 0x50_60_70_80);
     assert_eq!(timer.load_word(0x104).unwrap(), 0x10_20_30_40);
@@ -127,7 +127,7 @@ fn time_write_word() {
 
 #[test]
 fn timecmp_read_word() {
-    let mut timer = Timer::new(0, 0x10_20_30_40_50_60_70_80, 0x100);
+    let timer = Timer::new(0, 0x10_20_30_40_50_60_70_80, 0x100);
 
     assert_eq!(timer.load_word(0x108).unwrap(), 0x50_60_70_80);
     assert_eq!(timer.load_word(0x10C).unwrap(), 0x10_20_30_40);
@@ -146,7 +146,7 @@ fn timecmp_write_word() {
 #[test]
 #[should_panic]
 fn invalid_read_word() {
-    let mut timer = Timer::new(0, 0, 0x100);
+    let timer = Timer::new(0, 0, 0x100);
     timer.load_word(0x10D).unwrap();
 }
 
@@ -159,7 +159,7 @@ fn invalid_write_word() {
 
 #[test]
 fn time_read_half() {
-    let mut timer = Timer::new(0x10_20_30_40_50_60_70_80, 0, 0x100);
+    let timer = Timer::new(0x10_20_30_40_50_60_70_80, 0, 0x100);
 
     assert_eq!(timer.load_half(0x100).unwrap(), 0x70_80);
     assert_eq!(timer.load_half(0x102).unwrap(), 0x50_60);
@@ -182,7 +182,7 @@ fn time_write_half() {
 #[test]
 #[should_panic]
 fn invalid_read_half() {
-    let mut timer = Timer::new(0, 0, 0x100);
+    let timer = Timer::new(0, 0, 0x100);
     timer.load_half(0x10F).unwrap();
 }
 
@@ -195,7 +195,7 @@ fn invalid_write_half() {
 
 #[test]
 fn time_read_byte() {
-    let mut timer = Timer::new(0x10_20_30_40_50_60_70_80, 0, 0x100);
+    let timer = Timer::new(0x10_20_30_40_50_60_70_80, 0, 0x100);
 
     assert_eq!(timer.load_byte(0x100).unwrap(), 0x80);
     assert_eq!(timer.load_byte(0x101).unwrap(), 0x70);
@@ -226,7 +226,7 @@ fn time_write_byte() {
 #[test]
 #[should_panic]
 fn invalid_read_byte() {
-    let mut timer = Timer::new(0, 0, 0x100);
+    let timer = Timer::new(0, 0, 0x100);
     timer.load_byte(0x110).unwrap();
 }
 
