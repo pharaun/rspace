@@ -98,9 +98,12 @@ pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
         }
     }
 
-    // Debug label positioning
-    println!("{:?}", position);
-    println!("{:?}", symbol_table);
+    #[cfg(feature = "debug")]
+    {
+        // Debug label positioning
+        println!("{:?}", position);
+        println!("{:?}", symbol_table);
+    }
 
     // Convert instructions into AToken via looking up and encoding the labels
     let mut second_pass: Vec<AToken> = Vec::new();

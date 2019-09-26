@@ -464,7 +464,10 @@ impl Cpu {
 
             // TODO: handle instruction decoding failure
             (f7, f3, op) => {
-                println!("FIX  PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", self.pc, f7, f3, op);
+                #[cfg(feature = "debug")]
+                {
+                    println!("FIX  PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", self.pc, f7, f3, op);
+                }
 
                 //println!("ROM DUMP:");
                 //for i in 0..(binary_u8.len()/4) {
@@ -483,7 +486,10 @@ impl Cpu {
             },
         }
 
-        println!("FINE PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", self.pc, func7, func3, opcode);
+        #[cfg(feature = "debug")]
+        {
+            println!("FINE PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", self.pc, func7, func3, opcode);
+        }
 
         // TODO: this is a hack to handle Branch + JAL instruction, the branch will INC the PC if
         // they don't branch

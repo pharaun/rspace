@@ -7,6 +7,9 @@ edition = "2018"
 # phf_codegen
 build = "build.rs"
 
+[features]
+debug = []
+
 [dev-dependencies]
 criterion = "0.3"
 
