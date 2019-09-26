@@ -2,6 +2,10 @@ pub mod ram;
 pub mod rom;
 
 use crate::vm::Trap;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use crate::vm::mio::timer::Timer;
 
 // Memory access stuff
 // TODO: compile time size, instead of hardcoded
@@ -151,6 +155,34 @@ impl Mem for MemMap {
 
     fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
         mut_dispatch_to!(self, store_word, idx, data)
+    }
+}
+
+
+// TODO: disgusting, and we would need to implement it for all the things
+impl Mem for Rc<RefCell<Timer>> {
+    fn load_byte(&self, idx: u32) -> Result<u32, Trap> {
+        self.borrow().load_byte(idx)
+    }
+
+    fn load_half(&self, idx: u32) -> Result<u32, Trap> {
+        self.borrow().load_half(idx)
+    }
+
+    fn load_word(&self, idx: u32) -> Result<u32, Trap> {
+        self.borrow().load_word(idx)
+    }
+
+    fn store_byte(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        self.borrow_mut().store_byte(idx, data)
+    }
+
+    fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        self.borrow_mut().store_half(idx, data)
+    }
+
+    fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        self.borrow_mut().store_word(idx, data)
     }
 }
 

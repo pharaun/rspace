@@ -20,6 +20,17 @@ impl Timer {
             addr: addr,
         }
     }
+
+    pub fn step(&mut self) -> Result<(), Trap> {
+        // One tick
+        self.time += 1;
+
+        if self.time >= self.timecmp {
+            Err(Trap::InterruptTimer)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 
