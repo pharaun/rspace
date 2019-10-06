@@ -10,8 +10,16 @@ pub trait MemT {
     fn store_byte(&mut self, idx: u32, data: u32) -> Result<(), Trap>;
 }
 
+
+pub trait MemMio {
+    // TODO: shouldn't need the option because we shouldn't have invalid map id
+    fn get(&self, block_id: MemMapId) -> Option<&[u8]>;
+    fn get_mut(&mut self, block_id: MemMapId) -> Option<&mut [u8]>;
+}
+
+
 // Memory Map block Id (ie this block belongs to ram, rom, timer...)
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 struct MemMapId(u8);
 
 
@@ -57,6 +65,9 @@ impl MemMapT {
         }
     }
 
+    // TODO: do more in depth checks to make sure we don't
+    // - overlap
+    // - run outside bounds
     pub fn add(&mut self, start: u32, size: u32, offset: u32, attr: MemMapAttr) -> MemMapId {
         let id = MemMapId(self.next_map_id);
         self.next_map_id += 1;
@@ -64,7 +75,7 @@ impl MemMapT {
         self.map.push(
             MemMapBlock {
                 // TODO: is clone right here? or can we do it with refs?
-                id: id.clone(),
+                id: id,
                 start: start,
                 size: size,
                 offset: offset,
@@ -74,17 +85,27 @@ impl MemMapT {
 
         id
     }
+}
 
+impl MemMio for MemMapT {
+    fn get(&self, block_id: MemMapId) -> Option<&[u8]> {
+        for mb in self.map.iter() {
+            if mb.id == block_id {
+                return self.memory.get((mb.offset as usize)..((mb.offset + mb.size) as usize));
+            }
+        }
 
-    // TODO: memory block support?
-    // when you do an add you get an id for that block, and then you can do a get
-    // that id to get a slice of the block you defined in your add
-    pub fn get<I: SliceIndex<[u8]>>(&self, idx: I) -> Option<&I::Output> {
-        self.memory.get(idx)
+        None
     }
 
-    pub fn get_mut<I: SliceIndex<[u8]>>(&mut self, idx: I) -> Option<&mut I::Output> {
-        self.memory.get_mut(idx)
+    fn get_mut(&mut self, block_id: MemMapId) -> Option<&mut [u8]> {
+        for mb in self.map.iter() {
+            if mb.id == block_id {
+                return self.memory.get_mut((mb.offset as usize)..((mb.offset + mb.size) as usize));
+            }
+        }
+
+        None
     }
 }
 
@@ -133,40 +154,23 @@ fn roundtrip_byte() {
     assert_eq!(mem_map.load_byte(1).unwrap(), 0x10);
 }
 
-#[test]
-fn round_trip_element() {
-    let mut mem_map = MemMapT::new();
-    mem_map.add(0x0, 0x1000, 0, MemMapAttr::RW);
-
-    mem_map.store_byte(1, 0x10).unwrap();
-
-    assert_eq!(mem_map.get(1), Some(&0x10));
-
-    *(mem_map.get_mut(1).unwrap()) = 0x20 as u8;
-    assert_eq!(mem_map.get(1), Some(&0x20));
-
-    match mem_map.get_mut(1) {
-        None    => (),
-        Some(x) => *x = 0x30 as u8,
-    }
-    assert_eq!(mem_map.load_byte(1).unwrap(), 0x30);
-}
-
 // Dummy impl of a cpu and a timer
-fn cpu_step(mem_map: &mut MemMapT) {
-    *(mem_map.get_mut(1).unwrap()) = 0x20 as u8;
+fn cpu_step(mem_map: &mut impl MemT) {
+    mem_map.store_byte(1, 0x20).unwrap();
 }
 
-fn timer_step(mem_map: &mut MemMapT) {
-    if *(mem_map.get(1).unwrap()) == 0x20 {
-        *(mem_map.get_mut(1).unwrap()) = 0x30 as u8;
+fn timer_step(block_id: MemMapId, mem_map: &mut impl MemMio) {
+    let ck: u8 = mem_map.get(block_id).unwrap()[1];
+
+    if ck == 0x20 {
+        mem_map.get_mut(block_id).unwrap()[1] = 0x30 as u8;
     }
 }
 
 #[test]
 fn basic_step() {
     let mut mem_map = MemMapT::new();
-    mem_map.add(0x0, 0x1000, 0, MemMapAttr::RW);
+    let id = mem_map.add(0x0, 0x1000, 0, MemMapAttr::RW);
 
     mem_map.store_byte(1, 0x10).unwrap();
 
@@ -176,28 +180,7 @@ fn basic_step() {
     assert_eq!(mem_map.load_byte(1).unwrap(), 0x20);
 
     // Do a timer step
-    timer_step(&mut mem_map);
+    timer_step(id, &mut mem_map);
 
     assert_eq!(mem_map.load_byte(1).unwrap(), 0x30);
-}
-
-#[test]
-fn round_trip_slice() {
-    let mut mem_map = MemMapT::new();
-    mem_map.add(0x0, 0x1000, 0, MemMapAttr::RW);
-
-    mem_map.store_byte(1, 0x10).unwrap();
-    mem_map.store_byte(2, 0x20).unwrap();
-
-    assert_eq!(mem_map.get(1..3), Some(&[0x10, 0x20][..]));
-
-    {
-        let x = mem_map.get_mut(1..3).unwrap();
-
-        x[0] = 0x30 as u8;
-        x[1] = 0x40 as u8;
-    }
-
-    assert_eq!(mem_map.load_byte(1).unwrap(), 0x30);
-    assert_eq!(mem_map.load_byte(2).unwrap(), 0x40);
 }
