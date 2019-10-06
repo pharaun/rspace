@@ -1,5 +1,6 @@
 pub mod ram;
 pub mod rom;
+pub mod slice;
 
 use crate::vm::Trap;
 use std::cell::RefCell;
