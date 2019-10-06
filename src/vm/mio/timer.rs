@@ -2,6 +2,8 @@ use crate::vm::mem::MemIO;
 use crate::vm::mem::MemMapId;
 use crate::vm::Trap;
 
+use byteorder::{ByteOrder, LittleEndian};
+
 // TODO: Memory-mapped read-write register in memory
 // - mtime (64 bit register)
 // - mtimecmp (64 bit register)
@@ -56,15 +58,15 @@ fn read_byte(block: &[u8], offset: usize) -> u8 {
 }
 
 fn read_half(block: &[u8], offset: usize) -> u16 {
-    read_byte(block, offset) as u16 | (read_byte(block, offset + 1) as u16) << 8
+    LittleEndian::read_u16(&block[offset..=(offset+1)])
 }
 
 fn read_word(block: &[u8], offset: usize) -> u32 {
-    read_half(block, offset) as u32 | (read_byte(block, offset + 2) as u32) << 16
+    LittleEndian::read_u32(&block[offset..=(offset+3)])
 }
 
 fn read_dword(block: &[u8], offset: usize) -> u64 {
-    read_word(block, offset) as u64 | (read_word(block, offset + 4) as u64) << 32
+    LittleEndian::read_u64(&block[offset..=(offset+7)])
 }
 
 
@@ -73,16 +75,13 @@ fn write_byte(block: &mut [u8], offset: usize, data: u8) {
 }
 
 fn write_half(block: &mut [u8], offset: usize, data: u16) {
-    write_byte(block, offset, (data & 0xFF) as u8);
-    write_byte(block, offset + 1, ((data >> 8) & 0xFF) as u8);
+    LittleEndian::write_u16(&mut block[offset..=(offset+1)], data);
 }
 
 fn write_word(block: &mut [u8], offset: usize, data: u32) {
-    write_half(block, offset, (data & 0xFF_FF) as u16);
-    write_half(block, offset + 2, ((data >> 16) & 0xFF_FF) as u16);
+    LittleEndian::write_u32(&mut block[offset..=(offset+3)], data);
 }
 
 fn write_dword(block: &mut [u8], offset: usize, data: u64) {
-    write_word(block, offset, (data & 0xFF_FF_FF_FF) as u32);
-    write_word(block, offset + 4, ((data >> 32) & 0xFF_FF_FF_FF) as u32);
+    LittleEndian::write_u64(&mut block[offset..=(offset+7)], data);
 }
