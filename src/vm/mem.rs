@@ -165,10 +165,8 @@ impl Mem for MemMap {
     fn load_byte(&self, idx: u32) -> Result<u32, Trap> {
         for mb in self.map.iter() {
             if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
-                return match self.memory.get((mb.offset + (idx - mb.start)) as usize) {
-                    None    => Err(Trap::IllegalMemoryAccess(idx)),
-                    Some(x) => Ok(*x as u32),
-                };
+                // TODO: improve add to sane check the offset
+                return Ok(self.memory[(mb.offset + (idx - mb.start)) as usize] as u32);
             }
         }
 
@@ -177,7 +175,11 @@ impl Mem for MemMap {
         Err(Trap::IllegalMemoryAccess(idx))
     }
 
-    // TODO: turn this into a macro to handle these
+    // TODO: figure out how to handle cross boundaries in a good way,
+    // the main challenge is first byte can be in one block, and second byte
+    // can be in next block....
+    //
+    // Maybe have a fast-path for in-same block, otherwise fallback to slow path
     fn load_half(&self, idx: u32) -> Result<u32, Trap> {
         match (self.load_byte(idx), self.load_byte(idx+1)) {
             (Ok(x), Ok(y))  => Ok(x | (y << 8)),

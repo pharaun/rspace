@@ -16,28 +16,53 @@ fn criterion_benchmark(c: &mut Criterion) {
 
 
     // Benchmark memory read/writes
-    c.bench_function("mem-access-byte-rw", |b| b.iter(|| {
-        mem_map.store_byte(black_box(1), black_box(0x10)).unwrap();
-        mem_map.load_byte(black_box(1)).unwrap();
+    c.bench_function("mem-access-byte-read", |b| b.iter(|| {
+        for i in 0..10 {
+            mem_map.load_byte(black_box(i)).unwrap();
+        }
     }));
 
-    c.bench_function("mem-access-half-rw", |b| b.iter(|| {
-        mem_map.store_half(black_box(2), black_box(0x1020)).unwrap();
-        mem_map.load_half(black_box(2)).unwrap();
+    c.bench_function("mem-access-byte-write", |b| b.iter(|| {
+        for i in 0..10 {
+            mem_map.store_byte(black_box(i), black_box(0x10)).unwrap();
+        }
     }));
 
-    c.bench_function("mem-access-word-rw", |b| b.iter(|| {
-        mem_map.store_half(black_box(4), black_box(0x10203040)).unwrap();
-        mem_map.load_half(black_box(4)).unwrap();
+    c.bench_function("mem-access-half-read", |b| b.iter(|| {
+        for i in 0..10 {
+            mem_map.load_half(black_box(i)).unwrap();
+        }
+    }));
+
+    c.bench_function("mem-access-half-write", |b| b.iter(|| {
+        for i in 0..10 {
+            mem_map.store_half(black_box(i), black_box(0x1020)).unwrap();
+        }
+    }));
+
+    c.bench_function("mem-access-word-read", |b| b.iter(|| {
+        for i in 0..10 {
+            mem_map.load_word(black_box(i)).unwrap();
+        }
+    }));
+
+    c.bench_function("mem-access-word-write", |b| b.iter(|| {
+        for i in 0..10 {
+            mem_map.store_word(black_box(i), black_box(0x10203040)).unwrap();
+        }
     }));
 
     // Memory map block
     c.bench_function("mem-block-get", |b| b.iter(|| {
-        mem_map.get(black_box(id)).unwrap()[10];
+        for i in 0..10 {
+            mem_map.get(black_box(id)).unwrap()[i];
+        }
     }));
 
     c.bench_function("mem-block-get_mut", |b| b.iter(|| {
-        mem_map.get_mut(black_box(id)).unwrap()[10] = black_box(0x30 as u8);
+        for i in 0..10 {
+            mem_map.get_mut(black_box(id)).unwrap()[i] = black_box(0x30 as u8);
+        }
     }));
 }
 
