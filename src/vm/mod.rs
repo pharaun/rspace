@@ -71,6 +71,7 @@ impl Emul32 {
         mem_map.add(0x1000, 0x1000,  4096, mem::MemMapAttr::RW); // Ram
 
         // TODO: force-load rom-block with program
+        mem_map.copy_region(0x0, &rom);
 
         // MIO region
         let timer_tag = mem_map.add(0x2000, 0x10, 4096*2, mem::MemMapAttr::RW); // Timer

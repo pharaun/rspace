@@ -121,6 +121,20 @@ impl MemMap {
 
         id
     }
+
+    // TODO: improve this
+    pub fn copy_region(&mut self, idx: u32, data: &[u8]) {
+        // Find where in memory to start writing to
+        for mb in self.map.iter() {
+            if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
+                let mem_offset = (mb.offset + (idx - mb.start)) as usize;
+
+                for i in 0..data.len() {
+                    self.memory[mem_offset + i] = data[i];
+                }
+            }
+        }
+    }
 }
 
 

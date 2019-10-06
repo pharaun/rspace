@@ -28,25 +28,8 @@ impl Timer {
         let (mut time, timecmp) = {
             let block = mem_map.get(self.block_id).unwrap();
 
-            let mut time: u64 = 0x0;
-            time |= (block[0] << 0) as u64;
-            time |= (block[1] << 8) as u64;
-            time |= (block[2] << 16) as u64;
-            time |= (block[3] << 24) as u64;
-            time |= (block[4] << 32) as u64;
-            time |= (block[5] << 40) as u64;
-            time |= (block[6] << 48) as u64;
-            time |= (block[7] << 56) as u64;
-
-            let mut timecmp: u64 = 0x0;
-            timecmp |= (block[8] << 0) as u64;
-            timecmp |= (block[9] << 8) as u64;
-            timecmp |= (block[10] << 16) as u64;
-            timecmp |= (block[11] << 24) as u64;
-            timecmp |= (block[12] << 32) as u64;
-            timecmp |= (block[13] << 40) as u64;
-            timecmp |= (block[14] << 48) as u64;
-            timecmp |= (block[15] << 56) as u64;
+            let mut time: u64 = read_dword(block, 0);
+            let mut timecmp: u64 = read_dword(block, 8);
 
             (time, timecmp)
         };
@@ -57,15 +40,7 @@ impl Timer {
         // Write time out
         {
             let block = mem_map.get_mut(self.block_id).unwrap();
-
-            block[0] = ((time >> 0) & 0xFF) as u8;
-            block[1] = ((time >> 8) & 0xFF) as u8;
-            block[2] = ((time >> 16) & 0xFF) as u8;
-            block[3] = ((time >> 24) & 0xFF) as u8;
-            block[4] = ((time >> 32) & 0xFF) as u8;
-            block[5] = ((time >> 40) & 0xFF) as u8;
-            block[6] = ((time >> 48) & 0xFF) as u8;
-            block[7] = ((time >> 56) & 0xFF) as u8;
+            write_dword(block, 0, time);
         }
 
         if time >= timecmp {
@@ -74,4 +49,41 @@ impl Timer {
             Ok(())
         }
     }
+}
+
+
+fn read_byte(block: &[u8], offset: usize) -> u8 {
+    block[offset]
+}
+
+fn read_half(block: &[u8], offset: usize) -> u16 {
+    read_byte(block, offset) as u16 | (read_byte(block, offset + 1) as u16) << 8
+}
+
+fn read_word(block: &[u8], offset: usize) -> u32 {
+    read_half(block, offset) as u32 | (read_byte(block, offset + 2) as u32) << 16
+}
+
+fn read_dword(block: &[u8], offset: usize) -> u64 {
+    read_word(block, offset) as u64 | (read_word(block, offset + 4) as u64) << 32
+}
+
+
+fn write_byte(block: &mut [u8], offset: usize, data: u8) {
+    block[offset] = data;
+}
+
+fn write_half(block: &mut [u8], offset: usize, data: u16) {
+    write_byte(block, offset, (data & 0xFF) as u8);
+    write_byte(block, offset + 1, ((data >> 8) & 0xFF) as u8);
+}
+
+fn write_word(block: &mut [u8], offset: usize, data: u32) {
+    write_half(block, offset, (data & 0xFF_FF) as u16);
+    write_half(block, offset + 2, ((data >> 16) & 0xFF_FF) as u16);
+}
+
+fn write_dword(block: &mut [u8], offset: usize, data: u64) {
+    write_word(block, offset, (data & 0xFF_FF_FF_FF) as u32);
+    write_word(block, offset + 4, ((data >> 32) & 0xFF_FF_FF_FF) as u32);
 }
