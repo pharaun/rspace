@@ -1,4 +1,3 @@
-use crate::vm::mem::Mem;
 use crate::vm::mem::MemIO;
 use crate::vm::mem::MemMapId;
 use crate::vm::Trap;
@@ -28,8 +27,8 @@ impl Timer {
         let (mut time, timecmp) = {
             let block = mem_map.get(self.block_id).unwrap();
 
-            let mut time: u64 = read_dword(block, 0);
-            let mut timecmp: u64 = read_dword(block, 8);
+            let time: u64 = read_dword(block, 0);
+            let timecmp: u64 = read_dword(block, 8);
 
             (time, timecmp)
         };

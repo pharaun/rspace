@@ -1,7 +1,6 @@
 use twiddle::Twiddle;
 
 use crate::vm::regfile;
-use crate::vm::mem;
 use crate::vm::mem::Mem;
 use crate::vm::csr;
 use crate::vm::opcode;
@@ -21,8 +20,8 @@ impl Cpu {
         }
     }
 
-    pub fn step(&mut self, memory: &mut mem::MemMap, csrfile: &mut csr::Csr) -> Result<(), Trap> {
-        let inst = fetch_instruction(&memory, self.pc)?;
+    pub fn step(&mut self, memory: &mut impl Mem, csrfile: &mut csr::Csr) -> Result<(), Trap> {
+        let inst = fetch_instruction(&*memory, self.pc)?;
 
         // Decode opcode
         let opcode  = select_and_shift(inst, 6, 0);
@@ -508,7 +507,7 @@ impl Cpu {
 }
 
 
-fn fetch_instruction(memory: &mem::MemMap, idx: u32) -> Result<u32, Trap> {
+fn fetch_instruction(memory: &impl Mem, idx: u32) -> Result<u32, Trap> {
     // If inst is read from non u32 aligned address, error out (ISA specifies this)
     if idx % 4 != 0 {
         Err(Trap::UnalignedInstructionAccess(idx))

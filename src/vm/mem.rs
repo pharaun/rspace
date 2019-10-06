@@ -264,19 +264,6 @@ fn roundtrip_word() {
     assert_eq!(mem_map.load_word(1).unwrap(), 0x40302010);
 }
 
-// Dummy impl of a cpu and a timer
-fn cpu_step(mem_map: &mut impl Mem) {
-    mem_map.store_byte(1, 0x20).unwrap();
-}
-
-fn timer_step(block_id: MemMapId, mem_map: &mut impl MemIO) {
-    let ck: u8 = mem_map.get(block_id).unwrap()[1];
-
-    if ck == 0x20 {
-        mem_map.get_mut(block_id).unwrap()[1] = 0x30 as u8;
-    }
-}
-
 #[test]
 fn basic_step() {
     let mut mem_map = MemMap::new();
@@ -285,11 +272,21 @@ fn basic_step() {
     mem_map.store_byte(1, 0x10).unwrap();
 
     // Do a cpu step
+    fn cpu_step(mem_map: &mut impl Mem) {
+        mem_map.store_byte(1, 0x20).unwrap();
+    }
     cpu_step(&mut mem_map);
 
     assert_eq!(mem_map.load_byte(1).unwrap(), 0x20);
 
     // Do a timer step
+    fn timer_step(block_id: MemMapId, mem_map: &mut impl MemIO) {
+        let ck: u8 = mem_map.get(block_id).unwrap()[1];
+
+        if ck == 0x20 {
+            mem_map.get_mut(block_id).unwrap()[1] = 0x30 as u8;
+        }
+    }
     timer_step(id, &mut mem_map);
 
     assert_eq!(mem_map.load_byte(1).unwrap(), 0x30);
