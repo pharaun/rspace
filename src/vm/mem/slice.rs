@@ -1,5 +1,3 @@
-use std::slice::SliceIndex;
-
 use crate::vm::Trap;
 
 // Base memory size
