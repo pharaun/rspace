@@ -22,7 +22,7 @@ impl Cpu {
     }
 
     pub fn step(&mut self, memory: &mut mem::MemMap, csrfile: &mut csr::Csr) -> Result<(), Trap> {
-        let inst = memory.fetch_instruction(self.pc)?;
+        let inst = fetch_instruction(&memory, self.pc)?;
 
         // Decode opcode
         let opcode  = select_and_shift(inst, 6, 0);
@@ -504,6 +504,25 @@ impl Cpu {
 
         // Everything's fine in this step
         Ok(())
+    }
+}
+
+
+fn fetch_instruction(memory: &mem::MemMap, idx: u32) -> Result<u32, Trap> {
+    // If inst is read from non u32 aligned address, error out (ISA specifies this)
+    if idx % 4 != 0 {
+        Err(Trap::UnalignedInstructionAccess(idx))
+    } else {
+        memory.load_word(idx).and_then(|x|
+            // If inst is all 0 or all 1's error out (illegal instruction)
+            if x == 0x0 {
+                Err(Trap::IllegalInstruction(x))
+            } else if x == 0xFF_FF_FF_FF {
+                Err(Trap::IllegalInstruction(x))
+            } else {
+                Ok(x)
+            }
+        )
     }
 }
 

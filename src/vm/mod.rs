@@ -5,9 +5,6 @@ mod csr;
 mod cpu;
 pub mod opcode;
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 // TODO: design ideas/how
 //
 // We need to have a way for various component to have these features:
@@ -61,8 +58,8 @@ pub struct Emul32 {
     // Tickable items
     cpu: cpu::Cpu,
 
-    // TODO: disgusting, i'm not sure how to not do this, need to redo the memory_map i think?
-    timer: Rc<RefCell<mio::timer::Timer>>,
+    // timer mio
+    timer: mio::timer::Timer,
 }
 
 impl Emul32 {
@@ -70,15 +67,13 @@ impl Emul32 {
         // TODO: redo the memory map, can we store the information somehow in Emul32
         // or make reconstructing this easy/cheap/fast?
         let mut mem_map = mem::MemMap::new();
-        mem_map.add(0x0,    0x1000, mem::rom::Rom::new(rom));
-        mem_map.add(0x1000, 0x2000, mem::ram::Ram::new());
+        mem_map.add(0x0,    0x1000,     0, mem::MemMapAttr::RO); // Rom
+        mem_map.add(0x1000, 0x1000,  4096, mem::MemMapAttr::RW); // Ram
+
+        // TODO: force-load rom-block with program
 
         // MIO region
-        // TODO: may need to make mem_map take some other data structure so we can keep ownership
-        //       of the mio bits for ticking em (and handing this one a csr interrupt thing so it
-        //       can trigger an timer interrupt)
-        let timer = Rc::new(RefCell::new(mio::timer::Timer::new(0, 0, 0x2000)));
-        mem_map.add(0x2000, 0x2010, Rc::clone(&timer));
+        let timer_tag = mem_map.add(0x2000, 0x10, 4096*2, mem::MemMapAttr::RW); // Timer
 
         // TODO: implement a csr_map construct (to handle similiar things to mem_map but for csr)
         // CSR & MIO is the main 2 way for an external system to interact with the cpu, maaybe
@@ -89,7 +84,7 @@ impl Emul32 {
             mem: mem_map,
             csr: csr::Csr::new([0; 4096]),
             cpu: cpu::Cpu::new(regfile::RegFile::new([0; 31]), 0),
-            timer: timer,
+            timer: mio::timer::Timer::new(timer_tag),
         }
     }
 
@@ -104,7 +99,7 @@ impl Emul32 {
             mem: mem,
             csr: csr,
             cpu: cpu::Cpu::new(reg, pc),
-            timer: Rc::new(RefCell::new(timer)),
+            timer: timer,
         }
     }
 
@@ -120,7 +115,9 @@ impl Emul32 {
     // TODO: for now just return an option
     pub fn step(&mut self) -> Result<(), Trap> {
         // TODO: figure out how to test that the trap fired
-        self.timer.borrow_mut().step();
+        self.timer.step(
+            &mut self.mem
+        );
 
         // TODO: should be returning a list i think
         self.cpu.step(
