@@ -42,3 +42,7 @@ bench = false
 [[bench]]
 name = "benchmark_emul32_rom"
 harness = false
+
+[[bench]]
+name = "benchmark_mem"
+harness = false

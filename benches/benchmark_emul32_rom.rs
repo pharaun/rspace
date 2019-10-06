@@ -84,7 +84,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut rom = [0; 4096];
     setup_binary_code(test_asm, &mut rom, true);
 
-    c.bench_function("full-mem-inst", |b| b.iter(|| run_rom(black_box(rom)) ));
+    c.bench_function("copy-inst", |b| b.iter(|| run_rom(black_box(rom)) ));
 
     // Single inst
     let test_asm = "addi x1 x1 2";

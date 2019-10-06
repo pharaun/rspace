@@ -1,5 +1,5 @@
 mod regfile;
-mod mem;
+pub mod mem;
 mod mio;
 mod csr;
 mod cpu;
