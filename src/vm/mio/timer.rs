@@ -1,8 +1,7 @@
 use crate::vm::mem::MemIO;
 use crate::vm::mem::MemMapId;
 use crate::vm::Trap;
-
-use byteorder::{ByteOrder, LittleEndian};
+use crate::vm::mem_util;
 
 // TODO: Memory-mapped read-write register in memory
 // - mtime (64 bit register)
@@ -29,8 +28,8 @@ impl Timer {
         let (mut time, timecmp) = {
             let block = mem_map.get(self.block_id).unwrap();
 
-            let time: u64 = read_dword(block, 0);
-            let timecmp: u64 = read_dword(block, 8);
+            let time: u64 = mem_util::read_dword(block, 0);
+            let timecmp: u64 = mem_util::read_dword(block, 8);
 
             (time, timecmp)
         };
@@ -41,7 +40,7 @@ impl Timer {
         // Write time out
         {
             let block = mem_map.get_mut(self.block_id).unwrap();
-            write_dword(block, 0, time);
+            mem_util::write_dword(block, 0, time);
         }
 
         if time >= timecmp {
@@ -50,38 +49,4 @@ impl Timer {
             Ok(())
         }
     }
-}
-
-
-fn read_byte(block: &[u8], offset: usize) -> u8 {
-    block[offset]
-}
-
-fn read_half(block: &[u8], offset: usize) -> u16 {
-    LittleEndian::read_u16(&block[offset..=(offset+1)])
-}
-
-fn read_word(block: &[u8], offset: usize) -> u32 {
-    LittleEndian::read_u32(&block[offset..=(offset+3)])
-}
-
-fn read_dword(block: &[u8], offset: usize) -> u64 {
-    LittleEndian::read_u64(&block[offset..=(offset+7)])
-}
-
-
-fn write_byte(block: &mut [u8], offset: usize, data: u8) {
-    block[offset] = data;
-}
-
-fn write_half(block: &mut [u8], offset: usize, data: u16) {
-    LittleEndian::write_u16(&mut block[offset..=(offset+1)], data);
-}
-
-fn write_word(block: &mut [u8], offset: usize, data: u32) {
-    LittleEndian::write_u32(&mut block[offset..=(offset+3)], data);
-}
-
-fn write_dword(block: &mut [u8], offset: usize, data: u64) {
-    LittleEndian::write_u64(&mut block[offset..=(offset+7)], data);
 }

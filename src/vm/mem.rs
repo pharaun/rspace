@@ -1,6 +1,5 @@
 use crate::vm::Trap;
-
-use byteorder::{ByteOrder, LittleEndian};
+use crate::vm::mem_util;
 
 // Base memory size
 // TODO: make the mem map build up instead of static alloc
@@ -168,7 +167,8 @@ impl Mem for MemMap {
         for mb in self.map.iter() {
             if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
                 // TODO: improve add to sane check the offset
-                return Ok(self.memory[(mb.offset + (idx - mb.start)) as usize] as u32);
+                let index = (mb.offset + (idx - mb.start)) as usize;
+                return Ok(mem_util::read_byte(&self.memory, index) as u32);
             }
         }
 
@@ -184,8 +184,7 @@ impl Mem for MemMap {
             if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
-
-                return Ok(LittleEndian::read_u16(&self.memory[index..=(index+1)]) as u32);
+                return Ok(mem_util::read_half(&self.memory, index) as u32);
             }
         }
 
@@ -203,8 +202,7 @@ impl Mem for MemMap {
             if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
-
-                return Ok(LittleEndian::read_u32(&self.memory[index..=(index+3)]));
+                return Ok(mem_util::read_word(&self.memory, index) as u32);
             }
         }
 
@@ -223,7 +221,8 @@ impl Mem for MemMap {
                     MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
                     MemMapAttr::RW => {
                         // TODO: improve add to sane check the offset
-                        self.memory[(mb.offset + (idx - mb.start)) as usize] = data as u8;
+                        let index = (mb.offset + (idx - mb.start)) as usize;
+                        mem_util::write_byte(&mut self.memory, index, data as u8);
                         return Ok(());
                     },
                 };
@@ -243,7 +242,7 @@ impl Mem for MemMap {
                     MemMapAttr::RW => {
                         // This is on the fast path.
                         let index = (mb.offset + (idx - mb.start)) as usize;
-                        LittleEndian::write_u16(&mut self.memory[index..=(index+1)], data as u16);
+                        mem_util::write_half(&mut self.memory, index, data as u16);
                         return Ok(());
                     },
                 };
@@ -266,7 +265,7 @@ impl Mem for MemMap {
                     MemMapAttr::RW => {
                         // This is on the fast path.
                         let index = (mb.offset + (idx - mb.start)) as usize;
-                        LittleEndian::write_u32(&mut self.memory[index..=(index+3)], data);
+                        mem_util::write_word(&mut self.memory, index, data);
                         return Ok(());
                     },
                 };
