@@ -1,5 +1,7 @@
 use crate::vm::Trap;
 
+use byteorder::{ByteOrder, LittleEndian};
+
 // Base memory size
 // TODO: make the mem map build up instead of static alloc
 const MEM_SIZE: usize = 4096 * 3;
@@ -175,12 +177,20 @@ impl Mem for MemMap {
         Err(Trap::IllegalMemoryAccess(idx))
     }
 
-    // TODO: figure out how to handle cross boundaries in a good way,
-    // the main challenge is first byte can be in one block, and second byte
-    // can be in next block....
-    //
-    // Maybe have a fast-path for in-same block, otherwise fallback to slow path
+    // TODO: improve add to make sure that we can exit the iter fast
+    // - no overlapping memory region
     fn load_half(&self, idx: u32) -> Result<u32, Trap> {
+        for mb in self.map.iter() {
+            if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
+                // This is on the fast path.
+                let index = (mb.offset + (idx - mb.start)) as usize;
+
+                return Ok(LittleEndian::read_u16(&self.memory[index..=(index+1)]) as u32);
+            }
+        }
+
+        // Proceed to the slow path
+        // TODO: this doesn't backout properly, it writes then fails, make it work all or none
         match (self.load_byte(idx), self.load_byte(idx+1)) {
             (Ok(x), Ok(y))  => Ok(x | (y << 8)),
             (Err(x), _)     => Err(x),
@@ -189,6 +199,16 @@ impl Mem for MemMap {
     }
 
     fn load_word(&self, idx: u32) -> Result<u32, Trap> {
+        for mb in self.map.iter() {
+            if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
+                // This is on the fast path.
+                let index = (mb.offset + (idx - mb.start)) as usize;
+
+                return Ok(LittleEndian::read_u32(&self.memory[index..=(index+3)]));
+            }
+        }
+
+        // Proceed to the slow path
         match (self.load_half(idx), self.load_half(idx+2)) {
             (Ok(x), Ok(y))  => Ok(x | (y << 16)),
             (Err(x), _)     => Err(x),
@@ -202,13 +222,9 @@ impl Mem for MemMap {
                 return match mb.attr {
                     MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
                     MemMapAttr::RW => {
-                        match self.memory.get_mut((mb.offset + (idx - mb.start)) as usize) {
-                            None    => Err(Trap::IllegalMemoryAccess(idx)),
-                            Some(x) => {
-                                *x = (data & 0x00_00_00_ff) as u8;
-                                Ok(())
-                            },
-                        }
+                        // TODO: improve add to sane check the offset
+                        self.memory[(mb.offset + (idx - mb.start)) as usize] = data as u8;
+                        return Ok(());
                     },
                 };
             }
@@ -220,6 +236,21 @@ impl Mem for MemMap {
     }
 
     fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        for mb in self.map.iter() {
+            if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
+                return match mb.attr {
+                    MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
+                    MemMapAttr::RW => {
+                        // This is on the fast path.
+                        let index = (mb.offset + (idx - mb.start)) as usize;
+                        LittleEndian::write_u16(&mut self.memory[index..=(index+1)], data as u16);
+                        return Ok(());
+                    },
+                };
+            }
+        }
+
+        // Proceed to the slow path
         match (self.store_byte(idx, data), self.store_byte(idx+1, data >> 8)) {
             (Ok(_), Ok(_))  => Ok(()),
             (Err(x), _)     => Err(x),
@@ -228,6 +259,21 @@ impl Mem for MemMap {
     }
 
     fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        for mb in self.map.iter() {
+            if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
+                return match mb.attr {
+                    MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
+                    MemMapAttr::RW => {
+                        // This is on the fast path.
+                        let index = (mb.offset + (idx - mb.start)) as usize;
+                        LittleEndian::write_u32(&mut self.memory[index..=(index+3)], data);
+                        return Ok(());
+                    },
+                };
+            }
+        }
+
+        // Proceed to the slow path
         match (self.store_half(idx, data), self.store_half(idx+2, data >> 16)) {
             (Ok(_), Ok(_))  => Ok(()),
             (Err(x), _)     => Err(x),
@@ -235,8 +281,6 @@ impl Mem for MemMap {
         }
     }
 }
-
-
 
 
 #[test]
