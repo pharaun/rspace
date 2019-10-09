@@ -1,6 +1,4 @@
 extern crate rspace;
-extern crate byteorder;
-extern crate twiddle;
 
 use std::fs::File;
 use std::io::prelude::*;

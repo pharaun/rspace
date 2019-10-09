@@ -1,10 +1,37 @@
-use twiddle::Twiddle;
+use std::ops::Range;
 
 use crate::vm::regfile;
 use crate::vm::mem::Mem;
 use crate::vm::csr;
 use crate::vm::opcode;
 use crate::vm::Trap;
+
+
+//********************************************************************************
+// Const shift
+const MASK_4_0: u32   = const_u32_mask(4..0);
+const MASK_6_0: u32   = const_u32_mask(6..0);
+const MASK_7_7: u32   = const_u32_mask(7..7);
+const MASK_11_7: u32  = const_u32_mask(11..7);
+const MASK_11_8: u32  = const_u32_mask(11..8);
+const MASK_14_12: u32 = const_u32_mask(14..12);
+const MASK_19_12: u32 = const_u32_mask(19..12);
+const MASK_19_15: u32 = const_u32_mask(19..15);
+const MASK_20_20: u32 = const_u32_mask(20..20);
+const MASK_24_20: u32 = const_u32_mask(24..20);
+const MASK_30_21: u32 = const_u32_mask(30..21);
+const MASK_30_25: u32 = const_u32_mask(30..25);
+const MASK_31_11: u32 = const_u32_mask(31..11);
+const MASK_31_12: u32 = const_u32_mask(31..12);
+const MASK_31_20: u32 = const_u32_mask(31..20);
+const MASK_31_25: u32 = const_u32_mask(31..25);
+const MASK_31_31: u32 = const_u32_mask(31..31);
+
+// M extensions
+const MASK_31_0: u64  = const_u32_mask(31..0) as u64;
+//********************************************************************************
+
+
 
 pub struct Cpu {
     // TODO: make private when tests are broken up better
@@ -28,41 +55,41 @@ impl Cpu {
         let inst = fetch_instruction(&*memory, self.pc)?;
 
         // Decode opcode
-        let opcode  = select_and_shift(inst, 6, 0);
+        let opcode  = mask_and_shift(inst, MASK_6_0, 0);
 
         // Inst Type
         // TODO: change this over to generating the mask needed (for rspace issue #4)
         //let instType = opcode::instruction_type(opcode);
 
         // Prefetch the func3/7
-        let func3   = select_and_shift(inst, 14, 12);
-        let func7   = select_and_shift(inst, 31, 25);
+        let func3   = mask_and_shift(inst, MASK_14_12, 12);
+        let func7   = mask_and_shift(inst, MASK_31_25, 25);
 
         // Prefetch rd/rs1/rs2
-        let rd      = select_and_shift(inst, 11, 7) as usize;
-        let rs1     = select_and_shift(inst, 19, 15) as usize;
-        let rs2     = select_and_shift(inst, 24, 20) as usize;
+        let rd      = mask_and_shift(inst, MASK_11_7, 7) as usize;
+        let rs1     = mask_and_shift(inst, MASK_19_15, 15) as usize;
+        let rs2     = mask_and_shift(inst, MASK_24_20, 20) as usize;
 
         // IMM types - Probably can be put in the asm steps
-        let shamt   = select_and_shift(inst, 24, 20);
+        let shamt   = mask_and_shift(inst, MASK_24_20, 20);
         // TODO: handle sign extend and so on as needed
-        let i_imm   = select_and_shift(inst, 31, 20); // Some inst needs a non-sign extend?
-        let s_imm   = (select_and_shift(inst, 31, 25) << 5)
-                    | select_and_shift(inst, 11, 7);
-        let sb_imm  = (select_and_shift(inst, 31, 31) << 12)
-                    | (select_and_shift(inst, 7, 7) << 11)
-                    | (select_and_shift(inst, 30, 25) << 5)
-                    | (select_and_shift(inst, 11, 8) << 1);
-        let u_imm   = select_and_shift(inst, 31, 12) << 12; // LUI doesn't sign extend?
-        let uj_imm  = (select_and_shift(inst, 31, 31) << 20)
-                    | (select_and_shift(inst, 19, 12) << 12)
-                    | (select_and_shift(inst, 20, 20) << 11)
-                    | (select_and_shift(inst, 30, 21) << 1);
+        let i_imm   = mask_and_shift(inst, MASK_31_20, 20); // Some inst needs a non-sign extend?
+        let s_imm   = (mask_and_shift(inst, MASK_31_25, 25) << 5)
+                    | mask_and_shift(inst, MASK_11_7, 7);
+        let sb_imm  = (mask_and_shift(inst, MASK_31_31, 31) << 12)
+                    | (mask_and_shift(inst, MASK_7_7, 7) << 11)
+                    | (mask_and_shift(inst, MASK_30_25, 25) << 5)
+                    | (mask_and_shift(inst, MASK_11_8, 8) << 1);
+        let u_imm   = mask_and_shift(inst, MASK_31_12, 12) << 12; // LUI doesn't sign extend?
+        let uj_imm  = (mask_and_shift(inst, MASK_31_31, 31) << 20)
+                    | (mask_and_shift(inst, MASK_19_12, 12) << 12)
+                    | (mask_and_shift(inst, MASK_20_20, 20) << 11)
+                    | (mask_and_shift(inst, MASK_30_21, 21) << 1);
 
         // CSR related
         // TODO: do we need to sign extend the csr_imm?
-        let csr     = select_and_shift(inst, 31, 20) as usize; // functionally same as i_imm
-        let csr_imm = select_and_shift(inst, 24, 20); // functionally same as rs2
+        let csr     = mask_and_shift(inst, MASK_31_20, 20) as usize; // functionally same as i_imm
+        let csr_imm = mask_and_shift(inst, MASK_24_20, 20); // functionally same as rs2
 
         // TODO: handle these items
         // - exception (invalid instruction, invalid memory access, etc...)
@@ -108,7 +135,7 @@ impl Cpu {
             },
             (0b0000000, 0b001, opcode::OP_REG) => {
                 // SLL
-                let shamt = select_and_shift(self.reg[rs2], 4, 0);
+                let shamt = mask_and_shift(self.reg[rs2], MASK_4_0, 0);
                 self.reg[rd] = self.reg[rs1] << shamt;
             },
             (0b0000000, 0b010, opcode::OP_REG) => {
@@ -125,12 +152,12 @@ impl Cpu {
             },
             (0b0000000, 0b101, opcode::OP_REG) => {
                 // SRL
-                let shamt = select_and_shift(self.reg[rs2], 4, 0);
+                let shamt = mask_and_shift(self.reg[rs2], MASK_4_0, 0);
                 self.reg[rd] = self.reg[rs1] >> shamt;
             },
             (0b0100000, 0b101, opcode::OP_REG) => {
                 // SRA
-                let shamt = select_and_shift(self.reg[rs2], 4, 0);
+                let shamt = mask_and_shift(self.reg[rs2], MASK_4_0, 0);
                 // apparently arithmetic right shift depends on type of left operator
                 self.reg[rd] = ((self.reg[rs1] as i32) >> shamt) as u32;
             },
@@ -147,22 +174,22 @@ impl Cpu {
             (0b0000001, 0b000, opcode::OP_REG) => {
                 // MUL
                 let product: u64 = (self.reg[rs1] as u64) * (self.reg[rs2] as u64);
-                self.reg[rd] = (product & u64::mask(31..0)) as u32;
+                self.reg[rd] = (product & MASK_31_0) as u32;
             },
             (0b0000001, 0b001, opcode::OP_REG) => {
                 // MULH
                 let product: i64 = (sign_extend_32_to_64(self.reg[rs1]) as i64) * (sign_extend_32_to_64(self.reg[rs2]) as i64);
-                self.reg[rd] = (((product >> 32) as u64) & u64::mask(31..0)) as u32;
+                self.reg[rd] = (((product >> 32) as u64) & MASK_31_0) as u32;
             },
             (0b0000001, 0b010, opcode::OP_REG) => {
                 // MULHSU
                 let product: i64 = (sign_extend_32_to_64(self.reg[rs1]) as i64) * (self.reg[rs2] as i64);
-                self.reg[rd] = (((product >> 32) as u64) & u64::mask(31..0)) as u32;
+                self.reg[rd] = (((product >> 32) as u64) & MASK_31_0) as u32;
             },
             (0b0000001, 0b011, opcode::OP_REG) => {
                 // MULHU
                 let product: u64 = (self.reg[rs1] as u64) * (self.reg[rs2] as u64);
-                self.reg[rd] = ((product >> 32) & u64::mask(31..0)) as u32;
+                self.reg[rd] = ((product >> 32) & MASK_31_0) as u32;
             },
             (0b0000001, 0b100, opcode::OP_REG) => {
                 // DIV
@@ -298,7 +325,7 @@ impl Cpu {
             // wait loop
             (        _, 0b000, opcode::SYSTEM) => {
                 // ECALL | EBREAK
-                let imm   = select_and_shift(inst, 31, 20);
+                let imm   = mask_and_shift(inst, MASK_31_20, 20);
 
                 match imm {
                     0b000000000000 => {
@@ -479,9 +506,9 @@ impl Cpu {
 
                 //    println!("{:08x}", rinst);
 
-                //    let rop = select_and_shift(rinst, 6, 0);
-                //    let rfunc3 = select_and_shift(rinst, 14, 12);
-                //    let rfunc7 = select_and_shift(rinst, 31, 25);
+                //    let rop = mask_and_shift(rinst, MASK_6_0, 0);
+                //    let rfunc3 = mask_and_shift(rinst, MASK_14_12, 12);
+                //    let rfunc7 = mask_and_shift(rinst, MASK_31_25, 25);
                 //    println!("F7: {:07b} F3: {:03b} OP: {:07b}", rfunc7, rfunc3, rop);
                 //}
                 //break;
@@ -529,23 +556,47 @@ fn fetch_instruction(memory: &impl Mem, idx: u32) -> Result<u32, Trap> {
     }
 }
 
+// This block below is a hack around there being no const fn mask in twiddling
+// and that's due to no const fn checked_shl
+//********************************************************************************
+// Hack around lack of const fn checked_shl
+const fn const_checked_shl(lhs: u32, rhs: u32) -> u32 {
+    // overflowing_shl is const fn
+    let (a, b) = lhs.overflowing_shl(rhs);
 
-fn select_and_shift(inst: u32, hi: usize, lo: usize) -> u32 {
-    (inst & u32::mask(hi..lo)) >> lo
+    // This trick is slow but since we're const_fn this for const application of mask its fine
+    // https://github.com/rust-lang/rust/issues/53718#issuecomment-500074555
+    // False -> usize -> 0
+    // True -> usize -> 1
+    // As index we then return either shl or 0
+    [a, 0][b as usize]
+}
+
+// const masks
+const fn const_u32_mask(range: Range<usize>) -> u32 {
+    // cshl is << but with overlong shifts resulting in 0
+    let top = const_checked_shl(1, (1 + range.start - range.end) as u32);
+    top.wrapping_sub(1) << range.end
+}
+//********************************************************************************
+
+
+fn mask_and_shift(inst: u32, mask: u32, shift: u32) -> u32 {
+    (inst & mask) >> shift
 }
 
 
 // TODO: better to move imm inst extraction here?
 fn sign_extend(inst: u32, imm: u32) -> u32 {
     if (inst & 0x80_00_00_00) == 0x80_00_00_00 {
-        let opcode = select_and_shift(inst, 6, 0);
+        let opcode = mask_and_shift(inst, MASK_6_0, 0);
         let mask = match opcode::instruction_type(opcode) {
             opcode::InstType::R  => 0x0,
-            opcode::InstType::I  => u32::mask(31..11),
-            opcode::InstType::S  => u32::mask(31..11),
-            opcode::InstType::SB => u32::mask(31..12),
-            opcode::InstType::U  => u32::mask(31..31),
-            opcode::InstType::UJ => u32::mask(31..20),
+            opcode::InstType::I  => MASK_31_11,
+            opcode::InstType::S  => MASK_31_11,
+            opcode::InstType::SB => MASK_31_12,
+            opcode::InstType::U  => MASK_31_31,
+            opcode::InstType::UJ => MASK_31_20,
         };
 
         imm | (0xff_ff_ff_ff & mask)
