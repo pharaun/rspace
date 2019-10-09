@@ -20,6 +20,10 @@ impl Cpu {
         }
     }
 
+    pub fn set_pc(&mut self, pc: u32) {
+        self.pc = pc;
+    }
+
     pub fn step(&mut self, memory: &mut impl Mem, csrfile: &mut csr::Csr) -> Result<(), Trap> {
         let inst = fetch_instruction(&*memory, self.pc)?;
 

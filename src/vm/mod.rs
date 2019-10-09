@@ -127,6 +127,10 @@ impl Emul32 {
             &mut self.csr,
         )
     }
+
+    pub fn set_pc(&mut self, pc: u32) {
+        self.cpu.set_pc(pc);
+    }
 }
 
 
