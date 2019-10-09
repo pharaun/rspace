@@ -181,7 +181,7 @@ impl Mem for MemMap {
     // - no overlapping memory region
     fn load_half(&self, idx: u32) -> Result<u32, Trap> {
         for mb in self.map.iter() {
-            if (idx >= mb.start) && ((idx + 1) < (mb.start + mb.size)) {
+            if (idx >= mb.start) && (idx.wrapping_add(1) < (mb.start + mb.size)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
                 return Ok(mem_util::read_half(&self.memory, index) as u32);
@@ -199,7 +199,7 @@ impl Mem for MemMap {
 
     fn load_word(&self, idx: u32) -> Result<u32, Trap> {
         for mb in self.map.iter() {
-            if (idx >= mb.start) && ((idx + 3) < (mb.start + mb.size)) {
+            if (idx >= mb.start) && (idx.wrapping_add(3) < (mb.start + mb.size)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
                 return Ok(mem_util::read_word(&self.memory, index) as u32);
@@ -236,7 +236,7 @@ impl Mem for MemMap {
 
     fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
         for mb in self.map.iter() {
-            if (idx >= mb.start) && ((idx + 1) < (mb.start + mb.size)) {
+            if (idx >= mb.start) && (idx.wrapping_add(1) < (mb.start + mb.size)) {
                 return match mb.attr {
                     MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
                     MemMapAttr::RW => {
@@ -259,7 +259,7 @@ impl Mem for MemMap {
 
     fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
         for mb in self.map.iter() {
-            if (idx >= mb.start) && ((idx + 3) < (mb.start + mb.size)) {
+            if (idx >= mb.start) && (idx.wrapping_add(3) < (mb.start + mb.size)) {
                 return match mb.attr {
                     MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
                     MemMapAttr::RW => {
