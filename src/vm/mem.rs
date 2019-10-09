@@ -106,6 +106,7 @@ impl MemMap {
     // TODO: do more in depth checks to make sure we don't
     // - overlap
     // - run outside bounds
+    // - Figure out how to fuzz the memory region code + memory lookup cos this could get fucky fast
     pub fn add(&mut self, start: u32, size: u32, offset: u32, attr: MemMapAttr) -> MemMapId {
         let id = MemMapId(self.next_map_id);
         self.next_map_id += 1;
@@ -180,8 +181,13 @@ impl Mem for MemMap {
     // TODO: improve add to make sure that we can exit the iter fast
     // - no overlapping memory region
     fn load_half(&self, idx: u32) -> Result<u32, Trap> {
+        // TODO: make it not bail out for wrapping around access
+        if idx >= u32::max_value() {
+            return Err(Trap::IllegalMemoryAccess(idx));
+        }
+
         for mb in self.map.iter() {
-            if (idx >= mb.start) && (idx.wrapping_add(1) < (mb.start + mb.size)) {
+            if (idx >= mb.start) && ((idx + 1) < (mb.start + mb.size)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
                 return Ok(mem_util::read_half(&self.memory, index) as u32);
@@ -198,8 +204,13 @@ impl Mem for MemMap {
     }
 
     fn load_word(&self, idx: u32) -> Result<u32, Trap> {
+        // TODO: make it not bail out for wrapping around access
+        if idx >= (u32::max_value() - 2) {
+            return Err(Trap::IllegalMemoryAccess(idx));
+        }
+
         for mb in self.map.iter() {
-            if (idx >= mb.start) && (idx.wrapping_add(3) < (mb.start + mb.size)) {
+            if (idx >= mb.start) && ((idx + 3) < (mb.start + mb.size)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
                 return Ok(mem_util::read_word(&self.memory, index) as u32);
@@ -235,8 +246,13 @@ impl Mem for MemMap {
     }
 
     fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        // TODO: make it not bail out for wrapping around access
+        if idx >= u32::max_value() {
+            return Err(Trap::IllegalMemoryAccess(idx));
+        }
+
         for mb in self.map.iter() {
-            if (idx >= mb.start) && (idx.wrapping_add(1) < (mb.start + mb.size)) {
+            if (idx >= mb.start) && ((idx + 1) < (mb.start + mb.size)) {
                 return match mb.attr {
                     MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
                     MemMapAttr::RW => {
@@ -258,8 +274,13 @@ impl Mem for MemMap {
     }
 
     fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+        // TODO: make it not bail out for wrapping around access
+        if idx >= (u32::max_value() - 2) {
+            return Err(Trap::IllegalMemoryAccess(idx));
+        }
+
         for mb in self.map.iter() {
-            if (idx >= mb.start) && (idx.wrapping_add(3) < (mb.start + mb.size)) {
+            if (idx >= mb.start) && ((idx + 3) < (mb.start + mb.size)) {
                 return match mb.attr {
                     MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
                     MemMapAttr::RW => {
