@@ -163,6 +163,9 @@ impl MemIO for MemMap {
 }
 
 
+// TODO: start to look (at some point) at if we can turn most of these read/write (to rom + ram)
+// to instead just hit native memory or so without having to emulate this? Is there any other
+// tricks that we can employ to speed this up even further?
 impl Mem for MemMap {
     fn load_byte(&self, idx: u32) -> Result<u32, Trap> {
         for mb in self.map.iter() {
