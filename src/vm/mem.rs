@@ -181,13 +181,9 @@ impl Mem for MemMap {
     // TODO: improve add to make sure that we can exit the iter fast
     // - no overlapping memory region
     fn load_half(&self, idx: u32) -> Result<u32, Trap> {
-        // TODO: make it not bail out for wrapping around access
-        if idx >= u32::max_value() {
-            return Err(Trap::IllegalMemoryAccess(idx));
-        }
-
         for mb in self.map.iter() {
-            if (idx >= mb.start) && ((idx + 1) < (mb.start + mb.size)) {
+            // TODO: make it not bail out for wrapping around access
+            if (idx >= mb.start) && (idx < (mb.start + mb.size - 1)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
                 return Ok(mem_util::read_half(&self.memory, index) as u32);
@@ -204,13 +200,9 @@ impl Mem for MemMap {
     }
 
     fn load_word(&self, idx: u32) -> Result<u32, Trap> {
-        // TODO: make it not bail out for wrapping around access
-        if idx >= (u32::max_value() - 2) {
-            return Err(Trap::IllegalMemoryAccess(idx));
-        }
-
         for mb in self.map.iter() {
-            if (idx >= mb.start) && ((idx + 3) < (mb.start + mb.size)) {
+            // TODO: make it not bail out for wrapping around access
+            if (idx >= mb.start) && (idx < (mb.start + mb.size - 3)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
                 return Ok(mem_util::read_word(&self.memory, index) as u32);

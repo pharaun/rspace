@@ -21,8 +21,6 @@ impl Timer {
         }
     }
 
-    // TODO: make this nice and provide utilities for reading out 8, 16, 32, 64 bits out of a
-    // mem_map block
     pub fn step(&mut self, mem_map: &mut impl MemIO) -> Result<(), Trap> {
         // Read out the time and timecmp
         let (mut time, timecmp) = {
