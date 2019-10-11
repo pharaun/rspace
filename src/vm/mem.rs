@@ -238,13 +238,9 @@ impl Mem for MemMap {
     }
 
     fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
-        // TODO: make it not bail out for wrapping around access
-        if idx >= u32::max_value() {
-            return Err(Trap::IllegalMemoryAccess(idx));
-        }
-
         for mb in self.map.iter() {
-            if (idx >= mb.start) && ((idx + 1) < (mb.start + mb.size)) {
+            // TODO: make it not bail out for wrapping around access
+            if (idx >= mb.start) && (idx < (mb.start + mb.size - 1)) {
                 return match mb.attr {
                     MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
                     MemMapAttr::RW => {
@@ -266,13 +262,9 @@ impl Mem for MemMap {
     }
 
     fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
-        // TODO: make it not bail out for wrapping around access
-        if idx >= (u32::max_value() - 2) {
-            return Err(Trap::IllegalMemoryAccess(idx));
-        }
-
         for mb in self.map.iter() {
-            if (idx >= mb.start) && ((idx + 3) < (mb.start + mb.size)) {
+            // TODO: make it not bail out for wrapping around access
+            if (idx >= mb.start) && (idx < (mb.start + mb.size - 3)) {
                 return match mb.attr {
                     MemMapAttr::RO => Err(Trap::IllegalMemoryAccess(idx)),
                     MemMapAttr::RW => {
