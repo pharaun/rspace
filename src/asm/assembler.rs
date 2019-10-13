@@ -189,7 +189,7 @@ fn match_and_shift(byte: Option<u32>, shift: u32) -> u32 {
 }
 
 fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
-    ((imm & u32::mask(hi..lo)) >> lo) << shift
+    ((imm & u32::mask(hi..=lo)) >> lo) << shift
 }
 
 fn extract_and_shift<T: std::convert::Into<u32>>(arg: T, shift: usize) -> u32 {
