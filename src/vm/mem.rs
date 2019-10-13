@@ -93,16 +93,17 @@ pub struct MemMap {
     next_map_id: u8,
 }
 
-
-impl MemMap {
-    pub fn new() -> MemMap {
+impl Default for MemMap {
+    fn default() -> Self {
         MemMap {
             memory: [0; MEM_SIZE],
             map: vec![],
             next_map_id: 0,
         }
     }
+}
 
+impl MemMap {
     // TODO: do more in depth checks to make sure we don't
     // - overlap
     // - run outside bounds
@@ -113,11 +114,11 @@ impl MemMap {
 
         self.map.push(
             MemMapBlock {
-                id: id,
-                start: start,
-                size: size,
-                offset: offset,
-                attr: attr,
+                id,
+                start,
+                size,
+                offset,
+                attr,
             }
         );
 
@@ -131,9 +132,7 @@ impl MemMap {
             if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
                 let mem_offset = (mb.offset + (idx - mb.start)) as usize;
 
-                for i in 0..data.len() {
-                    self.memory[mem_offset + i] = data[i];
-                }
+                self.memory[mem_offset..(data.len() + mem_offset)].clone_from_slice(&data[..])
             }
         }
     }
@@ -172,7 +171,7 @@ impl Mem for MemMap {
             if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
                 // TODO: improve add to sane check the offset
                 let index = (mb.offset + (idx - mb.start)) as usize;
-                return Ok(mem_util::read_byte(&self.memory, index) as u32);
+                return Ok(u32::from(mem_util::read_byte(&self.memory, index)));
             }
         }
 
@@ -189,7 +188,7 @@ impl Mem for MemMap {
             if (idx >= mb.start) && (idx < (mb.start + mb.size - 1)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
-                return Ok(mem_util::read_half(&self.memory, index) as u32);
+                return Ok(u32::from(mem_util::read_half(&self.memory, index)));
             }
         }
 
@@ -208,7 +207,7 @@ impl Mem for MemMap {
             if (idx >= mb.start) && (idx < (mb.start + mb.size - 3)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
-                return Ok(mem_util::read_word(&self.memory, index) as u32);
+                return Ok(mem_util::read_word(&self.memory, index));
             }
         }
 
@@ -292,7 +291,7 @@ impl Mem for MemMap {
 
 #[test]
 fn roundtrip_byte() {
-    let mut mem_map = MemMap::new();
+    let mut mem_map: MemMap = Default::default();
     mem_map.add(0x0, 0x1000, 0, MemMapAttr::RW);
 
     mem_map.store_byte(1, 0x10).unwrap();
@@ -301,7 +300,7 @@ fn roundtrip_byte() {
 
 #[test]
 fn roundtrip_half() {
-    let mut mem_map = MemMap::new();
+    let mut mem_map: MemMap = Default::default();
     mem_map.add(0x0, 0x1000, 0, MemMapAttr::RW);
 
     mem_map.store_half(1, 0x2010).unwrap();
@@ -310,7 +309,7 @@ fn roundtrip_half() {
 
 #[test]
 fn roundtrip_word() {
-    let mut mem_map = MemMap::new();
+    let mut mem_map: MemMap = Default::default();
     mem_map.add(0x0, 0x1000, 0, MemMapAttr::RW);
 
     mem_map.store_word(1, 0x40302010).unwrap();
@@ -319,7 +318,7 @@ fn roundtrip_word() {
 
 #[test]
 fn basic_step() {
-    let mut mem_map = MemMap::new();
+    let mut mem_map: MemMap = Default::default();
     let id = mem_map.add(0x0, 0x1000, 0, MemMapAttr::RW);
 
     mem_map.store_byte(1, 0x10).unwrap();
@@ -347,7 +346,7 @@ fn basic_step() {
 
 #[test]
 fn byte() {
-    let mut ram = MemMap::new();
+    let mut ram: MemMap = Default::default();
     ram.add(0x0, 0x1000, 0, MemMapAttr::RW);
 
     assert_eq!(ram.memory[1], 0x0);
@@ -360,7 +359,7 @@ fn byte() {
 
 #[test]
 fn half() {
-    let mut ram = MemMap::new();
+    let mut ram: MemMap = Default::default();
     ram.add(0x0, 0x1000, 0, MemMapAttr::RW);
 
     assert_eq!(ram.memory[1], 0x0);
@@ -375,7 +374,7 @@ fn half() {
 
 #[test]
 fn word() {
-    let mut ram = MemMap::new();
+    let mut ram: MemMap = Default::default();
     ram.add(0x0, 0x1000, 0, MemMapAttr::RW);
 
     assert_eq!(ram.memory[1], 0x0);
@@ -394,7 +393,7 @@ fn word() {
 
 #[test]
 fn load_byte() {
-    let mut rom = MemMap::new();
+    let mut rom: MemMap = Default::default();
     rom.add(0x0, 0x1000, 0, MemMapAttr::RO);
 
     rom.memory[1] = 0x10;
@@ -407,7 +406,7 @@ fn load_byte() {
 
 #[test]
 fn load_half() {
-    let mut rom = MemMap::new();
+    let mut rom: MemMap = Default::default();
     rom.add(0x0, 0x1000, 0, MemMapAttr::RO);
 
     rom.memory[1] = 0x10;
@@ -420,7 +419,7 @@ fn load_half() {
 
 #[test]
 fn load_word() {
-    let mut rom = MemMap::new();
+    let mut rom: MemMap = Default::default();
     rom.add(0x0, 0x1000, 0, MemMapAttr::RO);
 
     rom.memory[1] = 0x10;
@@ -434,7 +433,7 @@ fn load_word() {
 #[test]
 #[should_panic]
 fn store_byte() {
-    let mut rom = MemMap::new();
+    let mut rom: MemMap = Default::default();
     rom.add(0x0, 0x1000, 0, MemMapAttr::RO);
 
     rom.store_byte(1, 0x10).unwrap();
@@ -443,7 +442,7 @@ fn store_byte() {
 #[test]
 #[should_panic]
 fn store_half() {
-    let mut rom = MemMap::new();
+    let mut rom: MemMap = Default::default();
     rom.add(0x0, 0x1000, 0, MemMapAttr::RO);
 
     rom.store_half(1, 0x2010).unwrap();
@@ -452,7 +451,7 @@ fn store_half() {
 #[test]
 #[should_panic]
 fn store_word() {
-    let mut rom = MemMap::new();
+    let mut rom: MemMap = Default::default();
     rom.add(0x0, 0x1000, 0, MemMapAttr::RO);
 
     rom.store_word(1, 0x40302010).unwrap();

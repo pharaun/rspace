@@ -23,17 +23,17 @@ pub enum InstType {
 }
 
 // Opcode
-pub const OP_IMM:   u32 = 0b0010011; // I - (OP-IMM in docs)
-pub const LUI:      u32 = 0b0110111; // U
-pub const AUIPC:    u32 = 0b0010111; // U
-pub const OP_REG:   u32 = 0b0110011; // R - (OP in docs)
-pub const JAL:      u32 = 0b1101111; // UJ - imm -> signed offset, in multiples of 2 bytes
-pub const JALR:     u32 = 0b1100111; // I - complicated
-pub const BRANCH:   u32 = 0b1100011; // SB - signed offset in multiples of 2 + pc
-pub const LOAD:     u32 = 0b0000011; // I
-pub const STORE:    u32 = 0b0100011; // S
-pub const MISC_MEM: u32 = 0b0001111; // I
-pub const SYSTEM:   u32 = 0b1110011; // I - CSR (control and status registers) + other priviledged instructions
+pub const OP_IMM:   u32 = 0b001_0011; // I - (OP-IMM in docs)
+pub const LUI:      u32 = 0b011_0111; // U
+pub const AUIPC:    u32 = 0b001_0111; // U
+pub const OP_REG:   u32 = 0b011_0011; // R - (OP in docs)
+pub const JAL:      u32 = 0b110_1111; // UJ - imm -> signed offset, in multiples of 2 bytes
+pub const JALR:     u32 = 0b110_0111; // I - complicated
+pub const BRANCH:   u32 = 0b110_0011; // SB - signed offset in multiples of 2 + pc
+pub const LOAD:     u32 = 0b000_0011; // I
+pub const STORE:    u32 = 0b010_0011; // S
+pub const MISC_MEM: u32 = 0b000_1111; // I
+pub const SYSTEM:   u32 = 0b111_0011; // I - CSR (control and status registers) + other priviledged instructions
 
 // Inst Encoding
 #[derive(Debug, Clone)]

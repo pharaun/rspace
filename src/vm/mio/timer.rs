@@ -17,7 +17,7 @@ impl Timer {
     // time: u64 and timecmp: u64
     pub fn new(block_id: MemMapId) -> Timer {
         Timer {
-            block_id: block_id,
+            block_id,
         }
     }
 

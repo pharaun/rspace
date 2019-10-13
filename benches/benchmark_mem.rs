@@ -10,7 +10,7 @@ use criterion::black_box;
 
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let mut mem_map = rspace::vm::mem::MemMap::new();
+    let mut mem_map: rspace::vm::mem::MemMap = Default::default();
     let id = mem_map.add(0x0, 0x1000, 0, rspace::vm::mem::MemMapAttr::RW);
     mem_map.add(0x1000, 0x1000, 0x1000, rspace::vm::mem::MemMapAttr::RW); // Slow path check
     mem_map.add(0x2000, 0x1000, 0x2000, rspace::vm::mem::MemMapAttr::RO);

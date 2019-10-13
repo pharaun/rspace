@@ -1,3 +1,5 @@
+use byteorder::{ByteOrder, LittleEndian};
+
 use crate::asm::ast;
 use crate::asm::cleaner;
 
@@ -43,11 +45,7 @@ impl WordBuf {
         self.buffer_idx += 1;
 
         if self.buffer_idx == 4 {
-            let mut ret = 0x00_00_00_00;
-            ret |= (self.buffer[0] as u32) << 0;
-            ret |= (self.buffer[1] as u32) << 8;
-            ret |= (self.buffer[2] as u32) << 16;
-            ret |= (self.buffer[3] as u32) << 24;
+            let ret = LittleEndian::read_u32(&self.buffer);
 
             self.buffer = [0x0, 0x0, 0x0, 0x0];
             self.buffer_idx = 0;
@@ -66,7 +64,7 @@ impl WordBuf {
 // TODO: support labeled memory location, for now only branches + jumps (need more support)
 // Don't know how to figure out if i should generate a relative or an absolute address, branches are always relative to the inst
 // supporting those for now, the jalr/auipc/lui/jal i can't figure out yet
-pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
+pub fn symbol_table_expansion(input: cleaner::Cleaner) -> Vec<AToken> {
     // First pass caches the output from cleaner
     let mut first_pass: Vec<cleaner::CToken> = Vec::new();
 
@@ -89,7 +87,7 @@ pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
                 position += 1;
             },
             // Instructions here on out
-            i@_ => {
+            i => {
                 first_pass.push(i);
 
                 // Inc by 4 because each inst is a u32 word
@@ -152,7 +150,7 @@ pub fn symbol_table_expansion<'a>(input: cleaner::Cleaner<'a>) -> Vec<AToken> {
 
 // TODO: find a good way to handle %hi_lo() since right now i have not ran into it because all of
 // my address are small enough to not trip into lui and thus trip the sign-extend of addi, so ...
-fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, ast::LabelType), usize)>, inst_pos: usize) -> AToken {
+fn encode_label(token: cleaner::CToken, symbol: &[((String, ast::LabelType), usize)], inst_pos: usize) -> AToken {
     match token {
         cleaner::CToken::Label(_, _)
               => panic!("Should have been filtered out in first pass"),
@@ -243,7 +241,7 @@ fn encode_label(token: cleaner::CToken, symbol: &Vec<((String, ast::LabelType), 
     }
 }
 
-fn find_label(name: &String, label_type: ast::AddrRefType, symbol: &Vec<((String, ast::LabelType), usize)>, inst_pos: usize) -> usize {
+fn find_label(name: &str, label_type: ast::AddrRefType, symbol: &[((String, ast::LabelType), usize)], inst_pos: usize) -> usize {
     // Decode the type of Label it is (is it a word or a numberic label)
     // If word, proceed, but if numberic,
     //      parse the letter after (b or f) for backward or forward numberic ref
@@ -255,13 +253,10 @@ fn find_label(name: &String, label_type: ast::AddrRefType, symbol: &Vec<((String
         ast::AddrRefType::Global => {
             // Word label
             for val in symbol.iter() {
-                match val {
-                    &((ref sl, ast::LabelType::Global), spos) => {
-                        if sl == name {
-                            return spos
-                        }
-                    },
-                    _ => (),
+                if let ((ref sl, ast::LabelType::Global), spos) = val {
+                    if sl == name {
+                        return *spos
+                    }
                 }
             }
             panic!("Did not find {} global label in the table", name)
@@ -269,13 +264,10 @@ fn find_label(name: &String, label_type: ast::AddrRefType, symbol: &Vec<((String
         ast::AddrRefType::LocalForward => {
             // Local Forward, aka numberical
             for val in symbol.iter() {
-                match val {
-                    &((ref sl, ast::LabelType::Local), spos) => {
-                        if (sl == name) & (spos >= inst_pos) {
-                            return spos
-                        }
-                    },
-                    _ => (),
+                if let ((ref sl, ast::LabelType::Local), spos) = val {
+                    if (sl == name) & (*spos >= inst_pos) {
+                        return *spos
+                    }
                 }
             }
             panic!("Did not find {} local forward label in the table", name)
@@ -283,13 +275,10 @@ fn find_label(name: &String, label_type: ast::AddrRefType, symbol: &Vec<((String
         ast::AddrRefType::LocalBackward => {
             // Local Backward, aka numberical
             for val in symbol.iter().rev() {
-                match val {
-                    &((ref sl, ast::LabelType::Local), spos) => {
-                        if (sl == name) & (spos <= inst_pos) {
-                            return spos
-                        }
-                    },
-                    _ => (),
+                if let ((ref sl, ast::LabelType::Local), spos) = val {
+                    if (sl == name) & (*spos <= inst_pos) {
+                        return *spos
+                    }
                 }
             }
             panic!("Did not find {} local backward label in the table", name)

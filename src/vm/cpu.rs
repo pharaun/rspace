@@ -42,8 +42,8 @@ pub struct Cpu {
 impl Cpu {
     pub fn new(reg: regfile::RegFile, pc: u32) -> Cpu {
         Cpu {
-            reg: reg,
-            pc: pc
+            reg,
+            pc
         }
     }
 
@@ -125,73 +125,73 @@ impl Cpu {
         //
         match (func7, func3, opcode) {
             // RV32 I
-            (0b0000000, 0b000, opcode::OP_REG) => {
+            (0b000_0000, 0b000, opcode::OP_REG) => {
                 // ADD
                 self.reg[rd] = self.reg[rs1].wrapping_add(self.reg[rs2]);
             },
-            (0b0100000, 0b000, opcode::OP_REG) => {
+            (0b010_0000, 0b000, opcode::OP_REG) => {
                 // SUB
                 self.reg[rd] = self.reg[rs1].wrapping_sub(self.reg[rs2]);
             },
-            (0b0000000, 0b001, opcode::OP_REG) => {
+            (0b000_0000, 0b001, opcode::OP_REG) => {
                 // SLL
                 let shamt = mask_and_shift(self.reg[rs2], MASK_4_0, 0);
                 self.reg[rd] = self.reg[rs1] << shamt;
             },
-            (0b0000000, 0b010, opcode::OP_REG) => {
+            (0b000_0000, 0b010, opcode::OP_REG) => {
                 // SLT
                 self.reg[rd] = if (self.reg[rs1] as i32) < (self.reg[rs2] as i32) { 0x1 } else { 0x0 }
             },
-            (0b0000000, 0b011, opcode::OP_REG) => {
+            (0b000_0000, 0b011, opcode::OP_REG) => {
                 // SLTU
                 self.reg[rd] = if self.reg[rs1] < self.reg[rs2] { 0x1 } else { 0x0 }
             },
-            (0b0000000, 0b100, opcode::OP_REG) => {
+            (0b000_0000, 0b100, opcode::OP_REG) => {
                 // XOR
                 self.reg[rd] = self.reg[rs1] ^ self.reg[rs2];
             },
-            (0b0000000, 0b101, opcode::OP_REG) => {
+            (0b000_0000, 0b101, opcode::OP_REG) => {
                 // SRL
                 let shamt = mask_and_shift(self.reg[rs2], MASK_4_0, 0);
                 self.reg[rd] = self.reg[rs1] >> shamt;
             },
-            (0b0100000, 0b101, opcode::OP_REG) => {
+            (0b010_0000, 0b101, opcode::OP_REG) => {
                 // SRA
                 let shamt = mask_and_shift(self.reg[rs2], MASK_4_0, 0);
                 // apparently arithmetic right shift depends on type of left operator
                 self.reg[rd] = ((self.reg[rs1] as i32) >> shamt) as u32;
             },
-            (0b0000000, 0b110, opcode::OP_REG) => {
+            (0b000_0000, 0b110, opcode::OP_REG) => {
                 // OR
                 self.reg[rd] = self.reg[rs1] | self.reg[rs2];
             },
-            (0b0000000, 0b111, opcode::OP_REG) => {
+            (0b000_0000, 0b111, opcode::OP_REG) => {
                 // AND
                 self.reg[rd] = self.reg[rs1] & self.reg[rs2];
             },
 
             // RV32 M extensions
-            (0b0000001, 0b000, opcode::OP_REG) => {
+            (0b000_0001, 0b000, opcode::OP_REG) => {
                 // MUL
-                let product: u64 = (self.reg[rs1] as u64) * (self.reg[rs2] as u64);
+                let product: u64 = u64::from(self.reg[rs1]) * u64::from(self.reg[rs2]);
                 self.reg[rd] = (product & MASK_31_0) as u32;
             },
-            (0b0000001, 0b001, opcode::OP_REG) => {
+            (0b000_0001, 0b001, opcode::OP_REG) => {
                 // MULH
                 let product: i64 = (sign_extend_32_to_64(self.reg[rs1]) as i64) * (sign_extend_32_to_64(self.reg[rs2]) as i64);
                 self.reg[rd] = (((product >> 32) as u64) & MASK_31_0) as u32;
             },
-            (0b0000001, 0b010, opcode::OP_REG) => {
+            (0b000_0001, 0b010, opcode::OP_REG) => {
                 // MULHSU
-                let product: i64 = (sign_extend_32_to_64(self.reg[rs1]) as i64) * (self.reg[rs2] as i64);
+                let product: i64 = (sign_extend_32_to_64(self.reg[rs1]) as i64) * i64::from(self.reg[rs2]);
                 self.reg[rd] = (((product >> 32) as u64) & MASK_31_0) as u32;
             },
-            (0b0000001, 0b011, opcode::OP_REG) => {
+            (0b000_0001, 0b011, opcode::OP_REG) => {
                 // MULHU
-                let product: u64 = (self.reg[rs1] as u64) * (self.reg[rs2] as u64);
+                let product: u64 = u64::from(self.reg[rs1]) * u64::from(self.reg[rs2]);
                 self.reg[rd] = ((product >> 32) & MASK_31_0) as u32;
             },
-            (0b0000001, 0b100, opcode::OP_REG) => {
+            (0b000_0001, 0b100, opcode::OP_REG) => {
                 // DIV
                 let _neg: u32 = (-1 as i32) as u32;
                 self.reg[rd] = match (self.reg[rs2], self.reg[rs1]) {
@@ -200,7 +200,7 @@ impl Cpu {
                     (divisor,      dividend) => (dividend as i32).wrapping_div(divisor as i32) as u32,
                 };
             },
-            (0b0000001, 0b101, opcode::OP_REG) => {
+            (0b000_0001, 0b101, opcode::OP_REG) => {
                 // DIVU
                 if self.reg[rs2] == 0x0 {
                     self.reg[rd] = 0xff_ff_ff_ff;
@@ -208,7 +208,7 @@ impl Cpu {
                     self.reg[rd] = self.reg[rs1] / self.reg[rs2];
                 }
             },
-            (0b0000001, 0b110, opcode::OP_REG) => {
+            (0b000_0001, 0b110, opcode::OP_REG) => {
                 // REM
                 let _neg: u32 = (-1 as i32) as u32;
                 self.reg[rd] = match (self.reg[rs2], self.reg[rs1]) {
@@ -217,7 +217,7 @@ impl Cpu {
                     (divisor,      dividend) => (dividend as i32).wrapping_rem(divisor as i32) as u32,
                 };
             },
-            (0b0000001, 0b111, opcode::OP_REG) => {
+            (0b000_0001, 0b111, opcode::OP_REG) => {
                 // REMU
                 if self.reg[rs2] == 0x0 {
                     self.reg[rd] = self.reg[rs1];
@@ -231,7 +231,7 @@ impl Cpu {
                 // ADDI
                 self.reg[rd] = self.reg[rs1].wrapping_add(sign_extend(inst, i_imm));
             },
-            (0b0000000, 0b001, opcode::OP_IMM) => {
+            (0b000_0000, 0b001, opcode::OP_IMM) => {
                 // SLLI
                 self.reg[rd] = self.reg[rs1] << shamt;
             },
@@ -247,11 +247,11 @@ impl Cpu {
                 // XORI
                 self.reg[rd] = self.reg[rs1] ^ sign_extend(inst, i_imm);
             },
-            (0b0000000, 0b101, opcode::OP_IMM) => {
+            (0b000_0000, 0b101, opcode::OP_IMM) => {
                 // SRLI
                 self.reg[rd] = self.reg[rs1] >> shamt;
             },
-            (0b0100000, 0b101, opcode::OP_IMM) => {
+            (0b010_0000, 0b101, opcode::OP_IMM) => {
                 // SRAI
                 // apparently arithmetic right shift depends on type of left operator
                 self.reg[rd] = ((self.reg[rs1] as i32) >> shamt) as u32;
@@ -328,11 +328,11 @@ impl Cpu {
                 let imm   = mask_and_shift(inst, MASK_31_20, 20);
 
                 match imm {
-                    0b000000000000 => {
+                    0b0000_0000_0000 => {
                         // ECALL
                         // NOP instruction
                     },
-                    0b000000000001 => {
+                    0b0000_0000_0001 => {
                         // EBREAK
                         // NOP instruction
                     },
@@ -493,11 +493,9 @@ impl Cpu {
             },
 
             // TODO: handle instruction decoding failure
-            (f7, f3, op) => {
+            _ => {
                 #[cfg(feature = "debug")]
-                {
-                    println!("FIX  PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", self.pc, f7, f3, op);
-                }
+                println!("FIX  PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", self.pc, func7, func3, opcode);
 
                 //println!("ROM DUMP:");
                 //for i in 0..(binary_u8.len()/4) {
@@ -517,9 +515,7 @@ impl Cpu {
         }
 
         #[cfg(feature = "debug")]
-        {
-            println!("FINE PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", self.pc, func7, func3, opcode);
-        }
+        println!("FINE PC: 0x{:04x} F7: {:07b} F3: {:03b} OP: {:07b}", self.pc, func7, func3, opcode);
 
         // TODO: this is a hack to handle Branch + JAL instruction, the branch will INC the PC if
         // they don't branch
@@ -545,9 +541,7 @@ fn fetch_instruction(memory: &impl Mem, idx: u32) -> Result<u32, Trap> {
     } else {
         memory.load_word(idx).and_then(|x|
             // If inst is all 0 or all 1's error out (illegal instruction)
-            if x == 0x0 {
-                Err(Trap::IllegalInstruction(x))
-            } else if x == 0xFF_FF_FF_FF {
+            if (x == 0x0) || (x == 0xFF_FF_FF_FF) {
                 Err(Trap::IllegalInstruction(x))
             } else {
                 Ok(x)
@@ -599,7 +593,7 @@ fn sign_extend(inst: u32, imm: u32) -> u32 {
             opcode::InstType::UJ => MASK_31_20,
         };
 
-        imm | (0xff_ff_ff_ff & mask)
+        imm | mask
     } else {
         imm
     }
@@ -623,8 +617,8 @@ fn sign_extend_16_to_32(imm: u32) -> u32 {
 
 fn sign_extend_32_to_64(imm: u32) -> u64 {
     if (imm & 0x80_00_00_00) == 0x80_00_00_00 {
-        (imm as u64) | 0xff_ff_ff_ff_00_00_00_00
+        u64::from(imm) | 0xff_ff_ff_ff_00_00_00_00
     } else {
-        imm as u64
+        u64::from(imm)
     }
 }

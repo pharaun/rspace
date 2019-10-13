@@ -67,7 +67,7 @@ impl Emul32 {
     pub fn new_with_rom(rom: [u8; 4096]) -> Emul32 {
         // TODO: redo the memory map, can we store the information somehow in Emul32
         // or make reconstructing this easy/cheap/fast?
-        let mut mem_map = mem::MemMap::new();
+        let mut mem_map: mem::MemMap = Default::default();
         mem_map.add(0x0,    0x1000,     0, mem::MemMapAttr::RO); // Rom
         mem_map.add(0x1000, 0x1000,  4096, mem::MemMapAttr::RW); // Ram
 
@@ -98,10 +98,10 @@ impl Emul32 {
         timer: mio::timer::Timer,
     ) -> Emul32 {
         Emul32 {
-            mem: mem,
-            csr: csr,
+            mem,
+            csr,
             cpu: cpu::Cpu::new(reg, pc),
-            timer: timer,
+            timer,
         }
     }
 

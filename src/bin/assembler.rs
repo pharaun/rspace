@@ -206,8 +206,8 @@ fn main() -> std::io::Result<()> {
         let asm = rspace::asm::parse_asm(test_asm);
         let mut wtr = vec![];
 
-        for i in 0..asm.len() {
-            let _ = wtr.write_u32::<LittleEndian>(asm[i]);
+        for i in asm {
+            let _ = wtr.write_u32::<LittleEndian>(i);
         }
         wtr
     };

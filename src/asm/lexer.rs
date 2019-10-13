@@ -75,10 +75,8 @@ impl<'a> Lexer<'a> {
         ident.push(c);
 
         while let Some(&c) = self.peek_char() {
-            if c.is_alphanumeric() {
-                ident.push(self.read_char().unwrap());
             // Allow . in ident name for fence.i
-            } else if c == '.' {
+            if c.is_alphanumeric() || c == '.' {
                 ident.push(self.read_char().unwrap());
             } else {
                 break;
@@ -147,6 +145,7 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn next_token(&mut self) -> Option<Token> {
+        #![allow(clippy::neg_multiply)]
         self.skip_whitespace();
         if let Some(c) = self.read_char() {
             match c {
@@ -163,7 +162,7 @@ impl<'a> Lexer<'a> {
                     // Ingest multiple newlines
                     self.skip_newline();
 
-                    if let None = self.peek_char() {
+                    if self.peek_char().is_none() {
                         // Will EOF, set eof_newline to true so we don't duplicate newline
                         self.emit_newline = true;
                     }

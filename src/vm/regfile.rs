@@ -9,7 +9,7 @@ pub struct RegFile {
 
 impl RegFile {
     pub fn new(reg: [u32; 31]) -> RegFile {
-        RegFile { _x0: 0, reg: reg }
+        RegFile { _x0: 0, reg }
     }
 }
 
@@ -25,7 +25,7 @@ impl Index<usize> for RegFile {
 }
 
 impl IndexMut<usize> for RegFile {
-    fn index_mut<'a>(&'a mut self, idx: usize) -> &'a mut u32 {
+    fn index_mut(&mut self, idx: usize) -> &mut u32 {
         match idx {
             // TODO: this feel like a hack, can we get rid of _x0?
             0 => & mut self._x0,

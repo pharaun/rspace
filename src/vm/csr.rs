@@ -25,7 +25,7 @@ impl Csr {
     pub fn new(csr: [u32; 4096]) -> Csr {
         Csr {
             _ro_hole: 0,
-            csr: csr,
+            csr,
         }
     }
 

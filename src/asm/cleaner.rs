@@ -325,7 +325,7 @@ fn process_inst(inst: String, mut args: Vec<parser::Arg>) -> Option<CToken> {
 }
 
 
-fn shift_and_mask(n: &u32, shift: usize) -> u8 {
+fn shift_and_mask(n: u32, shift: usize) -> u8 {
     ((n >> shift) & 0x00_00_00_FF) as u8
 }
 
@@ -335,18 +335,18 @@ fn process_data(dt: ast::DataType, n: Vec<u32>) -> VecDeque<CToken> {
 
     match dt {
         ast::DataType::Byte => {
-            for num in &n {
+            for num in n {
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 0)));
             }
         },
         ast::DataType::Half => {
-            for num in &n {
+            for num in n {
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 0)));
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 8)));
             }
         },
         ast::DataType::Word => {
-            for num in &n {
+            for num in n {
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 0)));
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 8)));
                 ret.push_back(CToken::ByteData(shift_and_mask(num, 16)));
