@@ -39,6 +39,11 @@ name = "emulator"
 path = "src/bin/emulator.rs"
 bench = false
 
+[[bin]]
+name = "graphics"
+path = "src/bin/graphics.rs"
+bench = false
+
 [[bench]]
 name = "benchmark_emul32_rom"
 harness = false
