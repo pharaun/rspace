@@ -17,6 +17,10 @@ criterion = "0.3"
 phf_codegen = "0.7.24"
 
 [dependencies]
+glium = "*"
+rand = "*"
+cgmath = "*"
+
 # Bit twiddling
 twiddle = "1.1.0"
 
