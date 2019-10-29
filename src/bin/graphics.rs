@@ -13,12 +13,15 @@ use cgmath::Rad;
 // Vulkano uses
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
+use vulkano::command_buffer::pool::standard::StandardCommandPoolBuilder;
 use vulkano::device::{Device, DeviceExtensions};
 use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, Subpass, RenderPassAbstract};
 use vulkano::image::SwapchainImage;
 use vulkano::instance::{Instance, PhysicalDevice};
+use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::viewport::Viewport;
+use vulkano::pipeline::vertex::VertexSource;
 use vulkano::swapchain::{AcquireError, PresentMode, SurfaceTransform, Swapchain, SwapchainCreationError};
 use vulkano::swapchain;
 use vulkano::sync::{GpuFuture, FlushError};
@@ -583,22 +586,101 @@ void main() {
         // Clear the framebuffer with this color
         let clear_values = vec!([0.0, 0.0, 1.0, 1.0].into());
 
+
+
         // GAME LOGIC
+        const DESIRED_FPS: u64 = 60;
+        let seconds = 1.0 / (DESIRED_FPS as f64);
+
+        let dimensions = get_dimensions(&window);
+        let width = dimensions[0];
+        let height = dimensions[1];
+
+        // Update the player state based on the user input.
+        player_handle_input(&mut state.player, &state.input, seconds);
+        state.player_shot_timeout -= seconds;
+        if state.input.fire && state.player_shot_timeout < 0.0 {
+            state.fire_player_shot();
+        }
+
+        // Update the physics for all actors.
+        // First the player...
+        update_actor_position(&mut state.player, seconds);
+        wrap_actor_position(&mut state.player, width as f64, height as f64);
+
+        // Then the shots...
+        for act in &mut state.shots {
+            update_actor_position(act, seconds);
+            wrap_actor_position(act, width as f64, height as f64);
+            handle_timed_life(act, seconds);
+        }
+
+        // And finally the rocks.
+        for act in &mut state.rocks {
+            update_actor_position(act, seconds);
+            wrap_actor_position(act, width as f64, height as f64);
+        }
+
+        // Handle the results of things moving:
+        // collision detection, object death, and if
+        // we have killed all the rocks in the level,
+        // spawn more of them.
+        state.handle_collisions();
+
+        state.clear_dead_stuff();
+
+        state.check_for_level_respawn();
+
+        // Finally we check for our end state.
+        // I want to have a nice death screen eventually,
+        // but for now we just quit.
+        if state.player.life <= 0.0 {
+            *control_flow = ControlFlow::Exit;
+        }
 
 
         // Build a command buffer (BLOCKABLE)
-        let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(device.clone(), queue.family()).unwrap()
+        let mut command_buffer_builder = AutoCommandBufferBuilder::primary_one_time_submit(device.clone(), queue.family()).unwrap()
             // Enter render pass and clear the screen
-            .begin_render_pass(framebuffers[image_num].clone(), false, clear_values).unwrap()
+            .begin_render_pass(framebuffers[image_num].clone(), false, clear_values).unwrap();
 
-            // Draw the first frame
-            .draw(pipeline.clone(), &dynamic_state, vertex_buffer.clone(), (), ()).unwrap()
+        // Start drawing stuff
+        let coords = (width, height);
 
-            // Finish rendering
-            .end_render_pass().unwrap()
+        command_buffer_builder = draw_actor(
+            pipeline.clone(),
+            &dynamic_state,
+            vertex_buffer.clone(),
+            command_buffer_builder,
+            &state.player,
+            coords
+        );
 
-            // Finish building the command buffer by calling `build`.
-            .build().unwrap();
+        for s in &state.shots {
+            command_buffer_builder = draw_actor(
+                pipeline.clone(),
+                &dynamic_state,
+                vertex_buffer.clone(),
+                command_buffer_builder,
+                s,
+                coords
+            );
+        }
+
+        for r in &state.rocks {
+            command_buffer_builder = draw_actor(
+                pipeline.clone(),
+                &dynamic_state,
+                vertex_buffer.clone(),
+                command_buffer_builder,
+                r,
+                coords
+            );
+        }
+
+        // Finish rendering
+        // Finish building the command buffer by calling `build`.
+        let command_buffer = command_buffer_builder.end_render_pass().unwrap().build().unwrap();
 
 		let prev = previous_frame_end.take();
         let future = prev.unwrap().join(acquire_future)
@@ -692,126 +774,37 @@ void main() {
             },
             _ => {},
         }
+
+        // Handle clock
+        let now = Instant::now();
+        accumulator += now - previous_clock;
+        previous_clock = now;
+
+        let fixed_time_stamp = Duration::new(0, 16666667 / speed);
+        while accumulator >= fixed_time_stamp {
+            accumulator -= fixed_time_stamp;
+        }
+
+        thread::sleep(fixed_time_stamp - accumulator);
     });
 }
 
+fn draw_actor<V, Gp>(
+    pipeline: Gp,
+    dynamic: &DynamicState,
+    vertex_buffer: V,
+    command_buffer_builder: AutoCommandBufferBuilder<StandardCommandPoolBuilder>,
+    actor: &Actor,
+    world_coords: (u32, u32)
+) -> AutoCommandBufferBuilder<StandardCommandPoolBuilder>
+    where Gp: GraphicsPipelineAbstract + VertexSource<V> + Send + Sync + 'static + Clone
+{
+    // Draw the first frame
+    command_buffer_builder.draw(pipeline, dynamic, vertex_buffer, (), ()).unwrap()
 
-//{
-//    let mut events_loop = glutin::EventsLoop::new();
-//    let window = glutin::WindowBuilder::new();
-//    let context = glutin::ContextBuilder::new().with_depth_buffer(24);
-//    let display = glium::Display::new(window, context, &events_loop).unwrap();
-//
-//    // Shaders
-//    let program = shaders(display.clone());
-//
-//    // Ship
-//    let ship_shape = glium::vertex::VertexBuffer::new(&display, &SHIP).unwrap();
-//
-//
-//    loop {
-//        let mut target = display.draw();
-//        //let (width, height) = target.get_dimensions();
-//        let width = 640;
-//        let height = 480;
-//
-//        const DESIRED_FPS: u64 = 60;
-//        let seconds = 1.0 / (DESIRED_FPS as f64);
-//
-//        // Update the player state based on the user input.
-//        player_handle_input(&mut state.player, &state.input, seconds);
-//        state.player_shot_timeout -= seconds;
-//        if state.input.fire && state.player_shot_timeout < 0.0 {
-//            state.fire_player_shot();
-//        }
-//
-//        // Update the physics for all actors.
-//        // First the player...
-//        update_actor_position(&mut state.player, seconds);
-//        wrap_actor_position(&mut state.player, width as f64, height as f64);
-//
-//        // Then the shots...
-//        for act in &mut state.shots {
-//            update_actor_position(act, seconds);
-//            wrap_actor_position(act, width as f64, height as f64);
-//            handle_timed_life(act, seconds);
-//        }
-//
-//        // And finally the rocks.
-//        for act in &mut state.rocks {
-//            update_actor_position(act, seconds);
-//            wrap_actor_position(act, width as f64, height as f64);
-//        }
-//
-//        // Handle the results of things moving:
-//        // collision detection, object death, and if
-//        // we have killed all the rocks in the level,
-//        // spawn more of them.
-//        state.handle_collisions();
-//
-//        state.clear_dead_stuff();
-//
-//        state.check_for_level_respawn();
-//
-//        // Finally we check for our end state.
-//        // I want to have a nice death screen eventually,
-//        // but for now we just quit.
-//        if state.player.life <= 0.0 {
-//            target.finish().unwrap();
-//            return;
-//        }
-//
-//        // Our drawing is quite simple.
-//        // Just clear the screen...
-//        target.clear_color_and_depth((0.0, 0.0, 1.0, 1.0), 1.0);
-//
-//        // Loop over all objects drawing them...
-//        {
-//            let coords = (width, height);
-//
-//            let p = &state.player;
-//            draw_actor(&mut target, &program, &ship_shape, p, coords);
-//
-//            for s in &state.shots {
-//                draw_actor(&mut target, &program, &ship_shape, s, coords);
-//            }
-//
-//            for r in &state.rocks {
-//                draw_actor(&mut target, &program, &ship_shape, r, coords);
-//            }
-//        }
-//
-//        target.finish().unwrap();
-//
-//        match handle_events(&mut events_loop, state.input) {
-//            Some(x) => state.input = x,
-//            None    => return,
-//        }
-//
-//        let now = Instant::now();
-//        accumulator += now - previous_clock;
-//        previous_clock = now;
-//
-//        let fixed_time_stamp = Duration::new(0, 16666667 / speed);
-//        while accumulator >= fixed_time_stamp {
-//            accumulator -= fixed_time_stamp;
-//        }
-//
-//        thread::sleep(fixed_time_stamp - accumulator);
-//    }
-//}
-//
+}
+
 //fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &glium::VertexBuffer<R>, actor: &Actor, world_coords: (u32, u32)) -> () where R: std::marker::Copy {
-//    // Parameters
-//    let params = glium::DrawParameters {
-//        depth: glium::Depth {
-//            test: glium::draw_parameters::DepthTest::IfLess,
-//            write: true,
-//            .. Default::default()
-//        },
-//        //backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
-//        .. Default::default()
-//    };
 //
 //    // Projection,
 //    // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
