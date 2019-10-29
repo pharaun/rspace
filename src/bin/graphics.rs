@@ -1,5 +1,4 @@
 #[macro_use]
-extern crate glium;
 extern crate rand;
 extern crate cgmath;
 
@@ -7,12 +6,34 @@ extern crate cgmath;
 use std::time::{Duration, Instant};
 use std::thread;
 
-pub use glium::backend::glutin::Display as Display;
-use glium::Surface;
-
 use cgmath::prelude::*;
 use cgmath::Vector2;
 use cgmath::Rad;
+
+// Vulkano uses
+use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
+use vulkano::device::{Device, DeviceExtensions};
+use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, Subpass, RenderPassAbstract};
+use vulkano::image::SwapchainImage;
+use vulkano::instance::{Instance, PhysicalDevice};
+use vulkano::pipeline::GraphicsPipeline;
+use vulkano::pipeline::viewport::Viewport;
+use vulkano::swapchain::{AcquireError, PresentMode, SurfaceTransform, Swapchain, SwapchainCreationError};
+use vulkano::swapchain;
+use vulkano::sync::{GpuFuture, FlushError};
+use vulkano::sync;
+
+use vulkano_win::VkSurfaceBuild;
+
+// win + kb
+use winit::event_loop::{EventLoop, ControlFlow};
+use winit::window::{Window, WindowBuilder};
+use winit::event::{Event, WindowEvent, KeyboardInput, ElementState, VirtualKeyCode};
+
+
+use std::sync::Arc;
+
 
 /// *********************************************************************
 /// Basic stuff.
@@ -358,27 +379,163 @@ impl MainState {
 
 
 
-
-
-
-
-
-// Main stuff
+//********************************************************************************
+// Start main loop + vulkan setup stuff
+//
+// This code is from the vulkano triagle example
+//********************************************************************************
 fn main() {
-    use glium::glutin;
+    let instance = Instance::new(None, &vulkano_win::required_extensions(), None).unwrap();
 
-    let mut events_loop = glutin::EventsLoop::new();
-    let window = glutin::WindowBuilder::new();
-    let context = glutin::ContextBuilder::new().with_depth_buffer(24);
-    let display = glium::Display::new(window, context, &events_loop).unwrap();
+    // Be lazy and pick first device
+    let physical = PhysicalDevice::enumerate(&instance).next().unwrap();
+    println!("Using device: {} (type: {:?})", physical.name(), physical.ty());
+
+    // Get a window + window surface
+    let events_loop = EventLoop::new();
+    let surface = WindowBuilder::new().build_vk_surface(&events_loop, instance.clone()).unwrap();
+    let window = surface.window();
+
+    // Init the device + first queue
+    let (device, queue) = {
+        // GPU queue, for now just one, good enough for us
+        let queue_family = physical.queue_families().find(|&q| {
+            // We take the first queue that supports drawing to our window.
+            q.supports_graphics() && surface.is_supported(q).unwrap_or(false)
+        }).unwrap();
+
+        let (device, mut queues) = Device::new(
+            physical,
+            physical.supported_features(),
+            &DeviceExtensions { khr_swapchain: true, .. DeviceExtensions::none() },
+            [(queue_family, 0.5)].iter().cloned()
+        ).unwrap();
+
+        // Since we can get more than 1 queue.... but here we only request the first one so
+        // grab that and toss the rest away
+        (device, queues.next().unwrap())
+    };
+
+    // Swapchain setup + Images
+    let (mut swapchain, images) = {
+        let caps = surface.capabilities(physical).unwrap();
+
+        Swapchain::new(
+            device.clone(),
+            surface.clone(),
+            caps.min_image_count,
+            caps.supported_formats[0].0,
+            get_dimensions(&window),
+            1,
+            caps.supported_usage_flags,
+            &queue,
+            SurfaceTransform::Identity,
+            caps.supported_composite_alpha.iter().next().unwrap(),
+            PresentMode::Fifo,
+            true,
+            None
+        ).unwrap()
+    };
+
+    // We now create a buffer that will store the shape of our triangle.
+    let vertex_buffer = {
+        #[derive(Default, Debug, Clone)]
+        struct Vertex { position: [f32; 2] }
+        vulkano::impl_vertex!(Vertex, position);
+
+        CpuAccessibleBuffer::from_iter(device.clone(), BufferUsage::all(), [
+            Vertex { position: [-0.3, -0.3] },
+            Vertex { position: [ 0.0,  0.5] },
+            Vertex { position: [ 0.3, -0.3] }
+        ].iter().cloned()).unwrap()
+    };
 
     // Shaders
-    let program = shaders(display.clone());
 
-    // Ship
-    let ship_shape = glium::vertex::VertexBuffer::new(&display, &SHIP).unwrap();
+    // TODO: do model view projection?
+    // #version 140
+    //
+    // in vec3 position;
+    //
+    // uniform mat4 projection;
+    // uniform mat4 view;
+    // uniform mat4 model;
+    //
+    // void main() {
+    //     mat4 modelview = view * model;
+    //     gl_Position = modelview * vec4(position, 1.0) * projection;
+    // }
+    mod vs {
+        vulkano_shaders::shader!{
+            ty: "vertex",
+            src: "
+#version 450
 
-    // Main state
+layout(location = 0) in vec2 position;
+
+void main() {
+    gl_Position = vec4(position, 0.0, 1.0);
+}"
+        }
+    }
+
+    mod fs {
+        vulkano_shaders::shader!{
+            ty: "fragment",
+            src: "
+#version 450
+
+layout(location = 0) out vec4 f_color;
+
+void main() {
+    f_color = vec4(0.0, 1.0, 0.0, 1.0);
+}
+"
+        }
+    }
+
+    let vs = vs::Shader::load(device.clone()).unwrap();
+    let fs = fs::Shader::load(device.clone()).unwrap();
+
+    // Render pass setup
+    let render_pass = Arc::new(vulkano::single_pass_renderpass!(
+        device.clone(),
+        attachments: {
+            // We use the attachment named `color` as the one and only color attachment.
+            color: { load: Clear, store: Store, format: swapchain.format(), samples: 1, }
+        },
+        pass: {
+            // We use the attachment named `color` as the one and only color attachment.
+            color: [color],
+            depth_stencil: {}
+        }
+    ).unwrap());
+
+    // Pipeline (similiar to opengl program)
+    let pipeline = Arc::new(GraphicsPipeline::start()
+        .vertex_input_single_buffer()
+        .vertex_shader(vs.main_entry_point(), ())
+        .triangle_list()
+        .viewports_dynamic_scissors_irrelevant(1)
+        .fragment_shader(fs.main_entry_point(), ())
+        .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+        .build(device.clone())
+        .unwrap());
+
+    // Dynamic viewpoint, let us be lazy and not recreate the whole pipeline everytime the window is resized
+    let mut dynamic_state = DynamicState { line_width: None, viewports: None, scissors: None };
+
+    // Framebuffers
+    let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut dynamic_state);
+
+    // Swapchain invalidation (ie resize window, we need to recreate)
+    let mut recreate_swapchain = false;
+
+    // When we submit a command, we get a gpu future, and it will block till gpu is done, so hold on it here
+    let mut previous_frame_end = Some(Box::new(sync::now(device.clone())) as Box<dyn GpuFuture>);
+
+
+    // Start Game state initalization
     let mut state = MainState::new();
 
     // Game loop bits
@@ -386,188 +543,94 @@ fn main() {
     let mut previous_clock = Instant::now();
     let speed = 1;
 
-    loop {
-        let mut target = display.draw();
-        //let (width, height) = target.get_dimensions();
-        let width = 640;
-        let height = 480;
 
-        const DESIRED_FPS: u64 = 60;
-        let seconds = 1.0 / (DESIRED_FPS as f64);
+    // Event loop for the game
+    // TODO: set it so that game logic runs inside EventsCleared
+    events_loop.run(move |event, _, control_flow| {
+        // Set it to poll so that it will spin nonstop
+        *control_flow = ControlFlow::Poll;
 
-        // Update the player state based on the user input.
-        player_handle_input(&mut state.player, &state.input, seconds);
-        state.player_shot_timeout -= seconds;
-        if state.input.fire && state.player_shot_timeout < 0.0 {
-            state.fire_player_shot();
+        let window = surface.window();
+
+        // Call this, so that garbage can be cleared
+        previous_frame_end.as_mut().unwrap().cleanup_finished();
+
+        // Handle window resize
+        if recreate_swapchain {
+            let (new_swapchain, new_images) = match swapchain.recreate_with_dimension(get_dimensions(&window)) {
+                Ok(r) => r,
+                // If user is resizing the window manually, that means its continiously changing so keep trying
+                Err(SwapchainCreationError::UnsupportedDimensions) => return,
+                Err(err) => panic!("{:?}", err)
+            };
+
+            swapchain = new_swapchain;
+            framebuffers = window_size_dependent_setup(&new_images, render_pass.clone(), &mut dynamic_state);
+
+            recreate_swapchain = false;
         }
 
-        // Update the physics for all actors.
-        // First the player...
-        update_actor_position(&mut state.player, seconds);
-        wrap_actor_position(&mut state.player, width as f64, height as f64);
+        // Acquire image from the swapchain, if no image is available, block. (BLOCKABLE)
+        let (image_num, acquire_future) = match swapchain::acquire_next_image(swapchain.clone(), None) {
+            Ok(r) => r,
+            Err(AcquireError::OutOfDate) => {
+                recreate_swapchain = true;
+                return;
+            },
+            Err(err) => panic!("{:?}", err)
+        };
 
-        // Then the shots...
-        for act in &mut state.shots {
-            update_actor_position(act, seconds);
-            wrap_actor_position(act, width as f64, height as f64);
-            handle_timed_life(act, seconds);
-        }
+        // Clear the framebuffer with this color
+        let clear_values = vec!([0.0, 0.0, 1.0, 1.0].into());
 
-        // And finally the rocks.
-        for act in &mut state.rocks {
-            update_actor_position(act, seconds);
-            wrap_actor_position(act, width as f64, height as f64);
-        }
+        // GAME LOGIC
 
-        // Handle the results of things moving:
-        // collision detection, object death, and if
-        // we have killed all the rocks in the level,
-        // spawn more of them.
-        state.handle_collisions();
 
-        state.clear_dead_stuff();
+        // Build a command buffer (BLOCKABLE)
+        let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(device.clone(), queue.family()).unwrap()
+            // Enter render pass and clear the screen
+            .begin_render_pass(framebuffers[image_num].clone(), false, clear_values).unwrap()
 
-        state.check_for_level_respawn();
+            // Draw the first frame
+            .draw(pipeline.clone(), &dynamic_state, vertex_buffer.clone(), (), ()).unwrap()
 
-        // Finally we check for our end state.
-        // I want to have a nice death screen eventually,
-        // but for now we just quit.
-        if state.player.life <= 0.0 {
-            target.finish().unwrap();
-            return;
-        }
+            // Finish rendering
+            .end_render_pass().unwrap()
 
-        // Our drawing is quite simple.
-        // Just clear the screen...
-        target.clear_color_and_depth((0.0, 0.0, 1.0, 1.0), 1.0);
+            // Finish building the command buffer by calling `build`.
+            .build().unwrap();
 
-        // Loop over all objects drawing them...
-        {
-            let coords = (width, height);
+		let prev = previous_frame_end.take();
+        let future = prev.unwrap().join(acquire_future)
+            .then_execute(queue.clone(), command_buffer).unwrap()
 
-            let p = &state.player;
-            draw_actor(&mut target, &program, &ship_shape, p, coords);
+            // Present the swapchain to the screen, will block till gpu is done drawing (BLOCKABLE)
+            .then_swapchain_present(queue.clone(), swapchain.clone(), image_num)
+            .then_signal_fence_and_flush();
 
-            for s in &state.shots {
-                draw_actor(&mut target, &program, &ship_shape, s, coords);
+        match future {
+            Ok(future) => {
+                // This wait is required when using NVIDIA or running on macOS.
+                // See https://github.com/vulkano-rs/vulkano/issues/1247
+                future.wait(None).unwrap();
+                previous_frame_end = Some(Box::new(future) as Box<_>);
             }
-
-            for r in &state.rocks {
-                draw_actor(&mut target, &program, &ship_shape, r, coords);
+            Err(FlushError::OutOfDate) => {
+                recreate_swapchain = true;
+                previous_frame_end = Some(Box::new(sync::now(device.clone())) as Box<_>);
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                previous_frame_end = Some(Box::new(sync::now(device.clone())) as Box<_>);
             }
         }
 
-        target.finish().unwrap();
-
-        match handle_events(&mut events_loop, state.input) {
-            Some(x) => state.input = x,
-            None    => return,
-        }
-
-        let now = Instant::now();
-        accumulator += now - previous_clock;
-        previous_clock = now;
-
-        let fixed_time_stamp = Duration::new(0, 16666667 / speed);
-        while accumulator >= fixed_time_stamp {
-            accumulator -= fixed_time_stamp;
-        }
-
-        thread::sleep(fixed_time_stamp - accumulator);
-    }
-}
-
-fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &glium::VertexBuffer<R>, actor: &Actor, world_coords: (u32, u32)) -> () where R: std::marker::Copy {
-    // Parameters
-    let params = glium::DrawParameters {
-        depth: glium::Depth {
-            test: glium::draw_parameters::DepthTest::IfLess,
-            write: true,
-            .. Default::default()
-        },
-        //backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
-        .. Default::default()
-    };
-
-    // Projection,
-    // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
-    // So that's where that is coming from. Still unclear on why the view needs a translation (i
-    // think its due to the world_to_screen_coords)
-    let projection: cgmath::Matrix4<f32> = cgmath::ortho(-320.0, 320.0, 240.0, -240.0, 0.1, 1024.0);
-
-    // Fixed for now (view matrix) - identity
-    // TODO: not sure why we needed the offset, but that fixed the othographic projection tho
-    let view = cgmath::Matrix4::from_translation(cgmath::Vector3::new(-320.0, -240.0, 0.0));
-
-    let (screen_w, screen_h) = world_coords;
-    let pos = world_to_screen_coords(screen_w, screen_h, &actor.pos);
-    let px = pos.x as f32;
-    let py = pos.y as f32;
-
-    // Model matrix
-    let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
-    let r = cgmath::Matrix4::from_angle_z(Rad((*&actor.facing).0 as f32));
-    let s = cgmath::Matrix4::from_scale(20.0);
-
-    let model: cgmath::Matrix4<f32> = t * r * s;
-
-    // SHIP
-    target.draw(
-        shape,
-        glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip),
-        program,
-        &uniform! {
-            model: Into::<[[f32; 4]; 4]>::into(model),
-            view: Into::<[[f32; 4]; 4]>::into(view),
-            projection: Into::<[[f32; 4]; 4]>::into(projection)
-        },
-        &params
-    ).unwrap();
-}
-
-fn shaders<F: glium::backend::Facade>(display: F) -> glium::Program {
-    // Shaders
-    let vertex_shader_src = r#"
-        #version 140
-
-        in vec3 position;
-
-        uniform mat4 projection;
-        uniform mat4 view;
-        uniform mat4 model;
-
-        void main() {
-            mat4 modelview = view * model;
-            //gl_Position = projection * modelview * vec4(position, 1.0);
-            gl_Position = modelview * vec4(position, 1.0) * projection;
-        }
-    "#;
-
-    let fragment_shader_src = r#"
-        #version 140
-
-        out vec4 color;
-
-        void main() {
-            color = vec4(0.0, 1.0, 0.0, 1.0);
-        }
-    "#;
-
-    glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap()
-}
-
-fn handle_events(events_loop: &mut glium::glutin::EventsLoop, mut input: InputState) -> Option<InputState> {
-    use glium::glutin::{Event, WindowEvent, KeyboardInput, ElementState, VirtualKeyCode};
-
-    let mut closed = false;
-
-    events_loop.poll_events(|event| {
+        // Handle events + keyboard events
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::Closed, ..
-            } => closed = true,
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => *control_flow = ControlFlow::Exit,
+            Event::WindowEvent { event: WindowEvent::Resized(_), .. } => recreate_swapchain = true,
 
+            // Game Keyboard
             Event::WindowEvent {
                 event: WindowEvent::KeyboardInput {
                     input: KeyboardInput {
@@ -581,10 +644,10 @@ fn handle_events(events_loop: &mut glium::glutin::EventsLoop, mut input: InputSt
                     VirtualKeyCode::Space => {
                         match element_state {
                             ElementState::Pressed => {
-                                input.fire = true;
+                                state.input.fire = true;
                             },
                             ElementState::Released => {
-                                input.fire = false;
+                                state.input.fire = false;
                             },
                         }
                     },
@@ -593,10 +656,10 @@ fn handle_events(events_loop: &mut glium::glutin::EventsLoop, mut input: InputSt
                     VirtualKeyCode::Up => {
                         match element_state {
                             ElementState::Pressed => {
-                                input.yaxis = 1.0;
+                                state.input.yaxis = 1.0;
                             },
                             ElementState::Released => {
-                                input.yaxis = 0.0;
+                                state.input.yaxis = 0.0;
                             },
                         }
                     },
@@ -605,10 +668,10 @@ fn handle_events(events_loop: &mut glium::glutin::EventsLoop, mut input: InputSt
                     VirtualKeyCode::Left => {
                         match element_state {
                             ElementState::Pressed => {
-                                input.xaxis = -1.0;
+                                state.input.xaxis = -1.0;
                             },
                             ElementState::Released => {
-                                input.xaxis = 0.0;
+                                state.input.xaxis = 0.0;
                             },
                         }
                     },
@@ -617,42 +680,200 @@ fn handle_events(events_loop: &mut glium::glutin::EventsLoop, mut input: InputSt
                     VirtualKeyCode::Right => {
                         match element_state {
                             ElementState::Pressed => {
-                                input.xaxis = 1.0;
+                                state.input.xaxis = 1.0;
                             },
                             ElementState::Released => {
-                                input.xaxis = 0.0;
+                                state.input.xaxis = 0.0;
                             },
                         }
                     },
                     _ => (),
                 }
             },
-            _ => (),
+            _ => {},
         }
     });
-
-    if closed {
-        return None;
-    } else {
-        return Some(input);
-    }
 }
 
-#[derive(Copy, Clone)]
-pub struct Vertex {
-    position: [f32; 3]
+
+//{
+//    let mut events_loop = glutin::EventsLoop::new();
+//    let window = glutin::WindowBuilder::new();
+//    let context = glutin::ContextBuilder::new().with_depth_buffer(24);
+//    let display = glium::Display::new(window, context, &events_loop).unwrap();
+//
+//    // Shaders
+//    let program = shaders(display.clone());
+//
+//    // Ship
+//    let ship_shape = glium::vertex::VertexBuffer::new(&display, &SHIP).unwrap();
+//
+//
+//    loop {
+//        let mut target = display.draw();
+//        //let (width, height) = target.get_dimensions();
+//        let width = 640;
+//        let height = 480;
+//
+//        const DESIRED_FPS: u64 = 60;
+//        let seconds = 1.0 / (DESIRED_FPS as f64);
+//
+//        // Update the player state based on the user input.
+//        player_handle_input(&mut state.player, &state.input, seconds);
+//        state.player_shot_timeout -= seconds;
+//        if state.input.fire && state.player_shot_timeout < 0.0 {
+//            state.fire_player_shot();
+//        }
+//
+//        // Update the physics for all actors.
+//        // First the player...
+//        update_actor_position(&mut state.player, seconds);
+//        wrap_actor_position(&mut state.player, width as f64, height as f64);
+//
+//        // Then the shots...
+//        for act in &mut state.shots {
+//            update_actor_position(act, seconds);
+//            wrap_actor_position(act, width as f64, height as f64);
+//            handle_timed_life(act, seconds);
+//        }
+//
+//        // And finally the rocks.
+//        for act in &mut state.rocks {
+//            update_actor_position(act, seconds);
+//            wrap_actor_position(act, width as f64, height as f64);
+//        }
+//
+//        // Handle the results of things moving:
+//        // collision detection, object death, and if
+//        // we have killed all the rocks in the level,
+//        // spawn more of them.
+//        state.handle_collisions();
+//
+//        state.clear_dead_stuff();
+//
+//        state.check_for_level_respawn();
+//
+//        // Finally we check for our end state.
+//        // I want to have a nice death screen eventually,
+//        // but for now we just quit.
+//        if state.player.life <= 0.0 {
+//            target.finish().unwrap();
+//            return;
+//        }
+//
+//        // Our drawing is quite simple.
+//        // Just clear the screen...
+//        target.clear_color_and_depth((0.0, 0.0, 1.0, 1.0), 1.0);
+//
+//        // Loop over all objects drawing them...
+//        {
+//            let coords = (width, height);
+//
+//            let p = &state.player;
+//            draw_actor(&mut target, &program, &ship_shape, p, coords);
+//
+//            for s in &state.shots {
+//                draw_actor(&mut target, &program, &ship_shape, s, coords);
+//            }
+//
+//            for r in &state.rocks {
+//                draw_actor(&mut target, &program, &ship_shape, r, coords);
+//            }
+//        }
+//
+//        target.finish().unwrap();
+//
+//        match handle_events(&mut events_loop, state.input) {
+//            Some(x) => state.input = x,
+//            None    => return,
+//        }
+//
+//        let now = Instant::now();
+//        accumulator += now - previous_clock;
+//        previous_clock = now;
+//
+//        let fixed_time_stamp = Duration::new(0, 16666667 / speed);
+//        while accumulator >= fixed_time_stamp {
+//            accumulator -= fixed_time_stamp;
+//        }
+//
+//        thread::sleep(fixed_time_stamp - accumulator);
+//    }
+//}
+//
+//fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &glium::VertexBuffer<R>, actor: &Actor, world_coords: (u32, u32)) -> () where R: std::marker::Copy {
+//    // Parameters
+//    let params = glium::DrawParameters {
+//        depth: glium::Depth {
+//            test: glium::draw_parameters::DepthTest::IfLess,
+//            write: true,
+//            .. Default::default()
+//        },
+//        //backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+//        .. Default::default()
+//    };
+//
+//    // Projection,
+//    // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
+//    // So that's where that is coming from. Still unclear on why the view needs a translation (i
+//    // think its due to the world_to_screen_coords)
+//    let projection: cgmath::Matrix4<f32> = cgmath::ortho(-320.0, 320.0, 240.0, -240.0, 0.1, 1024.0);
+//
+//    // Fixed for now (view matrix) - identity
+//    // TODO: not sure why we needed the offset, but that fixed the othographic projection tho
+//    let view = cgmath::Matrix4::from_translation(cgmath::Vector3::new(-320.0, -240.0, 0.0));
+//
+//    let (screen_w, screen_h) = world_coords;
+//    let pos = world_to_screen_coords(screen_w, screen_h, &actor.pos);
+//    let px = pos.x as f32;
+//    let py = pos.y as f32;
+//
+//    // Model matrix
+//    let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
+//    let r = cgmath::Matrix4::from_angle_z(Rad((*&actor.facing).0 as f32));
+//    let s = cgmath::Matrix4::from_scale(20.0);
+//
+//    let model: cgmath::Matrix4<f32> = t * r * s;
+//
+//    // SHIP
+//    target.draw(
+//        shape,
+//        glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip),
+//        program,
+//        &uniform! {
+//            model: Into::<[[f32; 4]; 4]>::into(model),
+//            view: Into::<[[f32; 4]; 4]>::into(view),
+//            projection: Into::<[[f32; 4]; 4]>::into(projection)
+//        },
+//        &params
+//    ).unwrap();
+//}
+
+/// This method is called once during initialization, then again whenever the window is resized
+fn window_size_dependent_setup(
+    images: &[Arc<SwapchainImage<Window>>],
+    render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
+    dynamic_state: &mut DynamicState
+) -> Vec<Arc<dyn FramebufferAbstract + Send + Sync>> {
+    let dimensions = images[0].dimensions();
+
+    let viewport = Viewport {
+        origin: [0.0, 0.0],
+        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+        depth_range: 0.0 .. 1.0,
+    };
+    dynamic_state.viewports = Some(vec!(viewport));
+
+    images.iter().map(|image| {
+        Arc::new(
+            Framebuffer::start(render_pass.clone())
+                .add(image.clone()).unwrap()
+                .build().unwrap()
+        ) as Arc<dyn FramebufferAbstract + Send + Sync>
+    }).collect::<Vec<_>>()
 }
 
-implement_vertex!(Vertex, position);
-
-pub const SHIP: [Vertex; 9] = [
-    Vertex { position: [-0.3, -0.3,   0.0] },
-    Vertex { position: [ 0.0,  0.5,   0.0] },
-    Vertex { position: [ 0.3, -0.3,   0.0] },
-    Vertex { position: [-0.3, -0.3,   0.0] },
-    Vertex { position: [ 0.0,  0.25,  0.0] },
-    Vertex { position: [ 0.3, -0.3,   0.0] },
-    Vertex { position: [-0.3, -0.3,   0.0] },
-    Vertex { position: [ 0.0,  0.0,   0.0] },
-    Vertex { position: [ 0.3, -0.3,   0.0] },
-];
+fn get_dimensions(window: &Window) -> [u32; 2] {
+    let dimensions: (u32, u32) = window.inner_size().to_physical(window.hidpi_factor()).into();
+    [dimensions.0, dimensions.1]
+}
