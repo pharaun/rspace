@@ -12,10 +12,12 @@ use cgmath::Rad;
 
 // Vulkano uses
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
+use vulkano::buffer::cpu_pool::CpuBufferPool;
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
 use vulkano::command_buffer::pool::standard::StandardCommandPoolBuilder;
 use vulkano::device::{Device, DeviceExtensions};
 use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, Subpass, RenderPassAbstract};
+use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::image::SwapchainImage;
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::pipeline::GraphicsPipelineAbstract;
@@ -453,50 +455,10 @@ fn main() {
         ].iter().cloned()).unwrap()
     };
 
-    // Shaders
+    // Uniform buffer for model view
+    let uniform_buffer = CpuBufferPool::<vs::ty::Data>::new(device.clone(), BufferUsage::all());
 
-    // TODO: do model view projection?
-    // #version 140
-    //
-    // in vec3 position;
-    //
-    // uniform mat4 projection;
-    // uniform mat4 view;
-    // uniform mat4 model;
-    //
-    // void main() {
-    //     mat4 modelview = view * model;
-    //     gl_Position = modelview * vec4(position, 1.0) * projection;
-    // }
-    mod vs {
-        vulkano_shaders::shader!{
-            ty: "vertex",
-            src: "
-#version 450
-
-layout(location = 0) in vec2 position;
-
-void main() {
-    gl_Position = vec4(position, 0.0, 1.0);
-}"
-        }
-    }
-
-    mod fs {
-        vulkano_shaders::shader!{
-            ty: "fragment",
-            src: "
-#version 450
-
-layout(location = 0) out vec4 f_color;
-
-void main() {
-    f_color = vec4(0.0, 1.0, 0.0, 1.0);
-}
-"
-        }
-    }
-
+    // Shader load
     let vs = vs::Shader::load(device.clone()).unwrap();
     let fs = fs::Shader::load(device.clone()).unwrap();
 
@@ -651,6 +613,7 @@ void main() {
             pipeline.clone(),
             &dynamic_state,
             vertex_buffer.clone(),
+            uniform_buffer.clone(),
             command_buffer_builder,
             &state.player,
             coords
@@ -661,6 +624,7 @@ void main() {
                 pipeline.clone(),
                 &dynamic_state,
                 vertex_buffer.clone(),
+                uniform_buffer.clone(),
                 command_buffer_builder,
                 s,
                 coords
@@ -672,6 +636,7 @@ void main() {
                 pipeline.clone(),
                 &dynamic_state,
                 vertex_buffer.clone(),
+                uniform_buffer.clone(),
                 command_buffer_builder,
                 r,
                 coords
@@ -789,58 +754,83 @@ void main() {
     });
 }
 
+// TODO: may be better to move the player state/etc in here so that i can accumulate all of the
+// data needed, and then create a buffer, and shove a single draw at vulkan (instanced draw) and
+// that should do the trick i think?
 fn draw_actor<V, Gp>(
     pipeline: Gp,
     dynamic: &DynamicState,
     vertex_buffer: V,
+    uniform_buffer: CpuBufferPool::<vs::ty::Data>,
     command_buffer_builder: AutoCommandBufferBuilder<StandardCommandPoolBuilder>,
     actor: &Actor,
     world_coords: (u32, u32)
 ) -> AutoCommandBufferBuilder<StandardCommandPoolBuilder>
     where Gp: GraphicsPipelineAbstract + VertexSource<V> + Send + Sync + 'static + Clone
 {
-    // Draw the first frame
-    command_buffer_builder.draw(pipeline, dynamic, vertex_buffer, (), ()).unwrap()
+    // TODO: improve this to batch up all of this, but for now (?) dump the data one by one at the
+    // gpu, this shoul be getting a buffer where it put the per intance data onto (ie postion +
+    // rotation matrixes) and instancing the shaders/draw with the model/view matrix
+    //
+    // Setup the Model View World matrixes
+    let uniform_buffer_subbuffer = {
+        // projection - world space
+        //
+        // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
+        // So that's where that is coming from. Still unclear on why the view needs a translation (i
+        // think its due to the world_to_screen_coords)
+        let projection: cgmath::Matrix4<f32> = cgmath::ortho(
+            -320.0, 320.0,
+            240.0, -240.0,
+            0.1, 1024.0
+        );
 
+
+        // Screen
+        let (width, height) = world_coords;
+
+        // Fixed for now (view matrix) - identity
+        // TODO: not sure why we needed the offset, but that fixed the othographic projection tho
+        //let view = cgmath::Matrix4::identity();
+        let view = cgmath::Matrix4::from_translation(cgmath::Vector3::new(
+            -320.0,
+            -240.0,
+            0.0
+        ));
+
+        let pos = world_to_screen_coords(width, height, &actor.pos);
+        let px = pos.x as f32;
+        let py = pos.y as f32;
+
+        // Model matrix
+        let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
+        let r = cgmath::Matrix4::from_angle_z(Rad((*&actor.facing).0 as f32));
+        let s = cgmath::Matrix4::from_scale(20.0);
+
+        let model: cgmath::Matrix4<f32> = t * r * s;
+
+
+        // TODO: at least i know the model works (re rotation) going to work up from here
+        let model = cgmath::Matrix4::identity() * cgmath::Matrix4::from_angle_z(Rad((*&actor.facing).0 as f32));
+        let view = cgmath::Matrix4::identity();
+        let projection = cgmath::Matrix4::identity();
+
+        let uniform_data = vs::ty::Data {
+            world: model.into(),
+            view: view.into(),
+            proj: projection.into(),
+        };
+
+        uniform_buffer.next(uniform_data).unwrap()
+    };
+
+    let set = Arc::new(PersistentDescriptorSet::start(pipeline.clone(), 0)
+        .add_buffer(uniform_buffer_subbuffer).unwrap()
+        .build().unwrap()
+    );
+
+    command_buffer_builder.draw(pipeline, dynamic, vertex_buffer, set.clone(), ()).unwrap()
 }
-
-//fn draw_actor<R>(target: &mut glium::Frame, program: &glium::Program, shape: &glium::VertexBuffer<R>, actor: &Actor, world_coords: (u32, u32)) -> () where R: std::marker::Copy {
-//
-//    // Projection,
-//    // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
-//    // So that's where that is coming from. Still unclear on why the view needs a translation (i
-//    // think its due to the world_to_screen_coords)
-//    let projection: cgmath::Matrix4<f32> = cgmath::ortho(-320.0, 320.0, 240.0, -240.0, 0.1, 1024.0);
-//
-//    // Fixed for now (view matrix) - identity
-//    // TODO: not sure why we needed the offset, but that fixed the othographic projection tho
-//    let view = cgmath::Matrix4::from_translation(cgmath::Vector3::new(-320.0, -240.0, 0.0));
-//
-//    let (screen_w, screen_h) = world_coords;
-//    let pos = world_to_screen_coords(screen_w, screen_h, &actor.pos);
-//    let px = pos.x as f32;
-//    let py = pos.y as f32;
-//
-//    // Model matrix
-//    let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
-//    let r = cgmath::Matrix4::from_angle_z(Rad((*&actor.facing).0 as f32));
-//    let s = cgmath::Matrix4::from_scale(20.0);
-//
-//    let model: cgmath::Matrix4<f32> = t * r * s;
-//
-//    // SHIP
-//    target.draw(
-//        shape,
-//        glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip),
-//        program,
-//        &uniform! {
-//            model: Into::<[[f32; 4]; 4]>::into(model),
-//            view: Into::<[[f32; 4]; 4]>::into(view),
-//            projection: Into::<[[f32; 4]; 4]>::into(projection)
-//        },
-//        &params
-//    ).unwrap();
-//}
 
 /// This method is called once during initialization, then again whenever the window is resized
 fn window_size_dependent_setup(
@@ -869,4 +859,39 @@ fn window_size_dependent_setup(
 fn get_dimensions(window: &Window) -> [u32; 2] {
     let dimensions: (u32, u32) = window.inner_size().to_physical(window.hidpi_factor()).into();
     [dimensions.0, dimensions.1]
+}
+
+mod vs {
+    vulkano_shaders::shader!{
+        ty: "vertex",
+        src: "
+#version 450
+
+layout(location = 0) in vec2 position;
+
+layout(set = 0, binding = 0) uniform Data {
+    mat4 world;
+    mat4 view;
+    mat4 proj;
+} uniforms;
+
+void main() {
+    mat4 worldview = uniforms.view * uniforms.world;
+    gl_Position = uniforms.proj * worldview * vec4(position, 0.0, 1.0);
+}"
+    }
+}
+
+mod fs {
+    vulkano_shaders::shader!{
+        ty: "fragment",
+        src: "
+#version 450
+
+layout(location = 0) out vec4 f_color;
+
+void main() {
+    f_color = vec4(0.0, 1.0, 0.0, 1.0);
+}"
+    }
 }
