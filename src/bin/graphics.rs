@@ -261,19 +261,6 @@ fn handle_timed_life(actor: &mut Actor, dt: f64) {
 }
 
 
-/// Translates the world coordinate system, which
-/// has Y pointing up and the origin at the center,
-/// to the screen coordinate system, which has Y
-/// pointing downward and the origin at the top-left,
-fn world_to_screen_coords(screen_width: u32, screen_height: u32, point: &Vector2<f64>) -> Vector2<f64> {
-    let width = screen_width as f64;
-    let height = screen_height as f64;
-    let x = point.x + width / 2.0;
-    let y = height - (point.y + height / 2.0);
-    Vector2::new(x, y)
-}
-
-
 
 
 
@@ -774,46 +761,35 @@ fn draw_actor<V, Gp>(
     //
     // Setup the Model View World matrixes
     let uniform_buffer_subbuffer = {
-        // projection - world space
-        //
-        // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
-        // So that's where that is coming from. Still unclear on why the view needs a translation (i
-        // think its due to the world_to_screen_coords)
-        let projection: cgmath::Matrix4<f32> = cgmath::ortho(
-            -320.0, 320.0,
-            240.0, -240.0,
-            0.1, 1024.0
-        );
-
-
         // Screen
         let (width, height) = world_coords;
 
-        // Fixed for now (view matrix) - identity
-        // TODO: not sure why we needed the offset, but that fixed the othographic projection tho
-        //let view = cgmath::Matrix4::identity();
-        let view = cgmath::Matrix4::from_translation(cgmath::Vector3::new(
-            -320.0,
-            -240.0,
-            0.0
-        ));
 
-        let pos = world_to_screen_coords(width, height, &actor.pos);
-        let px = pos.x as f32;
-        let py = pos.y as f32;
+        // projection - world space
+        //
+        // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
+        // So that's where that is coming from. World space (game engine is from -width/2 to
+        // width/2) so we're using this
+        let mut projection: cgmath::Matrix4<f32> = cgmath::ortho(
+            -((width / 2) as f32), (width / 2) as f32,
+            -((height / 2) as f32), (height / 2) as f32,
+            -1024.0, 1024.0
+        );
+        // TODO: understand the depth cos it now renders but things are flipped and etc, not sure
+        // how much of it is due to vulkan coord flipping vs not, and need to understand the
+        // adjustment i need to do to the projection from opengl -> vulkan
+        // https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
 
-        // Model matrix
-        let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(px, py, 0.0));
+
+        // view matrix should stay in the center so identity
+        let view = cgmath::Matrix4::identity();
+
+        // Model (Will just use the world space coords right here)
+        let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(*&actor.pos.x as f32, *&actor.pos.y as f32, 0.0));
         let r = cgmath::Matrix4::from_angle_z(Rad((*&actor.facing).0 as f32));
         let s = cgmath::Matrix4::from_scale(20.0);
 
         let model: cgmath::Matrix4<f32> = t * r * s;
-
-
-        // TODO: at least i know the model works (re rotation) going to work up from here
-        let model = cgmath::Matrix4::identity() * cgmath::Matrix4::from_angle_z(Rad((*&actor.facing).0 as f32));
-        let view = cgmath::Matrix4::identity();
-        let projection = cgmath::Matrix4::identity();
 
         let uniform_data = vs::ty::Data {
             world: model.into(),
