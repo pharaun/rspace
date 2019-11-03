@@ -1,14 +1,10 @@
 #[macro_use]
 extern crate rand;
-extern crate cgmath;
+extern crate nalgebra_glm as glm;
 
 // Asteroidish game (based off the ggez example)
 use std::time::{Duration, Instant};
 use std::thread;
-
-use cgmath::prelude::*;
-use cgmath::Vector2;
-use cgmath::Rad;
 
 // Vulkano uses
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
@@ -47,30 +43,30 @@ use std::sync::Arc;
 /// didn't want to add more dependencies and such.
 /// **********************************************************************
 trait Vec2Ext {
-    fn from_angle(angle: Rad<f64>) -> Self;
+    fn from_angle(angle: f64) -> Self;
     fn random(max_magnitude: f64) -> Self;
     fn scaled(&self, rhs: f64) -> Self;
     fn clamped(&self, max: f64) -> Self;
 }
 
-impl Vec2Ext for Vector2<f64> {
+impl Vec2Ext for glm::DVec2 {
     /// Create a unit vector representing the
     /// given angle (in radians)
-    fn from_angle(angle: Rad<f64>) -> Self {
+    fn from_angle(angle: f64) -> Self {
         let (vx, vy) = angle.sin_cos();
-        Vector2::new(vx, vy)
+        glm::vec2(vx, vy)
     }
 
     fn random(max_magnitude: f64) -> Self {
-        let angle = Rad(rand::random::<f64>() * 2.0 * std::f64::consts::PI);
+        let angle = rand::random::<f64>() * 2.0 * std::f64::consts::PI;
         let mag = rand::random::<f64>() * max_magnitude;
-        Vector2::from_angle(angle).scaled(mag)
+        glm::DVec2::from_angle(angle).scaled(mag)
     }
 
     fn scaled(&self, rhs: f64) -> Self {
         let vx = self.x * rhs;
         let vy = self.y * rhs;
-        Vector2::new(vx, vy)
+        glm::vec2(vx, vy)
     }
 
     /// Returns a vector whose magnitude is between
@@ -105,9 +101,9 @@ enum ActorType {
 #[derive(Debug)]
 struct Actor {
     tag: ActorType,
-    pos: Vector2<f64>,
-    facing: Rad<f64>,
-    velocity: Vector2<f64>,
+    pos: glm::DVec2,
+    facing: f64,
+    velocity: glm::DVec2,
     rvel: f64,
     bbox_size: f64,
 
@@ -134,9 +130,9 @@ const SHOT_BBOX: f64 = 6.0;
 fn create_player() -> Actor {
     Actor {
         tag: ActorType::Player,
-        pos: Vector2::new(0., 0.),
-        facing: Rad(0.),
-        velocity: Vector2::new(0., 0.),
+        pos: glm::vec2(0., 0.),
+        facing: 0.0,
+        velocity: glm::vec2(0., 0.),
         rvel: 0.,
         bbox_size: PLAYER_BBOX,
         life: PLAYER_LIFE,
@@ -146,9 +142,9 @@ fn create_player() -> Actor {
 fn create_rock() -> Actor {
     Actor {
         tag: ActorType::Rock,
-        pos: Vector2::new(0., 0.),
-        facing: Rad(0.),
-        velocity: Vector2::new(0., 0.),
+        pos: glm::vec2(0., 0.),
+        facing: 0.0,
+        velocity: glm::vec2(0., 0.),
         rvel: 0.,
         bbox_size: ROCK_BBOX,
         life: ROCK_LIFE,
@@ -158,9 +154,9 @@ fn create_rock() -> Actor {
 fn create_shot() -> Actor {
     Actor {
         tag: ActorType::Shot,
-        pos: Vector2::new(0., 0.),
-        facing: Rad(0.),
-        velocity: Vector2::new(0., 0.),
+        pos: glm::vec2(0., 0.),
+        facing: 0.0,
+        velocity: glm::vec2(0., 0.),
         rvel: SHOT_RVEL,
         bbox_size: SHOT_BBOX,
         life: SHOT_LIFE,
@@ -175,14 +171,14 @@ const MAX_ROCK_VEL: f64 = 50.0;
 /// Note that this *could* create rocks outside the
 /// bounds of the playing field, so it should be
 /// called before `wrap_actor_position()` happens.
-fn create_rocks(num: i32, exclusion: &Vector2<f64>, min_radius: f64, max_radius: f64) -> Vec<Actor> {
+fn create_rocks(num: i32, exclusion: &glm::DVec2, min_radius: f64, max_radius: f64) -> Vec<Actor> {
     assert!(max_radius > min_radius);
     let new_rock = |_| {
         let mut rock = create_rock();
-        let r_angle = Rad(rand::random::<f64>() * 2.0 * std::f64::consts::PI);
+        let r_angle = rand::random::<f64>() * 2.0 * std::f64::consts::PI;
         let r_distance = rand::random::<f64>() * (max_radius - min_radius) + min_radius;
-        rock.pos = Vector2::from_angle(r_angle).scaled(r_distance) + *exclusion;
-        rock.velocity = Vector2::random(MAX_ROCK_VEL);
+        rock.pos = glm::DVec2::from_angle(r_angle).scaled(r_distance) + *exclusion;
+        rock.velocity = glm::DVec2::random(MAX_ROCK_VEL);
         rock
     };
     (0..num).map(new_rock).collect()
@@ -213,7 +209,7 @@ const PLAYER_SHOT_TIME: f64 = 0.5;
 
 
 fn player_handle_input(actor: &mut Actor, input: &InputState, dt: f64) {
-    actor.facing += Rad(dt * PLAYER_TURN_RATE * input.xaxis);
+    actor.facing += dt * PLAYER_TURN_RATE * input.xaxis;
 
     if input.yaxis > 0.0 {
         player_thrust(actor, dt);
@@ -221,7 +217,7 @@ fn player_handle_input(actor: &mut Actor, input: &InputState, dt: f64) {
 }
 
 fn player_thrust(actor: &mut Actor, dt: f64) {
-    let direction_vector = Vector2::from_angle(actor.facing);
+    let direction_vector = glm::DVec2::from_angle(actor.facing);
     let thrust_vector = direction_vector.scaled(PLAYER_THRUST);
     actor.velocity += thrust_vector.scaled(dt);
 }
@@ -232,7 +228,7 @@ fn update_actor_position(actor: &mut Actor, dt: f64) {
     actor.velocity = actor.velocity.clamped(MAX_PHYSICS_VEL);
     let dv = actor.velocity.scaled(dt);
     actor.pos += dv;
-    actor.facing += Rad(actor.rvel);
+    actor.facing += actor.rvel;
 }
 
 /// Takes an actor and wraps its position to the bounds of the
@@ -243,7 +239,7 @@ fn wrap_actor_position(actor: &mut Actor, sx: f64, sy: f64) {
     let screen_x_bounds = sx / 2.0;
     let screen_y_bounds = sy / 2.0;
     let sprite_half_size = (SPRITE_SIZE / 2) as f64;
-    let actor_center = actor.pos - Vector2::new(-sprite_half_size, sprite_half_size);
+    let actor_center = actor.pos - glm::vec2(-sprite_half_size, sprite_half_size);
     if actor_center.x > screen_x_bounds {
         actor.pos.x -= sx;
     } else if actor_center.x < -screen_x_bounds {
@@ -331,7 +327,7 @@ impl MainState {
         let mut shot = create_shot();
         shot.pos = player.pos;
         shot.facing = player.facing;
-        let direction = Vector2::from_angle(shot.facing);
+        let direction = glm::DVec2::from_angle(shot.facing);
         shot.velocity.x = SHOT_SPEED * direction.x;
         shot.velocity.y = SHOT_SPEED * direction.y;
 
@@ -770,7 +766,7 @@ fn draw_actor<V, Gp>(
         // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
         // So that's where that is coming from. World space (game engine is from -width/2 to
         // width/2) so we're using this
-        let mut projection: cgmath::Matrix4<f32> = cgmath::ortho(
+        let projection: glm::TMat4<f32> = glm::ortho_rh_zo(
             -((width / 2) as f32), (width / 2) as f32,
             -((height / 2) as f32), (height / 2) as f32,
             -1024.0, 1024.0
@@ -782,14 +778,13 @@ fn draw_actor<V, Gp>(
 
 
         // view matrix should stay in the center so identity
-        let view = cgmath::Matrix4::identity();
+        let view: glm::TMat4<f32> = glm::identity();
 
         // Model (Will just use the world space coords right here)
-        let t = cgmath::Matrix4::from_translation(cgmath::Vector3::new(*&actor.pos.x as f32, *&actor.pos.y as f32, 0.0));
-        let r = cgmath::Matrix4::from_angle_z(Rad((*&actor.facing).0 as f32));
-        let s = cgmath::Matrix4::from_scale(20.0);
-
-        let model: cgmath::Matrix4<f32> = t * r * s;
+        let model: glm::TMat4<f32> = glm::identity();
+        let model: glm::TMat4<f32> = glm::translate(&model, &glm::vec3(*&actor.pos.x as f32, *&actor.pos.y as f32, 0.0));
+        let model: glm::TMat4<f32> = glm::rotate_z(&model, *&actor.facing as f32);
+        let model: glm::TMat4<f32> = glm::scale(&model, &glm::vec3(20.0, 20.0, 20.0));
 
         let uniform_data = vs::ty::Data {
             world: model.into(),

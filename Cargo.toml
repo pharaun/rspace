@@ -32,8 +32,10 @@ vulkano-shaders = "0.14.0"
 vulkano-win = "0.15.0"
 winit = "0.20.0-alpha4"
 
-cgmath = "0.17.0"
 rand = "0.7.2"
+
+nalgebra-glm = "0.3"
+nalgebra = "0.17.3"
 
 
 [lib]
