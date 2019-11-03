@@ -363,6 +363,17 @@ impl MainState {
     }
 }
 
+// Translate the game world coord which is:
+// Y up, X Right, Z In
+// - to -
+// Y down, X right, Z in
+fn world_to_render(actor: &Actor) -> (f32, f32, f32) {
+    let ax = *&actor.pos.x;
+    let ay = *&actor.pos.y;
+    let rot = *&actor.facing;
+
+    (ax as f32, -(ay as f32), rot as f32)
+}
 
 
 
@@ -431,10 +442,11 @@ fn main() {
         struct Vertex { position: [f32; 2] }
         vulkano::impl_vertex!(Vertex, position);
 
+        // Y -> Down
         CpuAccessibleBuffer::from_iter(device.clone(), BufferUsage::all(), [
-            Vertex { position: [-0.3, -0.3] },
-            Vertex { position: [ 0.0,  0.5] },
-            Vertex { position: [ 0.3, -0.3] }
+            Vertex { position: [ 0.3,  0.3] },
+            Vertex { position: [ 0.0, -0.5] },
+            Vertex { position: [-0.3,  0.3] }
         ].iter().cloned()).unwrap()
     };
 
@@ -757,37 +769,31 @@ fn draw_actor<V, Gp>(
     //
     // Setup the Model View World matrixes
     let uniform_buffer_subbuffer = {
-        // Screen
-        let (width, height) = world_coords;
+        let (ax, ay, rot) = world_to_render(&actor);
 
+        // Model -> World coordination transformation
+        let world: glm::TMat4<f32> = glm::identity();
+        let world: glm::TMat4<f32> = glm::translate(&world, &glm::vec3(ax, ay, 0.0));
+        let world: glm::TMat4<f32> = glm::rotate_z(&world, rot);
+        let world: glm::TMat4<f32> = glm::scale(&world, &glm::vec3(40.0, 40.0, 40.0));
 
-        // projection - world space
-        //
+        // World -> View space (ie camera)
+        let view: glm::TMat4<f32> = glm::identity();
+
+        // View space -> Projection (normalized device coordination)
         // The bounds clamp assumpes a ortho projection of -width/2 to width/2 and -height/2 to height/2
         // So that's where that is coming from. World space (game engine is from -width/2 to
         // width/2) so we're using this
+        let (width, height) = world_coords;
+
         let projection: glm::TMat4<f32> = glm::ortho_rh_zo(
             -((width / 2) as f32), (width / 2) as f32,
             -((height / 2) as f32), (height / 2) as f32,
-            -1024.0, 1024.0
+            0.0, 1.0
         );
-        // TODO: understand the depth cos it now renders but things are flipped and etc, not sure
-        // how much of it is due to vulkan coord flipping vs not, and need to understand the
-        // adjustment i need to do to the projection from opengl -> vulkan
-        // https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
-
-
-        // view matrix should stay in the center so identity
-        let view: glm::TMat4<f32> = glm::identity();
-
-        // Model (Will just use the world space coords right here)
-        let model: glm::TMat4<f32> = glm::identity();
-        let model: glm::TMat4<f32> = glm::translate(&model, &glm::vec3(*&actor.pos.x as f32, *&actor.pos.y as f32, 0.0));
-        let model: glm::TMat4<f32> = glm::rotate_z(&model, *&actor.facing as f32);
-        let model: glm::TMat4<f32> = glm::scale(&model, &glm::vec3(20.0, 20.0, 20.0));
 
         let uniform_data = vs::ty::Data {
-            world: model.into(),
+            world: world.into(),
             view: view.into(),
             proj: projection.into(),
         };
