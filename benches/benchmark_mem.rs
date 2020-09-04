@@ -15,6 +15,21 @@ fn criterion_benchmark(c: &mut Criterion) {
     mem_map.add(0x1000, 0x1000, 0x1000, rspace::vm::mem::MemMapAttr::RW); // Slow path check
     mem_map.add(0x2000, 0x1000, 0x2000, rspace::vm::mem::MemMapAttr::RO);
 
+    // Benchmark pure array access (for comparing to memory byte read/writes)
+    let mut array_mem: [u8; 1024] = [0; 1024];
+
+    c.bench_function("array-access-byte-read", |b| b.iter(|| {
+        for i in 0..10 {
+            array_mem[black_box(i)];
+        }
+    }));
+
+    c.bench_function("array-access-byte-write", |b| b.iter(|| {
+        for i in 0..10 {
+            array_mem[black_box(i)] = black_box(0x10);
+        }
+    }));
+
 
     // Benchmark memory read/writes
     c.bench_function("mem-access-byte-read", |b| b.iter(|| {

@@ -37,13 +37,13 @@ const MEM_SIZE: usize = 4096 * 3;
 // for xyz) (see sector 3.5 - PMA - physical memory attributes)
 // - 3.5.1 Main Memory versus I/O versus Empty Regions
 pub trait Mem {
-    fn load_byte(&self, idx: u32) -> Result<u32, Trap>;
-    fn load_half(&self, idx: u32) -> Result<u32, Trap>;
+    fn load_byte(&self, idx: u32) -> Result<u8, Trap>;
+    fn load_half(&self, idx: u32) -> Result<u16, Trap>;
     fn load_word(&self, idx: u32) -> Result<u32, Trap>;
 
     // TODO: consider maybe two memory traits (one for read one for write)?
-    fn store_byte(&mut self, idx: u32, data: u32) -> Result<(), Trap>;
-    fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap>;
+    fn store_byte(&mut self, idx: u32, data: u8) -> Result<(), Trap>;
+    fn store_half(&mut self, idx: u32, data: u16) -> Result<(), Trap>;
     fn store_word(&mut self, idx: u32, data: u32) -> Result<(), Trap>;
 }
 
@@ -166,12 +166,12 @@ impl MemIO for MemMap {
 // to instead just hit native memory or so without having to emulate this? Is there any other
 // tricks that we can employ to speed this up even further?
 impl Mem for MemMap {
-    fn load_byte(&self, idx: u32) -> Result<u32, Trap> {
+    fn load_byte(&self, idx: u32) -> Result<u8, Trap> {
         for mb in self.map.iter() {
             if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
                 // TODO: improve add to sane check the offset
                 let index = (mb.offset + (idx - mb.start)) as usize;
-                return Ok(u32::from(mem_util::read_byte(&self.memory, index)));
+                return Ok(mem_util::read_byte(&self.memory, index));
             }
         }
 
@@ -182,20 +182,20 @@ impl Mem for MemMap {
 
     // TODO: improve add to make sure that we can exit the iter fast
     // - no overlapping memory region
-    fn load_half(&self, idx: u32) -> Result<u32, Trap> {
+    fn load_half(&self, idx: u32) -> Result<u16, Trap> {
         for mb in self.map.iter() {
             // TODO: make it not bail out for wrapping around access
             if (idx >= mb.start) && (idx < (mb.start + mb.size - 1)) {
                 // This is on the fast path.
                 let index = (mb.offset + (idx - mb.start)) as usize;
-                return Ok(u32::from(mem_util::read_half(&self.memory, index)));
+                return Ok(mem_util::read_half(&self.memory, index));
             }
         }
 
         // Proceed to the slow path
         // TODO: this doesn't backout properly, it writes then fails, make it work all or none
         match (self.load_byte(idx), self.load_byte(idx+1)) {
-            (Ok(x), Ok(y))  => Ok(x | (y << 8)),
+            (Ok(x), Ok(y))  => Ok(u16::from(x) | (u16::from(y) << 8)),
             (Err(x), _)     => Err(x),
             (_, Err(x))     => Err(x),
         }
@@ -213,13 +213,13 @@ impl Mem for MemMap {
 
         // Proceed to the slow path
         match (self.load_half(idx), self.load_half(idx+2)) {
-            (Ok(x), Ok(y))  => Ok(x | (y << 16)),
+            (Ok(x), Ok(y))  => Ok(u32::from(x) | (u32::from(y) << 16)),
             (Err(x), _)     => Err(x),
             (_, Err(x))     => Err(x),
         }
     }
 
-    fn store_byte(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+    fn store_byte(&mut self, idx: u32, data: u8) -> Result<(), Trap> {
         for mb in self.map.iter() {
             if (idx >= mb.start) && (idx < (mb.start + mb.size)) {
                 return match mb.attr {
@@ -227,7 +227,7 @@ impl Mem for MemMap {
                     MemMapAttr::RW => {
                         // TODO: improve add to sane check the offset
                         let index = (mb.offset + (idx - mb.start)) as usize;
-                        mem_util::write_byte(&mut self.memory, index, data as u8);
+                        mem_util::write_byte(&mut self.memory, index, data);
                         return Ok(());
                     },
                 };
@@ -239,7 +239,7 @@ impl Mem for MemMap {
         Err(Trap::IllegalMemoryAccess(idx))
     }
 
-    fn store_half(&mut self, idx: u32, data: u32) -> Result<(), Trap> {
+    fn store_half(&mut self, idx: u32, data: u16) -> Result<(), Trap> {
         for mb in self.map.iter() {
             // TODO: make it not bail out for wrapping around access
             if (idx >= mb.start) && (idx < (mb.start + mb.size - 1)) {
@@ -248,7 +248,7 @@ impl Mem for MemMap {
                     MemMapAttr::RW => {
                         // This is on the fast path.
                         let index = (mb.offset + (idx - mb.start)) as usize;
-                        mem_util::write_half(&mut self.memory, index, data as u16);
+                        mem_util::write_half(&mut self.memory, index, data);
                         return Ok(());
                     },
                 };
@@ -256,7 +256,7 @@ impl Mem for MemMap {
         }
 
         // Proceed to the slow path
-        match (self.store_byte(idx, data), self.store_byte(idx+1, data >> 8)) {
+        match (self.store_byte(idx, data as u8), self.store_byte(idx+1, (data >> 8) as u8)) {
             (Ok(_), Ok(_))  => Ok(()),
             (Err(x), _)     => Err(x),
             (_, Err(x))     => Err(x),
@@ -280,7 +280,7 @@ impl Mem for MemMap {
         }
 
         // Proceed to the slow path
-        match (self.store_half(idx, data), self.store_half(idx+2, data >> 16)) {
+        match (self.store_half(idx, data as u16), self.store_half(idx+2, (data >> 16) as u16)) {
             (Ok(_), Ok(_))  => Ok(()),
             (Err(x), _)     => Err(x),
             (_, Err(x))     => Err(x),

@@ -300,15 +300,15 @@ impl Cpu {
             },
             (        _, 0b100, opcode::LOAD) => {
                 // LBU
-                self.reg[rd] = memory.load_byte(
+                self.reg[rd] = u32::from(memory.load_byte(
                     self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))
-                )?;
+                )?);
             },
             (        _, 0b101, opcode::LOAD) => {
                 // LHU
-                self.reg[rd] = memory.load_half(
+                self.reg[rd] = u32::from(memory.load_half(
                     self.reg[rs1].wrapping_add(sign_extend(inst, i_imm))
-                )?;
+                )?);
             },
 
             // RV32 I
@@ -399,14 +399,14 @@ impl Cpu {
                 // SB
                 memory.store_byte(
                     self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)),
-                    self.reg[rs2],
+                    self.reg[rs2] as u8,
                 )?;
             },
             (        _, 0b001, opcode::STORE) => {
                 // SH
                 memory.store_half(
                     self.reg[rs1].wrapping_add(sign_extend(inst, s_imm)),
-                    self.reg[rs2],
+                    self.reg[rs2] as u16,
                 )?;
             },
             (        _, 0b010, opcode::STORE) => {
@@ -599,19 +599,19 @@ fn sign_extend(inst: u32, imm: u32) -> u32 {
     }
 }
 
-fn sign_extend_8_to_32(imm: u32) -> u32 {
+fn sign_extend_8_to_32(imm: u8) -> u32 {
     if (imm & 0x80) == 0x80 {
-        imm | 0xff_ff_ff_00
+        u32::from(imm) | 0xff_ff_ff_00
     } else {
-        imm
+        u32::from(imm)
     }
 }
 
-fn sign_extend_16_to_32(imm: u32) -> u32 {
+fn sign_extend_16_to_32(imm: u16) -> u32 {
     if (imm & 0x80_00) == 0x80_00 {
-        imm | 0xff_ff_00_00
+        u32::from(imm) | 0xff_ff_00_00
     } else {
-        imm
+        u32::from(imm)
     }
 }
 
