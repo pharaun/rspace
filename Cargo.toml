@@ -1,51 +1,6 @@
-[package]
-name = "rspace"
-version = "0.1.0"
-authors = ["Anja Berens <pharaun666@gmail.com>"]
-edition = "2021"
+[workspace]
 
-# phf_codegen
-build = "build.rs"
-
-[features]
-debug = []
-
-[dev-dependencies]
-criterion = "0.3"
-
-[build-dependencies]
-phf_codegen = "0.7.24"
-
-[dependencies]
-# Bit twiddling
-twiddle = "1.1.0"
-
-# Reading bits from memory
-byteorder = "1.3.2"
-
-# phf runtime library:
-phf = "0.7.24"
-
-[profile.bench]
-lto = "thin"
-
-[lib]
-bench = false
-
-[[bin]]
-name = "assembler"
-path = "src/bin/assembler.rs"
-bench = false
-
-[[bin]]
-name = "emulator"
-path = "src/bin/emulator.rs"
-bench = false
-
-[[bench]]
-name = "benchmark_emul32_rom"
-harness = false
-
-[[bench]]
-name = "benchmark_mem"
-harness = false
+members = [
+    "riscv",
+    "rcore",
+]
