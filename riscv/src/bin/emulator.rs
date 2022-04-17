@@ -1,4 +1,4 @@
-extern crate rspace;
+extern crate riscv;
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -8,7 +8,7 @@ fn main() {
     let mut file = File::open("/tmp/test").unwrap();
     file.read_exact(&mut rom).unwrap();
 
-    let mut vm = rspace::vm::Emul32::new_with_rom(rom);
+    let mut vm = riscv::vm::Emul32::new_with_rom(rom);
 
     // Virtal machine run
     loop {

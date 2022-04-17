@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate criterion;
-extern crate rspace;
+extern crate riscv;
 
 use byteorder::{LittleEndian, WriteBytesExt};
 
@@ -10,7 +10,7 @@ use criterion::black_box;
 
 fn setup_binary_code(test_asm: &str, rom: &mut [u8; 4096], full: bool) {
     let binary_code = {
-        let asm = rspace::asm::parse_asm(test_asm);
+        let asm = riscv::asm::parse_asm(test_asm);
         let mut wtr = vec![];
 
         for i in 0..asm.len() {
@@ -38,7 +38,7 @@ fn setup_binary_code(test_asm: &str, rom: &mut [u8; 4096], full: bool) {
 
 
 fn run_rom(rom: [u8; 4096]) {
-    let mut vm = rspace::vm::Emul32::new_with_rom(rom);
+    let mut vm = riscv::vm::Emul32::new_with_rom(rom);
     vm.run();
 }
 

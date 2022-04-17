@@ -1,4 +1,4 @@
-extern crate rspace;
+extern crate riscv;
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -203,7 +203,7 @@ fn main() -> std::io::Result<()> {
     "#;
 
     let binary_code = {
-        let asm = rspace::asm::parse_asm(test_asm);
+        let asm = riscv::asm::parse_asm(test_asm);
         let mut wtr = vec![];
 
         for i in asm {

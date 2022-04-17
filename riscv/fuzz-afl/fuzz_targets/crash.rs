@@ -1,4 +1,4 @@
-extern crate rspace;
+extern crate riscv;
 
 use std::io::prelude::*;
 use std::io::{self, Read};
@@ -9,7 +9,7 @@ fn main() -> io::Result<()> {
     io::stdin().read(&mut rom)?;
 
     // fuzzed code goes here
-    let mut vm = rspace::vm::Emul32::new_with_rom(rom);
+    let mut vm = riscv::vm::Emul32::new_with_rom(rom);
 
     // Can't infinite run, so do a thousand (?) steps then call it quits
     // exit early if Trap fires

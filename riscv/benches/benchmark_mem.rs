@@ -1,19 +1,19 @@
 #[macro_use]
 extern crate criterion;
-extern crate rspace;
+extern crate riscv;
 
-use crate::rspace::vm::mem::Mem;
-use crate::rspace::vm::mem::MemIO;
+use crate::riscv::vm::mem::Mem;
+use crate::riscv::vm::mem::MemIO;
 
 use criterion::Criterion;
 use criterion::black_box;
 
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let mut mem_map: rspace::vm::mem::MemMap = Default::default();
-    let id = mem_map.add(0x0, 0x1000, 0, rspace::vm::mem::MemMapAttr::RW);
-    mem_map.add(0x1000, 0x1000, 0x1000, rspace::vm::mem::MemMapAttr::RW); // Slow path check
-    mem_map.add(0x2000, 0x1000, 0x2000, rspace::vm::mem::MemMapAttr::RO);
+    let mut mem_map: riscv::vm::mem::MemMap = Default::default();
+    let id = mem_map.add(0x0, 0x1000, 0, riscv::vm::mem::MemMapAttr::RW);
+    mem_map.add(0x1000, 0x1000, 0x1000, riscv::vm::mem::MemMapAttr::RW); // Slow path check
+    mem_map.add(0x2000, 0x1000, 0x2000, riscv::vm::mem::MemMapAttr::RO);
 
     // Benchmark pure array access (for comparing to memory byte read/writes)
     let mut array_mem: [u8; 1024] = [0; 1024];

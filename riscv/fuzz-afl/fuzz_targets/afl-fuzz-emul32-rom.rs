@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate afl;
-extern crate rspace;
+extern crate riscv;
 
 // Build with: RUSTFLAGS="-Clink-arg=-fuse-ld=gold" otherwise link error
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
         };
 
         // fuzzed code goes here
-        let mut vm = rspace::vm::Emul32::new_with_rom(rom);
+        let mut vm = riscv::vm::Emul32::new_with_rom(rom);
 
         // Can't infinite run, so do a thousand (?) steps then call it quits
         // exit early if Trap fires

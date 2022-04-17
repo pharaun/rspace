@@ -1,7 +1,7 @@
 #![no_main]
 #[macro_use]
 extern crate libfuzzer_sys;
-extern crate rspace;
+extern crate riscv;
 
 fuzz_target!(|data: &[u8]| {
     let rom = {
@@ -13,7 +13,7 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // fuzzed code goes here
-    let mut vm = rspace::vm::Emul32::new_with_rom(rom);
+    let mut vm = riscv::vm::Emul32::new_with_rom(rom);
 
     // Can't infinite run, so do a thousand (?) steps then call it quits
     // exit early if Trap fires
