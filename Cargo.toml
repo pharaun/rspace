@@ -5,5 +5,7 @@ members = [
     "rcore",
 ]
 
+resolver = "2"
+
 [profile.bench]
 lto = "thin"
