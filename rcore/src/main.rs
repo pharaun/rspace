@@ -5,10 +5,7 @@ use bevy_prototype_lyon::prelude::*;
 struct Ship;
 
 #[derive(Component)]
-struct Position {
-    x: f32,
-    y: f32,
-}
+struct Velocity(Vec2);
 
 // TODO:
 // - faction
@@ -17,47 +14,71 @@ struct Position {
 // - radar + shield -> Arc (direction + arc width)
 
 fn add_ships(mut commands: Commands) {
-    commands.spawn()
-        .insert(Ship)
-        .insert(Position { x: 1.0, y: 4.0 });
+    // TODO: draw an actual ship
+    let shape = shapes::RegularPolygon {
+        sides: 6,
+        feature: shapes::RegularPolygonFeature::Radius(20.0),
+        ..shapes::RegularPolygon::default()
+    };
 
-    commands.spawn()
-        .insert(Ship)
-        .insert(Position { x: 6.0, y: 0.0 });
+    let poss = vec![Vec2::new(50.0, 200.0), Vec2::new(300.0, 0.0)];
+
+    for pos in poss {
+        commands
+            .spawn_bundle(GeometryBuilder::build_as(
+                &shape,
+                DrawMode::Outlined {
+                    fill_mode: FillMode::color(Color::CYAN),
+                    outline_mode: StrokeMode::new(Color::BLACK, 5.0),
+                },
+                Transform {
+                    translation: pos.extend(0.0),
+                    ..default()
+                },
+            ))
+            .insert(Ship)
+            .insert(Velocity(Vec2::new(1.0, 5.0)));
+    }
 }
 
-fn print_position(query: Query<&Position, With<Ship>>) {
-    for pos in query.iter() {
-        println!("x: {}, y: {}", pos.x, pos.y);
+struct VelocityTimer(Timer);
+fn apply_velocity(
+    time: Res<Time>,
+    mut timer: ResMut<VelocityTimer>,
+    mut query: Query<(&Velocity, &mut Transform)>
+) {
+    if timer.0.tick(time.delta()).just_finished() {
+        for (vec, mut tran) in query.iter_mut() {
+            println!("POS - x: {}, y: {}", tran.translation.x, tran.translation.y);
+            println!("VEC - x: {}, y: {}", vec.0.x, vec.0.y);
+
+            tran.translation.x += vec.0.x;
+            tran.translation.y += vec.0.y;
+        }
+    }
+}
+
+struct ShipPlugin;
+impl Plugin for ShipPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugin(ShapePlugin)
+            .add_startup_system(add_ships)
+            .insert_resource(VelocityTimer(Timer::from_seconds(1.0, true)))
+            .add_system(apply_velocity);
     }
 }
 
 
-fn add_shape(mut commands: Commands) {
-    let shape = shapes::RegularPolygon {
-        sides: 6,
-        feature: shapes::RegularPolygonFeature::Radius(200.0),
-        ..shapes::RegularPolygon::default()
-    };
-
+fn global_setup(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-    commands.spawn_bundle(GeometryBuilder::build_as(
-        &shape,
-        DrawMode::Outlined {
-            fill_mode: FillMode::color(Color::CYAN),
-            outline_mode: StrokeMode::new(Color::BLACK, 10.0),
-        },
-        Transform::default(),
-    ));
 }
+
 
 fn main() {
     App::new()
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
-        .add_plugin(ShapePlugin)
-        .add_startup_system(add_shape)
-        .add_startup_system(add_ships)
-        .add_system(print_position)
+        .add_startup_system(global_setup)
+        .add_plugin(ShipPlugin)
         .run();
 }
