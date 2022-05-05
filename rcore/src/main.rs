@@ -41,7 +41,7 @@ fn add_ships(mut commands: Commands) {
                     outline_mode: StrokeMode::new(Color::BLACK, 2.0),
                 },
                 Transform {
-                    translation: pos.extend(0.0),
+                    translation: pos.extend(1.0),
                     ..default()
                 },
             ))
@@ -96,6 +96,10 @@ fn apply_rotation(
     }
 }
 
+// TODO: decouple the rendering stuff somewhat from the rest of the system. Ie we
+// still bundle the assets in the ECS, but have all of the system interact within
+// the ECS then after things settle -> have a system that takes the ship plugin content
+// system and update the sprite/assets/etc to display that information on the screen
 struct ShipPlugin;
 impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
