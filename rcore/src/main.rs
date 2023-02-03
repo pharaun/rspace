@@ -108,7 +108,7 @@ impl Plugin for ShipPlugin {
         app.add_plugin(ShapePlugin)
             .add_startup_system(add_ships)
             .insert_resource(VelocityTimer(Timer::from_seconds(1.0 / 10.0, TimerMode::Repeating)))
-            .insert_resource(RotationTimer(Timer::from_seconds(1.0 / 30.0, TimerMode::Repeating)))
+            .insert_resource(RotationTimer(Timer::from_seconds(1.0 / 60.0, TimerMode::Repeating)))
             .add_system(apply_velocity)
             .add_system(apply_rotation);
     }
