@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.7", features = ["dynamic"] }
-bevy_prototype_lyon = "0.5"
+bevy = { version = "0.9", features = ["dynamic"] }
+bevy_prototype_lyon = "0.7"

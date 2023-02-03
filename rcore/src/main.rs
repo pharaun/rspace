@@ -34,7 +34,7 @@ fn add_ships(mut commands: Commands) {
 
     for (pos, (vel, rot)) in zip(poss, zip(velo, roto)) {
         commands
-            .spawn_bundle(GeometryBuilder::build_as(
+            .spawn(GeometryBuilder::build_as(
                 &path,
                 DrawMode::Outlined {
                     fill_mode: FillMode::color(Color::CYAN),
@@ -51,6 +51,7 @@ fn add_ships(mut commands: Commands) {
     }
 }
 
+#[derive(Resource)]
 struct VelocityTimer(Timer);
 fn apply_velocity(
     windows: Res<Windows>,
@@ -80,6 +81,7 @@ fn apply_velocity(
     }
 }
 
+#[derive(Resource)]
 struct RotationTimer(Timer);
 fn apply_rotation(
     time: Res<Time>,
@@ -105,8 +107,8 @@ impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ShapePlugin)
             .add_startup_system(add_ships)
-            .insert_resource(VelocityTimer(Timer::from_seconds(1.0 / 10.0, true)))
-            .insert_resource(RotationTimer(Timer::from_seconds(1.0 / 30.0, true)))
+            .insert_resource(VelocityTimer(Timer::from_seconds(1.0 / 10.0, TimerMode::Repeating)))
+            .insert_resource(RotationTimer(Timer::from_seconds(1.0 / 30.0, TimerMode::Repeating)))
             .add_system(apply_velocity)
             .add_system(apply_rotation);
     }
@@ -114,7 +116,7 @@ impl Plugin for ShipPlugin {
 
 
 fn global_setup(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn(Camera2dBundle::default());
 }
 
 

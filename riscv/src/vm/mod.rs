@@ -117,7 +117,7 @@ impl Emul32 {
     // TODO: for now just return an option
     pub fn step(&mut self) -> Result<(), Trap> {
         // TODO: figure out how to test that the trap fired
-        self.timer.step(
+        let _ = self.timer.step(
             &mut self.mem
         );
 

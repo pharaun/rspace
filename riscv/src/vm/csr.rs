@@ -188,6 +188,7 @@ struct TrapVec {
 // causes the pc to be set to BASE+0x1c.
 //
 // Reset and NMI vector locations are given in a platform specification.
+#[allow(dead_code)]
 enum VecMode {
     Direct,   // All exceptions set pc to BASE.
     Vectored, // Asynchronous interrupts set pc to BASE+4×cause.
