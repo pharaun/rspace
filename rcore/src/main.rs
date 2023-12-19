@@ -49,7 +49,7 @@ fn add_ships(mut commands: Commands) {
                 ..default()
             },
             Stroke::new(Color::BLACK, 2.0),
-            Fill::color(Color::RED),
+            Fill::color(Color::GREEN),
         ))
             .insert(Ship)
             .insert(Velocity(vel))
@@ -81,9 +81,9 @@ fn apply_rotation(mut query: Query<(&Rotation, &mut Transform)>) {
 fn apply_collision(mut query: Query<(&Collision, &mut Fill)>) {
     for (collision, mut fill) in query.iter_mut() {
         if collision.0 == 0 {
-            fill.color = Color::RED;
+            fill.color = Color::GREEN;
         } else {
-            fill.color = Color::BLUE;
+            fill.color = Color::RED;
         }
     }
 }
@@ -136,7 +136,7 @@ impl Plugin for ShipPlugins {
                 ),
             )
             .add_systems(Update, process_events)
-            .add_systems(Update, apply_collision);
+            .add_systems(Update, apply_collision.after(process_events));
     }
 }
 
