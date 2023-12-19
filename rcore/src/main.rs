@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
-use bevy::window::PrimaryWindow;
 
 use std::iter::zip;
 
@@ -54,50 +53,19 @@ fn add_ships(mut commands: Commands) {
     }
 }
 
-#[derive(Resource)]
-struct VelocityTimer(Timer);
-fn apply_velocity(
-    windows: Query<&Window, With<PrimaryWindow>>,
-    time: Res<Time>,
-    mut timer: ResMut<VelocityTimer>,
-    mut query: Query<(&Velocity, &mut Transform)>
-) {
-    let window = windows.get_single().unwrap();
-    if timer.0.tick(time.delta()).just_finished() {
-        for (vec, mut tran) in query.iter_mut() {
-            tran.translation.x += vec.0.x;
-            tran.translation.y += vec.0.y;
-
-            // Wrap it if needed
-            if tran.translation.y < -(window.height() as f32 / 2.0) {
-                tran.translation.y += window.height() as f32;
-            } else if tran.translation.y > (window.height() as f32 / 2.0) {
-                tran.translation.y -= window.height() as f32;
-            }
-
-            if tran.translation.x < -(window.width() as f32 / 2.0) {
-                tran.translation.x += window.width() as f32;
-            } else if tran.translation.x > (window.width() as f32 / 2.0) {
-                tran.translation.x -= window.width() as f32;
-            }
-        }
+fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
+    for (vec, mut tran) in query.iter_mut() {
+        tran.translation.x += vec.0.x;
+        tran.translation.y += vec.0.y;
     }
 }
 
-#[derive(Resource)]
-struct RotationTimer(Timer);
-fn apply_rotation(
-    time: Res<Time>,
-    mut timer: ResMut<RotationTimer>,
-    mut query: Query<(&mut Rotation, &mut Transform)>
-) {
-    if timer.0.tick(time.delta()).just_finished() {
-        for (mut rot, mut tran) in query.iter_mut() {
-            tran.rotation = Quat::from_rotation_z(
-                rot.0
-            );
-            rot.0 += 0.0174533;
-        }
+fn apply_rotation(mut query: Query<(&mut Rotation, &mut Transform)>) {
+    for (mut rot, mut tran) in query.iter_mut() {
+        tran.rotation = Quat::from_rotation_z(
+            rot.0
+        );
+        rot.0 += 0.0174533;
     }
 }
 
@@ -105,30 +73,98 @@ fn apply_rotation(
 // still bundle the assets in the ECS, but have all of the system interact within
 // the ECS then after things settle -> have a system that takes the ship plugin content
 // system and update the sprite/assets/etc to display that information on the screen
-struct ShipPlugin;
-impl Plugin for ShipPlugin {
+struct ShipPlugins;
+impl Plugin for ShipPlugins {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
             .add_systems(Startup, add_ships)
 
-            .insert_resource(VelocityTimer(Timer::from_seconds(1.0 / 10.0, TimerMode::Repeating)))
-            .insert_resource(RotationTimer(Timer::from_seconds(1.0 / 60.0, TimerMode::Repeating)))
-            .add_systems(Update, apply_velocity)
-            .add_systems(Update, apply_rotation);
+            .insert_resource(Time::<Fixed>::from_hz(64.0))
+
+            .add_systems(
+                FixedUpdate,
+                (
+                    apply_velocity,
+                    apply_rotation,
+                ),
+            );
     }
 }
 
 
-fn global_setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+// TODO: Temp size for now
+pub const ARENA_WIDTH: f32 = 1024.0;
+pub const ARENA_HEIGHT: f32 = 640.0;
+
+struct ArenaPlugins;
+impl Plugin for ArenaPlugins {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, camera_setup)
+            .add_systems(Startup, add_arena_bounds)
+            .add_systems(PostUpdate, wrap_arena);
+    }
 }
 
+#[derive(Component)]
+struct CameraMarker;
+
+fn camera_setup(mut commands: Commands) {
+    commands.spawn((
+        Camera2dBundle::default(),
+        CameraMarker,
+    ));
+}
+
+// Take care of any existing Transform to make sure it wraps around into the arena again
+fn wrap_arena(mut query: Query<&mut Transform, Changed<Transform>>) {
+    for mut tran in query.iter_mut() {
+        if tran.translation.y < -(ARENA_HEIGHT / 2.0) {
+            tran.translation.y += ARENA_HEIGHT;
+        } else if tran.translation.y > (ARENA_HEIGHT / 2.0) {
+            tran.translation.y -= ARENA_HEIGHT;
+        }
+
+        if tran.translation.x < -(ARENA_WIDTH / 2.0) {
+            tran.translation.x += ARENA_WIDTH;
+        } else if tran.translation.x > (ARENA_WIDTH / 2.0) {
+            tran.translation.x -= ARENA_WIDTH;
+        }
+    }
+}
+
+#[derive(Component)]
+struct ArenaMarker;
+fn add_arena_bounds(mut commands: Commands) {
+    let path = {
+        let mut path = PathBuilder::new();
+        let _ = path.move_to(Vec2::new(-(ARENA_WIDTH / 2.0), -(ARENA_HEIGHT / 2.0)));
+        let _ = path.line_to(Vec2::new(ARENA_WIDTH / 2.0, -(ARENA_HEIGHT / 2.0)));
+        let _ = path.line_to(Vec2::new(ARENA_WIDTH / 2.0, ARENA_HEIGHT / 2.0));
+        let _ = path.line_to(Vec2::new(-(ARENA_WIDTH / 2.0), ARENA_HEIGHT / 2.0));
+        let _ = path.close();
+        path.build()
+    };
+
+    commands.spawn((
+        ShapeBundle {
+            path: path,
+            spatial: SpatialBundle {
+                transform: Transform::from_xyz(0., 0., -1.),
+                ..default()
+            },
+            ..default()
+        },
+        Stroke::new(Color::RED, 2.0),
+        Fill::color(Color::BLUE),
+        ArenaMarker,
+    ));
+}
 
 fn main() {
     App::new()
         .insert_resource(Msaa::default())
         .add_plugins(DefaultPlugins)
-        .add_systems(Startup, global_setup)
-        .add_plugins(ShipPlugin)
+        .add_plugins(ArenaPlugins)
+        .add_plugins(ShipPlugins)
         .run();
 }
