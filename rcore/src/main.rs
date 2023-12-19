@@ -20,9 +20,9 @@ struct Rotation(f32);
 
 fn add_ships(mut commands: Commands) {
 
-    let poss = vec![Vec2::new(50.0, 200.0), Vec2::new(300.0, 0.0)];
-    let velo = vec![Vec2::new(-3.0, 1.0), Vec2::new(-2.0, -3.0)];
-    let roto = vec![1.0, 2.0];
+    let poss = vec![Vec2::new(50.0, 200.0), Vec2::new(300.0, 0.0), Vec2::new(-200., 0.), Vec2::new(200., 0.)];
+    let velo = vec![Vec2::new(-3.0, 1.0), Vec2::new(-2.0, -3.0), Vec2::new(1.0, 0.), Vec2::new(-1.0, 0.)];
+    let roto = vec![1.0, 2.0, 0.0, 0.0];
 
     for (pos, (vel, rot)) in zip(poss, zip(velo, roto)) {
         let path = {
@@ -60,12 +60,9 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
     }
 }
 
-fn apply_rotation(mut query: Query<(&mut Rotation, &mut Transform)>) {
-    for (mut rot, mut tran) in query.iter_mut() {
-        tran.rotation = Quat::from_rotation_z(
-            rot.0
-        );
-        rot.0 += 0.0174533;
+fn apply_rotation(mut query: Query<(&Rotation, &mut Transform)>) {
+    for (rot, mut tran) in query.iter_mut() {
+        tran.rotation *= Quat::from_rotation_z(0.0174533 * rot.0);
     }
 }
 
@@ -154,7 +151,7 @@ fn add_arena_bounds(mut commands: Commands) {
             },
             ..default()
         },
-        Stroke::new(Color::RED, 2.0),
+        Stroke::new(Color::RED, 1.0),
         Fill::color(Color::BLUE),
         ArenaMarker,
     ));
