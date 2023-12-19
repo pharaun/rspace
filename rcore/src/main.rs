@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
+use bevy_rapier2d::prelude::*;
 
 use std::iter::zip;
 
@@ -12,6 +13,10 @@ struct Velocity(Vec2);
 #[derive(Component)]
 struct Rotation(f32);
 
+// Ref-counted collision, if greater than zero, its colloding, otherwise
+#[derive(Component)]
+struct Collision(u32);
+
 // TODO:
 // - faction
 // - heat
@@ -19,7 +24,6 @@ struct Rotation(f32);
 // - radar + shield -> Arc (direction + arc width)
 
 fn add_ships(mut commands: Commands) {
-
     let poss = vec![Vec2::new(50.0, 200.0), Vec2::new(300.0, 0.0), Vec2::new(-200., 0.), Vec2::new(200., 0.)];
     let velo = vec![Vec2::new(-3.0, 1.0), Vec2::new(-2.0, -3.0), Vec2::new(1.0, 0.), Vec2::new(-1.0, 0.)];
     let roto = vec![1.0, 2.0, 0.0, 0.0];
@@ -49,7 +53,15 @@ fn add_ships(mut commands: Commands) {
         ))
             .insert(Ship)
             .insert(Velocity(vel))
-            .insert(Rotation(rot));
+            .insert(Rotation(rot))
+
+            // TODO: probs want collision groups (ie ship vs missile vs other ships)
+            .insert(Collider::cuboid(10.0, 20.0))
+            .insert(ActiveCollisionTypes::empty() | ActiveCollisionTypes::STATIC_STATIC)
+            .insert(ActiveEvents::COLLISION_EVENTS)
+            .insert(Sensor)
+
+            .insert(Collision(0));
     }
 }
 
@@ -63,6 +75,44 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
 fn apply_rotation(mut query: Query<(&Rotation, &mut Transform)>) {
     for (rot, mut tran) in query.iter_mut() {
         tran.rotation *= Quat::from_rotation_z(0.0174533 * rot.0);
+    }
+}
+
+fn apply_collision(mut query: Query<(&Collision, &mut Fill)>) {
+    for (collision, mut fill) in query.iter_mut() {
+        if collision.0 == 0 {
+            fill.color = Color::RED;
+        } else {
+            fill.color = Color::BLUE;
+        }
+    }
+}
+
+// collision detection
+fn process_events(
+    mut collision_events: EventReader<CollisionEvent>,
+    mut query: Query<&mut Collision>,
+) {
+    for collision_event in collision_events.read() {
+        match collision_event {
+            //struct Collision(u32);
+            CollisionEvent::Started(e1, e2, _) => {
+                if let Ok([mut e1_collision, mut e2_collision]) = query.get_many_mut([*e1, *e2]) {
+                    e1_collision.0 += 1;
+                    e2_collision.0 += 1;
+                } else {
+                    println!("ERROR - ECS - {:?}", collision_event);
+                }
+            },
+            CollisionEvent::Stopped(e1, e2, _) => {
+                if let Ok([mut e1_collision, mut e2_collision]) = query.get_many_mut([*e1, *e2]) {
+                    e1_collision.0 -= 1;
+                    e2_collision.0 -= 1;
+                } else {
+                    println!("ERROR - ECS - {:?}", collision_event);
+                }
+            },
+        }
     }
 }
 
@@ -84,7 +134,9 @@ impl Plugin for ShipPlugins {
                     apply_velocity,
                     apply_rotation,
                 ),
-            );
+            )
+            .add_systems(Update, process_events)
+            .add_systems(Update, apply_collision);
     }
 }
 
@@ -163,5 +215,9 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(ArenaPlugins)
         .add_plugins(ShipPlugins)
+
+        .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(10.0))
+        //.add_plugins(RapierDebugRenderPlugin::default())
+
         .run();
 }
