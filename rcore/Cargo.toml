@@ -7,6 +7,9 @@ edition = "2021"
 bevy_prototype_lyon = "0.10"
 bevy_rapier2d = { version = "0.23", features = [ "debug-render-2d" ] }
 
+# Scripting language to develop the VM/future language bits
+rhai = { version = "1.16", features = [ "sync" ] }
+
 [dependencies.bevy]
 version = "0.12"
 default-features = false

@@ -2,8 +2,15 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
+use rhai::{Engine, Scope, AST};
+
 use std::iter::zip;
 
+// TODO:
+// - faction
+// - heat
+// - hp
+// - radar + shield -> Arc (direction + arc width)
 #[derive(Component)]
 struct Ship;
 
@@ -17,11 +24,41 @@ struct Rotation(f32);
 #[derive(Component)]
 struct Collision(u32);
 
-// TODO:
-// - faction
-// - heat
-// - hp
-// - radar + shield -> Arc (direction + arc width)
+// Primitive "Scripting" Component. Will develop in a more sophsicated interface to hook up to a VM
+// later on
+#[derive(Component)]
+struct Script {
+    scope: Scope<'static>,
+    ast: AST,
+}
+
+#[derive(Resource)]
+struct ScriptTimer(Timer);
+
+fn process_scripts(
+    time: Res<Time>,
+    mut timer: ResMut<ScriptTimer>,
+    query: Query<&Script>,
+) {
+    if timer.0.tick(time.delta()).just_finished() {
+        for script in query.iter() {
+
+        }
+    }
+}
+
+fn new_script() -> Script {
+    let script = "if x > 40 { x } else { 0 }";
+
+    let mut engine = Engine::new();
+    let mut scope = Scope::new();
+    let ast = match engine.compile_with_scope(&mut scope, &script) {
+        Ok(ast) => ast,
+        Err(x) => panic!("AST: {:?}", x),
+    };
+
+    Script { scope, ast }
+}
 
 fn add_ships(mut commands: Commands) {
     let poss = vec![Vec2::new(50.0, 200.0), Vec2::new(300.0, 0.0), Vec2::new(-200., 0.), Vec2::new(200., 0.)];
@@ -54,6 +91,8 @@ fn add_ships(mut commands: Commands) {
             .insert(Ship)
             .insert(Velocity(vel))
             .insert(Rotation(rot))
+
+            .insert(new_script())
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
             .insert(Collider::cuboid(10.0, 20.0))
@@ -136,7 +175,10 @@ impl Plugin for ShipPlugins {
                 ),
             )
             .add_systems(Update, process_events)
-            .add_systems(Update, apply_collision.after(process_events));
+            .add_systems(Update, apply_collision.after(process_events))
+
+            .insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 5.0, TimerMode::Repeating)))
+            .add_systems(Update, process_scripts);
     }
 }
 
