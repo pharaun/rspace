@@ -57,15 +57,25 @@ fn process_scripts(
             let tran = ship_query.component::<Transform>(entity).translation;
             let vel = ship_query.component::<Velocity>(entity).0;
 
-            engine.register_fn("get_rotation", move || -> f32 { rot })
-                .register_fn("get_position", move || -> (f32, f32) { (tran.x, tran.y) })
-                .register_fn("get_velocity", move || -> (f32, f32) { (vel.x, vel.y) })
+            engine.register_fn("get_rotation", move || rot )
+                .register_fn("get_position", move || Vec2::new(tran.x, tran.y) )
+                .register_fn("get_velocity", move || vel )
                 .register_fn("log", |text: &str| {
                     println!("{text}");
                 });
 
+            engine.register_type_with_name::<Vec2>("Vec2")
+                .register_fn("new_vec2", |x: f64, y: f64| {
+                    Vec2::new(x as f32, y as f32)
+                })
+                .register_fn("to_string", |vec: &mut Vec2| vec.to_string())
+                .register_fn("to_debug", |vec: &mut Vec2| format!("{vec:?}"))
+                .register_get("x", |vec: &mut Vec2| vec.x as f64)
+                .register_get("y", |vec: &mut Vec2| vec.y as f64);
+
             let ast = script.ast.clone();
             let res = engine.run_ast_with_scope(&mut script.scope, &ast);
+
 
             println!("Script Result - {:?}", res);
         }
