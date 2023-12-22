@@ -5,6 +5,7 @@ use bevy_rapier2d::prelude::*;
 use rhai::{Engine, Scope, AST};
 
 use std::iter::zip;
+use std::boxed::Box;
 
 // TODO:
 // - faction
@@ -29,7 +30,7 @@ struct Collision(u32);
 #[derive(Component)]
 struct Script {
     scope: Scope<'static>,
-    ast: AST,
+    ast: Box<AST>,
 }
 
 #[derive(Resource)]
@@ -38,26 +39,56 @@ struct ScriptTimer(Timer);
 fn process_scripts(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
-    query: Query<&Script>,
+    mut query: Query<(Entity, &mut Script)>,
+    mut ship_query: Query<(&mut Velocity, &mut Rotation, &Collision, &Transform)>,
 ) {
     if timer.0.tick(time.delta()).just_finished() {
-        for script in query.iter() {
+        // TODO:
+        // Sum up the ship status/environment
+        // Pass it into rhai somehow (callback or some sort of status object)
+        // Run the script, and the script can return a list of changes to perform to the ship
+        //  -or- invoke script functions directly to update a state that gets synchronized to the
+        //  ship
+        //  -or- just update the components directly?
+        let mut engine = Engine::new();
+        for (entity, mut script) in query.iter_mut() {
 
+            let rot = ship_query.component::<Rotation>(entity).0;
+            let tran = ship_query.component::<Transform>(entity).translation;
+            let vel = ship_query.component::<Velocity>(entity).0;
+
+            engine.register_fn("get_rotation", move || -> f32 { rot })
+                .register_fn("get_position", move || -> (f32, f32) { (tran.x, tran.y) })
+                .register_fn("get_velocity", move || -> (f32, f32) { (vel.x, vel.y) })
+                .register_fn("log", |text: &str| {
+                    println!("{text}");
+                });
+
+            let ast = script.ast.clone();
+            let res = engine.run_ast_with_scope(&mut script.scope, &ast);
+
+            println!("Script Result - {:?}", res);
         }
     }
 }
 
 fn new_script() -> Script {
-    let script = "if x > 40 { x } else { 0 }";
+    let script = r#"
+    let pos = get_position();
+    let vel = get_velocity();
+    let rot = get_rotation();
 
-    let mut engine = Engine::new();
+    log("pos - " + pos + " vel - " + vel + " rot - " + rot);
+    "#;
+
+    let engine = Engine::new();
     let mut scope = Scope::new();
     let ast = match engine.compile_with_scope(&mut scope, &script) {
         Ok(ast) => ast,
         Err(x) => panic!("AST: {:?}", x),
     };
 
-    Script { scope, ast }
+    Script { scope, ast: Box::new(ast) }
 }
 
 fn add_ships(mut commands: Commands) {
