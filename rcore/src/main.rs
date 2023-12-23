@@ -36,13 +36,50 @@ struct Script {
 #[derive(Resource)]
 struct ScriptTimer(Timer);
 
+// TODO: should also have a way to process events (ie on collision an event is emitted, invoke the
+// entity's script on_collision function or something)
 fn process_scripts(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
     script_engine: Res<ScriptEngine>,
+    mut collision_events: EventReader<CollisionEvent>,
     mut query: Query<(Entity, &mut Script)>,
     ship_query: Query<(&Velocity, &Rotation, &Collision, &Transform)>,
 ) {
+    // Handle collision events first
+    for collision_event in collision_events.read() {
+        match collision_event {
+            //struct Collision(u32);
+            CollisionEvent::Started(e1, e2, _) => {
+                if let Ok([(_, mut e1_script), (_, mut e2_script)]) = query.get_many_mut([*e1, *e2]) {
+
+                    let e1_ast = e1_script.ast.clone();
+                    let res = script_engine.0.call_fn::<()>(
+                        &mut e1_script.scope,
+                        &e1_ast,
+                        "on_collision",
+                        (),
+                    );
+                    println!("Script Result - {:?}", res);
+
+                    let e2_ast = e2_script.ast.clone();
+                    let res = script_engine.0.call_fn::<()>(
+                        &mut e2_script.scope,
+                        &e2_ast,
+                        "on_collision",
+                        (),
+                    );
+                    println!("Script Result - {:?}", res);
+
+                } else {
+                    println!("ERROR - SCRIPT - {:?}", collision_event);
+                }
+            },
+            _ => (),
+        }
+    }
+
+    // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
         // TODO:
         // Sum up the ship status/environment
@@ -108,6 +145,10 @@ fn new_script(script_engine: &Res<ScriptEngine>) -> Script {
     let script = r#"
     fn on_update(pos, vel, rot) {
         log("pos - " + pos + " vel - " + vel + " rot - " + rot);
+    }
+
+    fn on_collision() {
+        log("collision");
     }
     "#;
 
