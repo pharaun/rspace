@@ -39,8 +39,9 @@ struct ScriptTimer(Timer);
 fn process_scripts(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
+    script_engine: Res<ScriptEngine>,
     mut query: Query<(Entity, &mut Script)>,
-    mut ship_query: Query<(&mut Velocity, &mut Rotation, &Collision, &Transform)>,
+    ship_query: Query<(&Velocity, &Rotation, &Collision, &Transform)>,
 ) {
     if timer.0.tick(time.delta()).just_finished() {
         // TODO:
@@ -50,50 +51,70 @@ fn process_scripts(
         //  -or- invoke script functions directly to update a state that gets synchronized to the
         //  ship
         //  -or- just update the components directly?
-        let mut engine = Engine::new();
         for (entity, mut script) in query.iter_mut() {
 
             let rot = ship_query.component::<Rotation>(entity).0;
             let tran = ship_query.component::<Transform>(entity).translation;
             let vel = ship_query.component::<Velocity>(entity).0;
 
-            engine.register_fn("get_rotation", move || rot )
-                .register_fn("get_position", move || Vec2::new(tran.x, tran.y) )
-                .register_fn("get_velocity", move || vel )
-                .register_fn("log", |text: &str| {
-                    println!("{text}");
-                });
-
-            engine.register_type_with_name::<Vec2>("Vec2")
-                .register_fn("new_vec2", |x: f64, y: f64| {
-                    Vec2::new(x as f32, y as f32)
-                })
-                .register_fn("to_string", |vec: &mut Vec2| vec.to_string())
-                .register_fn("to_debug", |vec: &mut Vec2| format!("{vec:?}"))
-                .register_get("x", |vec: &mut Vec2| vec.x as f64)
-                .register_get("y", |vec: &mut Vec2| vec.y as f64);
-
+            // TODO: probs want to have a place for scripts to store their states and supply it to
+            // each run since functions can't access top level global variables and yeah...
             let ast = script.ast.clone();
-            let res = engine.run_ast_with_scope(&mut script.scope, &ast);
 
+            let res = script_engine.0.call_fn::<()>(
+                &mut script.scope,
+                &ast,
+                "on_update",
+                ( Vec2::new(tran.x, tran.y), vel, rot ),
+            );
 
             println!("Script Result - {:?}", res);
         }
     }
 }
 
-fn new_script() -> Script {
-    let script = r#"
-    let pos = get_position();
-    let vel = get_velocity();
-    let rot = get_rotation();
+#[derive(Resource)]
+struct ScriptEngine(Engine);
 
-    log("pos - " + pos + " vel - " + vel + " rot - " + rot);
+fn new_engine() -> Engine {
+    let mut engine = Engine::new();
+
+    engine.register_type_with_name::<Vec2>("Vec2")
+        .register_fn("new_vec2", |x: f64, y: f64| {
+            Vec2::new(x as f32, y as f32)
+        })
+        .register_fn("to_string", |vec: &mut Vec2| vec.to_string())
+        .register_fn("to_debug", |vec: &mut Vec2| format!("{vec:?}"))
+        .register_get("x", |vec: &mut Vec2| vec.x as f64)
+        .register_get("y", |vec: &mut Vec2| vec.y as f64);
+
+    engine.register_fn("log", |text: &str| {
+        println!("{text}");
+    });
+
+    engine
+}
+
+struct ScriptPlugins;
+impl Plugin for ScriptPlugins {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 5.0, TimerMode::Repeating)))
+            .insert_resource(ScriptEngine(new_engine()))
+            .add_systems(Update, process_scripts);
+    }
+}
+
+fn new_script(script_engine: &Res<ScriptEngine>) -> Script {
+    let script = r#"
+    fn on_update(pos, vel, rot) {
+        log("pos - " + pos + " vel - " + vel + " rot - " + rot);
+    }
     "#;
 
-    let engine = Engine::new();
-    let mut scope = Scope::new();
-    let ast = match engine.compile_with_scope(&mut scope, &script) {
+    // TODO: probs want to do initial run to initialize global values and stuff
+    // before invoking all future runs via event-function calls
+    let scope = Scope::new();
+    let ast = match script_engine.0.compile(&script) {
         Ok(ast) => ast,
         Err(x) => panic!("AST: {:?}", x),
     };
@@ -101,7 +122,11 @@ fn new_script() -> Script {
     Script { scope, ast: Box::new(ast) }
 }
 
-fn add_ships(mut commands: Commands) {
+
+fn add_ships(
+    script_engine: Res<ScriptEngine>,
+    mut commands: Commands,
+) {
     let poss = vec![Vec2::new(50.0, 200.0), Vec2::new(300.0, 0.0), Vec2::new(-200., 0.), Vec2::new(200., 0.)];
     let velo = vec![Vec2::new(-3.0, 1.0), Vec2::new(-2.0, -3.0), Vec2::new(1.0, 0.), Vec2::new(-1.0, 0.)];
     let roto = vec![1.0, 2.0, 0.0, 0.0];
@@ -133,7 +158,7 @@ fn add_ships(mut commands: Commands) {
             .insert(Velocity(vel))
             .insert(Rotation(rot))
 
-            .insert(new_script())
+            .insert(new_script(&script_engine))
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
             .insert(Collider::cuboid(10.0, 20.0))
@@ -216,10 +241,7 @@ impl Plugin for ShipPlugins {
                 ),
             )
             .add_systems(Update, process_events)
-            .add_systems(Update, apply_collision.after(process_events))
-
-            .insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 5.0, TimerMode::Repeating)))
-            .add_systems(Update, process_scripts);
+            .add_systems(Update, apply_collision.after(process_events));
     }
 }
 
@@ -297,6 +319,7 @@ fn main() {
         .insert_resource(Msaa::default())
         .add_plugins(DefaultPlugins)
         .add_plugins(ArenaPlugins)
+        .add_plugins(ScriptPlugins)
         .add_plugins(ShipPlugins)
 
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(10.0))
