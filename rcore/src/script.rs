@@ -7,7 +7,6 @@ use std::boxed::Box;
 
 use crate::ship::{Velocity, Rotation, Collision};
 
-
 // Primitive "Scripting" Component. Will develop in a more sophsicated interface to hook up to a VM
 // later on
 #[derive(Component)]
@@ -21,6 +20,15 @@ struct ScriptTimer(Timer);
 
 #[derive(Resource)]
 pub struct ScriptEngine(Engine);
+
+pub struct ScriptPlugins;
+impl Plugin for ScriptPlugins {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 5.0, TimerMode::Repeating)))
+            .insert_resource(ScriptEngine(new_engine()))
+            .add_systems(Update, process_scripts);
+    }
+}
 
 // TODO: should also have a way to process events (ie on collision an event is emitted, invoke the
 // entity's script on_collision function or something)
@@ -115,26 +123,7 @@ fn new_engine() -> Engine {
     engine
 }
 
-pub struct ScriptPlugins;
-impl Plugin for ScriptPlugins {
-    fn build(&self, app: &mut App) {
-        app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 5.0, TimerMode::Repeating)))
-            .insert_resource(ScriptEngine(new_engine()))
-            .add_systems(Update, process_scripts);
-    }
-}
-
-pub fn new_script(script_engine: &Res<ScriptEngine>) -> Script {
-    let script = r#"
-    fn on_update(pos, vel, rot) {
-        log("pos - " + pos + " vel - " + vel + " rot - " + rot);
-    }
-
-    fn on_collision() {
-        log("collision");
-    }
-    "#;
-
+pub fn new_script(script: &str, script_engine: &Res<ScriptEngine>) -> Script {
     // TODO: probs want to do initial run to initialize global values and stuff
     // before invoking all future runs via event-function calls
     let scope = Scope::new();

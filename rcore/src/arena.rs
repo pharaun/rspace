@@ -1,13 +1,15 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
+// TODO: Temp size for now
+pub const ARENA_WIDTH: f32 = 1024.0;
+pub const ARENA_HEIGHT: f32 = 640.0;
 
 #[derive(Component)]
 struct CameraMarker;
 
-// TODO: Temp size for now
-pub const ARENA_WIDTH: f32 = 1024.0;
-pub const ARENA_HEIGHT: f32 = 640.0;
+#[derive(Component)]
+struct ArenaMarker;
 
 pub struct ArenaPlugins;
 impl Plugin for ArenaPlugins {
@@ -26,6 +28,8 @@ fn camera_setup(mut commands: Commands) {
 }
 
 // Take care of any existing Transform to make sure it wraps around into the arena again
+// TODO: make sure this only affects transforms for things within the arena, maybe an arena tag is
+// needed
 fn wrap_arena(mut query: Query<&mut Transform, Changed<Transform>>) {
     for mut tran in query.iter_mut() {
         if tran.translation.y < -(ARENA_HEIGHT / 2.0) {
@@ -42,8 +46,6 @@ fn wrap_arena(mut query: Query<&mut Transform, Changed<Transform>>) {
     }
 }
 
-#[derive(Component)]
-struct ArenaMarker;
 fn add_arena_bounds(mut commands: Commands) {
     let path = {
         let mut path = PathBuilder::new();
