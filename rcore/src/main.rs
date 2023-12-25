@@ -40,13 +40,13 @@ fn main() {
                 StarterShip::new(
                     Vec2::new(50., 200.),
                     Vec2::new(-3., 1.),
-                    1.,
+                    0.0174533,
                     new_script(&script, &script_engine),
                 ),
                 StarterShip::new(
                     Vec2::new(300., 0.),
                     Vec2::new(-2., -3.),
-                    2.,
+                    0.0174533 * 2.,
                     new_script(&script, &script_engine),
                 ),
                 StarterShip::new(

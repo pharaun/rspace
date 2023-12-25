@@ -38,7 +38,7 @@ fn process_scripts(
     script_engine: Res<ScriptEngine>,
     mut collision_events: EventReader<CollisionEvent>,
     mut query: Query<(Entity, &mut Script)>,
-    ship_query: Query<(&Velocity, &Rotation, &Collision, &Transform)>,
+    ship_query: Query<(&Velocity, &Collision, &Transform)>,
 ) {
     // Handle collision events first
     for collision_event in collision_events.read() {
@@ -84,8 +84,10 @@ fn process_scripts(
         //  -or- just update the components directly?
         for (entity, mut script) in query.iter_mut() {
 
-            let rot = ship_query.component::<Rotation>(entity).0;
-            let tran = ship_query.component::<Transform>(entity).translation;
+            let trans = ship_query.component::<Transform>(entity);
+
+            let rot = trans.rotation;
+            let tran = trans.translation;
             let vel = ship_query.component::<Velocity>(entity).0;
 
             // TODO: probs want to have a place for scripts to store their states and supply it to
@@ -96,7 +98,7 @@ fn process_scripts(
                 &mut script.scope,
                 &ast,
                 "on_update",
-                ( Vec2::new(tran.x, tran.y), vel, rot ),
+                ( tran.truncate(), vel, rot.to_euler(EulerRot::ZYX).0 ),
             );
 
             println!("Script Result - {:?}", res);

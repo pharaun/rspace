@@ -16,7 +16,9 @@ struct Ship;
 pub struct Velocity(pub Vec2);
 
 #[derive(Component)]
-pub struct Rotation(pub f32);
+pub struct Rotation {
+    limit: f32,
+}
 
 // Ref-counted collision, if greater than zero, its colloding, otherwise
 #[derive(Component)]
@@ -52,7 +54,8 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
 
 fn apply_rotation(mut query: Query<(&Rotation, &mut Transform)>) {
     for (rot, mut tran) in query.iter_mut() {
-        tran.rotation *= Quat::from_rotation_z(0.0174533 * rot.0);
+        // TODO: not sure this is right?
+        tran.rotation *= Quat::from_rotation_z(rot.limit);
     }
 }
 
@@ -147,7 +150,7 @@ pub fn add_ships(
         ))
             .insert(Ship)
             .insert(Velocity(ship.velocity))
-            .insert(Rotation(ship.rotation))
+            .insert(Rotation{limit: ship.rotation})
             .insert(ship.script)
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
