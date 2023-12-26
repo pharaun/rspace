@@ -24,7 +24,7 @@ pub struct ScriptEngine(Engine);
 pub struct ScriptPlugins;
 impl Plugin for ScriptPlugins {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 5.0, TimerMode::Repeating)))
+        app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 1.0, TimerMode::Repeating)))
             .insert_resource(ScriptEngine(new_engine()))
             .add_systems(Update, process_scripts);
     }
@@ -38,7 +38,7 @@ fn process_scripts(
     script_engine: Res<ScriptEngine>,
     mut collision_events: EventReader<CollisionEvent>,
     mut query: Query<(Entity, &mut Script)>,
-    ship_query: Query<(&Velocity, &Collision, &Transform)>,
+    mut ship_query: Query<(&Velocity, &Collision, &mut Rotation, &Transform)>,
 ) {
     // Handle collision events first
     for collision_event in collision_events.read() {
@@ -94,14 +94,21 @@ fn process_scripts(
             // each run since functions can't access top level global variables and yeah...
             let ast = script.ast.clone();
 
-            let res = script_engine.0.call_fn::<()>(
+            // TODO: accept the target rotation value out of the script via the return value
+            let res = script_engine.0.call_fn::<f32>(
                 &mut script.scope,
                 &ast,
                 "on_update",
                 ( tran.truncate(), vel, rot.to_euler(EulerRot::ZYX).0 ),
             );
 
-            println!("Script Result - {:?}", res);
+            match res {
+                Ok(to_rot) => {
+                    let mut rotation = ship_query.component_mut::<Rotation>(entity);
+                    rotation.target = to_rot;
+                },
+                Err(e) => println!("Script Error - {:?}", e),
+            }
         }
     }
 }

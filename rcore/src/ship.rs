@@ -18,6 +18,7 @@ pub struct Velocity(pub Vec2);
 #[derive(Component)]
 pub struct Rotation {
     limit: f32,
+    pub target: f32,
 }
 
 // Ref-counted collision, if greater than zero, its colloding, otherwise
@@ -52,6 +53,8 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
     }
 }
 
+// TODO: check the target rotation, and then figure out which direction to set the transform
+// rotation in while being clamped by the limit (speed) of rotation
 fn apply_rotation(mut query: Query<(&Rotation, &mut Transform)>) {
     for (rot, mut tran) in query.iter_mut() {
         // TODO: not sure this is right?
@@ -107,15 +110,17 @@ pub struct StarterShip {
     position: Vec2,
     velocity: Vec2,
     rotation: f32,
+    target_r: f32,
     script: Script,
 }
 
 impl StarterShip {
-    pub fn new(position: Vec2, velocity: Vec2, rotation: f32, script: Script) -> StarterShip {
+    pub fn new(position: Vec2, velocity: Vec2, rotation: f32, target_r: f32, script: Script) -> StarterShip {
         StarterShip {
             position,
             velocity,
             rotation,
+            target_r,
             script,
         }
     }
@@ -136,11 +141,14 @@ pub fn add_ships(
             path.build()
         };
 
+        let mut transform = Transform::from_translation(ship.position.extend(0.));
+        transform.rotate_z(ship.target_r);
+
         commands.spawn((
             ShapeBundle {
                 path: path,
                 spatial: SpatialBundle {
-                    transform: Transform::from_translation(ship.position.extend(0.)),
+                    transform: transform,
                     ..default()
                 },
                 ..default()
@@ -150,7 +158,7 @@ pub fn add_ships(
         ))
             .insert(Ship)
             .insert(Velocity(ship.velocity))
-            .insert(Rotation{limit: ship.rotation})
+            .insert(Rotation{limit: ship.rotation, target: ship.target_r})
             .insert(ship.script)
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
