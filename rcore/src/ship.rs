@@ -25,6 +25,16 @@ pub struct Rotation {
 #[derive(Component)]
 pub struct Collision(u32);
 
+// Debugging data storage component
+#[derive(Component)]
+struct Debug {
+    rotation_current: f32,
+    rotation_target: f32,
+    rotation_limit: f32,
+    rotation_delta: f32,
+}
+
+
 // TODO: decouple the rendering stuff somewhat from the rest of the system. Ie we
 // still bundle the assets in the ECS, but have all of the system interact within
 // the ECS then after things settle -> have a system that takes the ship plugin content
@@ -41,6 +51,8 @@ impl Plugin for ShipPlugins {
                     apply_rotation,
                 ),
             )
+            .add_systems(Update, debug_gitzmos)
+
             .add_systems(Update, process_events)
             .add_systems(Update, apply_collision.after(process_events));
     }
@@ -56,8 +68,10 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
 
 // TODO: figure out the time bit so we can do the system in a correct delta-time savvy way
 // TODO: this can probs be done better + tested better
-fn apply_rotation(mut query: Query<(&Rotation, &mut Transform)>) {
-    for (rot, mut tran) in query.iter_mut() {
+// TODO: this is 64hz, and the limit is at ~per second? so need to figure out how to convert the
+// limit to 64hz
+fn apply_rotation(mut query: Query<(&Rotation, &mut Transform, &mut Debug)>) {
+    for (rot, mut tran, mut debug) in query.iter_mut() {
         // Get current rotation vector, get the target rotation vector, do math, and then rotate
         let curr = tran.rotation;
         let targ = Quat::from_rotation_z(rot.target);
@@ -75,6 +89,13 @@ fn apply_rotation(mut query: Query<(&Rotation, &mut Transform)>) {
         // Clamp the rotation if needed
         let applied_angle = delta_sign * rot.limit.min(delta.abs());
 
+        // DEBUG: update the debug component.
+        debug.rotation_current = curr.to_euler(EulerRot::ZYX).0;
+        debug.rotation_target = rot.target;
+        debug.rotation_limit = delta_sign * rot.limit;
+        debug.rotation_delta = curr.to_euler(EulerRot::ZYX).0 + delta;
+
+        // Apply the rotation
         tran.rotation *= Quat::from_rotation_z(applied_angle);
     }
 }
@@ -117,6 +138,28 @@ fn process_events(
     }
 }
 
+// Debug system
+fn debug_gitzmos(
+    mut gizmos: Gizmos,
+    query: Query<(&Transform, &Debug)>
+) {
+    for (tran, debug) in query.iter() {
+        let base = tran.translation.truncate();
+        let curr = Quat::from_rotation_z(debug.rotation_current);
+        let limt = Quat::from_rotation_z(debug.rotation_limit + debug.rotation_current);
+        let arc = debug.rotation_current * -1. - debug.rotation_limit / 2.;
+
+        gizmos.line_2d(base, base + curr.mul_vec3(Vec3::Y * 80.).truncate(), Color::RED);
+        gizmos.line_2d(base, base + limt.mul_vec3(Vec3::Y * 90.).truncate(), Color::RED);
+        gizmos.arc_2d(base, arc, debug.rotation_limit, 75., Color::RED);
+
+//        izmos.arc_2d(Vec2::ZERO, 0., PI / 4., 1., Color::GREEN);
+    }
+}
+//    rotation_target: f32,
+//    rotation_limit: f32,
+//    rotation_delta: f32,
+
 // TODO:
 // - Way to load a scene (which sets up where each ships are and any other obstance or resources in
 // the gameworld)
@@ -126,17 +169,17 @@ fn process_events(
 pub struct StarterShip {
     position: Vec2,
     velocity: Vec2,
-    rotation: f32,
+    limit_r: f32,
     target_r: f32,
     script: Script,
 }
 
 impl StarterShip {
-    pub fn new(position: Vec2, velocity: Vec2, rotation: f32, target_r: f32, script: Script) -> StarterShip {
+    pub fn new(position: Vec2, velocity: Vec2, limit_r: f32, target_r: f32, script: Script) -> StarterShip {
         StarterShip {
             position,
             velocity,
-            rotation,
+            limit_r,
             target_r,
             script,
         }
@@ -175,7 +218,7 @@ pub fn add_ships(
         ))
             .insert(Ship)
             .insert(Velocity(ship.velocity))
-            .insert(Rotation{limit: ship.rotation, target: ship.target_r})
+            .insert(Rotation{limit: ship.limit_r, target: ship.target_r})
             .insert(ship.script)
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
@@ -184,8 +227,9 @@ pub fn add_ships(
             .insert(ActiveEvents::COLLISION_EVENTS)
             .insert(Sensor)
 
+            // Debug bits
+            .insert(Debug { rotation_current: 0., rotation_target: 0., rotation_limit: 0., rotation_delta: 0. })
+
             .insert(Collision(0));
     }
 }
-
-
