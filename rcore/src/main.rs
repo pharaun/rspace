@@ -32,30 +32,30 @@ fn main() {
                 StarterShip::new(
                     Vec2::new(50., 200.),
                     Vec2::new(-3., 1.),
-                    f32::to_radians(1.0),
                     f32::to_radians(0.0),
-                    new_script(&ship_script(1.), &script_engine),
+                    f32::to_radians(0.0),
+                    new_script(&ship_script(0.5), &script_engine),
                 ),
                 StarterShip::new(
                     Vec2::new(300., 0.),
                     Vec2::new(-2., -3.),
-                    f32::to_radians(2.0),
+                    f32::to_radians(1.0),
                     f32::to_radians(45.0),
-                    new_script(&ship_script(1.), &script_engine),
+                    new_script(&ship_script(0.5), &script_engine),
                 ),
                 StarterShip::new(
                     Vec2::new(-200., 0.),
                     Vec2::new(1., 0.),
                     f32::to_radians(0.5),
                     f32::to_radians(90.0),
-                    new_script(&ship_script(1.), &script_engine),
+                    new_script(&ship_script(0.5), &script_engine),
                 ),
                 StarterShip::new(
                     Vec2::new(200., 0.),
                     Vec2::new(-1., 0.),
                     f32::to_radians(0.25),
                     f32::to_radians(180.0),
-                    new_script(&ship_script(1.), &script_engine),
+                    new_script(&ship_script(0.5), &script_engine),
                 ),
             ];
 

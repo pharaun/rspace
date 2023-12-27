@@ -17,7 +17,7 @@ pub struct Velocity(pub Vec2);
 
 #[derive(Component)]
 pub struct Rotation {
-    limit: f32,
+    limit: f32, // Per Second?
     pub target: f32,
 }
 
@@ -46,6 +46,7 @@ impl Plugin for ShipPlugins {
     }
 }
 
+// TODO: figure out the time bit so we can do the system in a correct delta-time savvy way
 fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
     for (vec, mut tran) in query.iter_mut() {
         tran.translation.x += vec.0.x;
@@ -53,12 +54,28 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
     }
 }
 
-// TODO: check the target rotation, and then figure out which direction to set the transform
-// rotation in while being clamped by the limit (speed) of rotation
+// TODO: figure out the time bit so we can do the system in a correct delta-time savvy way
+// TODO: this can probs be done better + tested better
 fn apply_rotation(mut query: Query<(&Rotation, &mut Transform)>) {
     for (rot, mut tran) in query.iter_mut() {
-        // TODO: not sure this is right?
-        tran.rotation *= Quat::from_rotation_z(rot.limit);
+        // Get current rotation vector, get the target rotation vector, do math, and then rotate
+        let curr = tran.rotation;
+        let targ = Quat::from_rotation_z(rot.target);
+
+        let delta = (targ * curr.inverse()).to_euler(EulerRot::ZYX).0;
+
+        // If delta is aproximately zero we are on our heading
+        if delta.abs() < f32::EPSILON {
+            continue;
+        }
+
+        // Identify the sign (not sure if need to negate)
+        let delta_sign = f32::copysign(1., delta);
+
+        // Clamp the rotation if needed
+        let applied_angle = delta_sign * rot.limit.min(delta.abs());
+
+        tran.rotation *= Quat::from_rotation_z(applied_angle);
     }
 }
 
