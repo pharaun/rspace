@@ -26,37 +26,95 @@ fn main() {
         .add_plugins(ShipPlugins)
 
         // TODO: a way to init a new ship with some preset value to help script do custom per ship
-        // things
+        // things limit_r, target_r,
         .add_systems(Startup, |commands: Commands, script_engine: Res<ScriptEngine>| {
             let ships = vec![
                 StarterShip::new(
-                    Vec2::new(50., 200.),
-                    Vec2::new(-3., 1.),
-                    f32::to_radians(0.0),
-                    f32::to_radians(0.0),
-                    new_script(&ship_script(0.5), &script_engine),
-                ),
-                StarterShip::new(
-                    Vec2::new(300., 0.),
-                    Vec2::new(-2., -3.),
-                    f32::to_radians(22.5),
+                    Vec2::new(150., 100.),
+                    Vec2::new(0., 0.),
                     f32::to_radians(45.0),
-                    new_script(&ship_script(0.5), &script_engine),
+                    f32::to_radians(0.0),
+                    new_script(&ship_script(f32::to_radians(90.)), &script_engine),
                 ),
                 StarterShip::new(
-                    Vec2::new(-200., 0.),
-                    Vec2::new(1., 0.),
-                    f32::to_radians(45.),
+                    Vec2::new(150., -100.),
+                    Vec2::new(0., 0.),
+                    f32::to_radians(45.0),
                     f32::to_radians(90.0),
-                    new_script(&ship_script(0.5), &script_engine),
+                    new_script(&ship_script(f32::to_radians(90.)), &script_engine),
                 ),
                 StarterShip::new(
-                    Vec2::new(200., 0.),
-                    Vec2::new(-1., 0.),
-                    f32::to_radians(90.),
+                    Vec2::new(-150., -100.),
+                    Vec2::new(0., 0.),
+                    f32::to_radians(45.0),
                     f32::to_radians(180.0),
-                    new_script(&ship_script(0.5), &script_engine),
+                    new_script(&ship_script(f32::to_radians(90.)), &script_engine),
                 ),
+                StarterShip::new(
+                    Vec2::new(-150., 100.),
+                    Vec2::new(0., 0.),
+                    f32::to_radians(45.0),
+                    f32::to_radians(270.0),
+                    new_script(&ship_script(f32::to_radians(90.)), &script_engine),
+                ),
+
+                // Reverse
+                StarterShip::new(
+                    Vec2::new(350., 100.),
+                    Vec2::new(0., 0.),
+                    f32::to_radians(45.0),
+                    f32::to_radians(0.0),
+                    new_script(&ship_script(f32::to_radians(-90.)), &script_engine),
+                ),
+                StarterShip::new(
+                    Vec2::new(350., -100.),
+                    Vec2::new(0., 0.),
+                    f32::to_radians(45.0),
+                    f32::to_radians(-90.0),
+                    new_script(&ship_script(f32::to_radians(-90.)), &script_engine),
+                ),
+                StarterShip::new(
+                    Vec2::new(-350., -100.),
+                    Vec2::new(0., 0.),
+                    f32::to_radians(45.0),
+                    f32::to_radians(-180.0),
+                    new_script(&ship_script(f32::to_radians(-90.)), &script_engine),
+                ),
+                StarterShip::new(
+                    Vec2::new(-350., 100.),
+                    Vec2::new(0., 0.),
+                    f32::to_radians(45.0),
+                    f32::to_radians(-270.0),
+                    new_script(&ship_script(f32::to_radians(-90.)), &script_engine),
+                ),
+//                StarterShip::new(
+//                    Vec2::new(50., 200.),
+//                    Vec2::new(-3., 1.),
+//                    f32::to_radians(0.0),
+//                    f32::to_radians(0.0),
+//                    new_script(&ship_script(0.5), &script_engine),
+//                ),
+//                StarterShip::new(
+//                    Vec2::new(300., 0.),
+//                    Vec2::new(-2., -3.),
+//                    f32::to_radians(22.5),
+//                    f32::to_radians(45.0),
+//                    new_script(&ship_script(0.5), &script_engine),
+//                ),
+//                StarterShip::new(
+//                    Vec2::new(-200., 0.),
+//                    Vec2::new(1., 0.),
+//                    f32::to_radians(45.),
+//                    f32::to_radians(90.0),
+//                    new_script(&ship_script(0.5), &script_engine),
+//                ),
+//                StarterShip::new(
+//                    Vec2::new(200., 0.),
+//                    Vec2::new(-1., 0.),
+//                    f32::to_radians(90.),
+//                    f32::to_radians(180.0),
+//                    new_script(&ship_script(0.5), &script_engine),
+//                ),
             ];
 
             add_ships(commands, ships);

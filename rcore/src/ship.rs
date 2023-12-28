@@ -32,6 +32,7 @@ struct Debug {
     rotation_target: f32,
     rotation_limit: f32,
     rotation_delta: f32,
+    rotation_applied: f32,
 }
 
 
@@ -43,7 +44,8 @@ pub struct ShipPlugins;
 impl Plugin for ShipPlugins {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
-            .insert_resource(Time::<Fixed>::from_hz(64.0))
+            //.insert_resource(Time::<Fixed>::from_hz(64.0))
+            .insert_resource(Time::<Fixed>::from_hz(8.0))
             .add_systems(
                 FixedUpdate,
                 (
@@ -77,11 +79,12 @@ fn apply_rotation(mut query: Query<(&Rotation, &mut Transform, &mut Debug)>) {
         let targ = Quat::from_rotation_z(rot.target);
 
         let delta = (targ * curr.inverse()).to_euler(EulerRot::ZYX).0;
+//        let delta = curr.angle_between(targ);
 
-        // If delta is aproximately zero we are on our heading
-        if delta.abs() < f32::EPSILON {
-            continue;
-        }
+//        // If delta is aproximately zero we are on our heading
+//        if delta.abs() < f32::EPSILON {
+//            continue;
+//        }
 
         // Identify the sign (not sure if need to negate)
         let delta_sign = f32::copysign(1., delta);
@@ -92,11 +95,100 @@ fn apply_rotation(mut query: Query<(&Rotation, &mut Transform, &mut Debug)>) {
         // DEBUG: update the debug component.
         debug.rotation_current = curr.to_euler(EulerRot::ZYX).0;
         debug.rotation_target = rot.target;
-        debug.rotation_limit = delta_sign * rot.limit;
-        debug.rotation_delta = curr.to_euler(EulerRot::ZYX).0 + delta;
+        debug.rotation_limit = rot.limit;
+        debug.rotation_delta = delta;
+        debug.rotation_applied = applied_angle;
 
-        // Apply the rotation
-        tran.rotation *= Quat::from_rotation_z(applied_angle);
+        // TODO: rotation works, but its applied way too fast, slow down and use slerp or something
+        // take in the time-delta in accord
+        //tran.rotate_z(applied_angle);
+    }
+}
+
+// Debug system
+fn debug_gitzmos(
+    mut gizmos: Gizmos,
+    query: Query<(&Transform, &Debug)>
+) {
+    for (tran, debug) in query.iter() {
+        println!(
+            "cur: {}, targ: {}, limit: {}, delta: {}, applied: {}",
+            debug.rotation_current,
+            debug.rotation_target,
+            debug.rotation_limit,
+            debug.rotation_delta,
+            debug.rotation_applied,
+        );
+
+        let base = tran.translation.truncate();
+
+        let current = Quat::from_rotation_z(debug.rotation_current);
+        let target = Quat::from_rotation_z(debug.rotation_target);
+        let limit = Quat::from_rotation_z(debug.rotation_limit);
+        let delta = Quat::from_rotation_z(debug.rotation_delta);
+        let applied = Quat::from_rotation_z(debug.rotation_applied);
+
+        gizmos.line_2d(
+            base,
+            base + current.mul_vec3(Vec3::Y * 90.).truncate(),
+            Color::RED,
+        );
+        gizmos.arc_2d(
+            base,
+            current.to_euler(EulerRot::ZYX).0 * -1.,
+            current.angle_between(current*limit*limit),
+            80.,
+            Color::RED,
+        );
+        gizmos.line_2d(
+            base,
+            base + limit.mul_vec3(current.mul_vec3(Vec3::Y * 85.)).truncate(),
+            Color::RED,
+        );
+        gizmos.line_2d(
+            base,
+            base + limit.inverse().mul_vec3(current.mul_vec3(Vec3::Y * 85.)).truncate(),
+            Color::RED,
+        );
+
+        gizmos.line_2d(
+            base,
+            base + target.mul_vec3(Vec3::Y * 80.).truncate(),
+            Color::GREEN,
+        );
+        gizmos.arc_2d(
+            base,
+            current.slerp(target, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
+            current.angle_between(target),
+            70.,
+            Color::GREEN,
+        );
+
+        gizmos.line_2d(
+            base,
+            base + delta.mul_vec3(current.mul_vec3(Vec3::Y * 70.)).truncate(),
+            Color::YELLOW,
+        );
+        gizmos.arc_2d(
+            base,
+            current.slerp(current * delta, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
+            current.angle_between(current * delta),
+            60.,
+            Color::YELLOW,
+        );
+
+        gizmos.line_2d(
+            base,
+            base + applied.mul_vec3(current.mul_vec3(Vec3::Y * 60.)).truncate(),
+            Color::ORANGE,
+        );
+        gizmos.arc_2d(
+            base,
+            current.slerp(current * applied, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
+            current.angle_between(current * applied),
+            50.,
+            Color::ORANGE,
+        );
     }
 }
 
@@ -138,28 +230,6 @@ fn process_events(
     }
 }
 
-// Debug system
-fn debug_gitzmos(
-    mut gizmos: Gizmos,
-    query: Query<(&Transform, &Debug)>
-) {
-    for (tran, debug) in query.iter() {
-        let base = tran.translation.truncate();
-        let curr = Quat::from_rotation_z(debug.rotation_current);
-        let limt = Quat::from_rotation_z(debug.rotation_limit + debug.rotation_current);
-        let arc = debug.rotation_current * -1. - debug.rotation_limit / 2.;
-
-        gizmos.line_2d(base, base + curr.mul_vec3(Vec3::Y * 80.).truncate(), Color::RED);
-        gizmos.line_2d(base, base + limt.mul_vec3(Vec3::Y * 90.).truncate(), Color::RED);
-        gizmos.arc_2d(base, arc, debug.rotation_limit, 75., Color::RED);
-
-//        izmos.arc_2d(Vec2::ZERO, 0., PI / 4., 1., Color::GREEN);
-    }
-}
-//    rotation_target: f32,
-//    rotation_limit: f32,
-//    rotation_delta: f32,
-
 // TODO:
 // - Way to load a scene (which sets up where each ships are and any other obstance or resources in
 // the gameworld)
@@ -176,6 +246,7 @@ pub struct StarterShip {
 
 impl StarterShip {
     pub fn new(position: Vec2, velocity: Vec2, limit_r: f32, target_r: f32, script: Script) -> StarterShip {
+        println!("New ship - limit: {}", limit_r);
         StarterShip {
             position,
             velocity,
@@ -228,7 +299,7 @@ pub fn add_ships(
             .insert(Sensor)
 
             // Debug bits
-            .insert(Debug { rotation_current: 0., rotation_target: 0., rotation_limit: 0., rotation_delta: 0. })
+            .insert(Debug { rotation_current: 0., rotation_target: 0., rotation_limit: 0., rotation_delta: 0., rotation_applied: 0.})
 
             .insert(Collision(0));
     }
