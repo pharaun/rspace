@@ -105,7 +105,10 @@ fn process_scripts(
             match res {
                 Ok(to_rot) => {
                     let mut rotation = ship_query.component_mut::<Rotation>(entity);
-                    rotation.target = to_rot;
+                    // TODO: update this only when the target changes
+                    rotation.target = Quat::from_rotation_z(to_rot);
+                    rotation.current = rot;
+                    rotation.start_time = time.elapsed_seconds();
                 },
                 Err(e) => println!("Script Error - {:?}", e),
             }

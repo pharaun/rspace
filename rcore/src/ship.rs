@@ -18,7 +18,9 @@ pub struct Velocity(pub Vec2);
 #[derive(Component)]
 pub struct Rotation {
     limit: f32, // Per Second?
-    pub target: f32,
+    pub current: Quat, // Current quat at the time of setting the target
+    pub target: Quat,
+    pub start_time: f32, // time of this rotation set
 }
 
 // Ref-counted collision, if greater than zero, its colloding, otherwise
@@ -44,8 +46,7 @@ pub struct ShipPlugins;
 impl Plugin for ShipPlugins {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
-            //.insert_resource(Time::<Fixed>::from_hz(64.0))
-            .insert_resource(Time::<Fixed>::from_hz(8.0))
+            .insert_resource(Time::<Fixed>::from_hz(64.0))
             .add_systems(
                 FixedUpdate,
                 (
@@ -72,36 +73,54 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
 // TODO: this can probs be done better + tested better
 // TODO: this is 64hz, and the limit is at ~per second? so need to figure out how to convert the
 // limit to 64hz
-fn apply_rotation(mut query: Query<(&Rotation, &mut Transform, &mut Debug)>) {
+fn apply_rotation(
+    time: Res<Time>,
+    mut query: Query<(&Rotation, &mut Transform, &mut Debug)>
+) {
     for (rot, mut tran, mut debug) in query.iter_mut() {
         // Get current rotation vector, get the target rotation vector, do math, and then rotate
-        let curr = tran.rotation;
-        let targ = Quat::from_rotation_z(rot.target);
-
-        let delta = (targ * curr.inverse()).to_euler(EulerRot::ZYX).0;
-//        let delta = curr.angle_between(targ);
+        let current = tran.rotation;
+        let target = rot.target;
+        let limit = Quat::from_rotation_z(rot.limit);
 
 //        // If delta is aproximately zero we are on our heading
-//        if delta.abs() < f32::EPSILON {
+//        if (current.dot(target) - 1.).abs() < f32::EPSILON {
 //            continue;
 //        }
 
-        // Identify the sign (not sure if need to negate)
-        let delta_sign = f32::copysign(1., delta);
+        let rotate_to_target = target * current.inverse();
 
-        // Clamp the rotation if needed
-        let applied_angle = delta_sign * rot.limit.min(delta.abs());
+        // Identify if target or limit rotation is greater,
+        // If target is greater, identify which limit is closest to the target and use that
+        let delta = rotate_to_target.to_euler(EulerRot::ZYX).0;
+        let applied_angle = if delta.abs() <= rot.limit.abs() {
+            // rotate_to_target is less than the limit, go ahead and apply
+            rotate_to_target
+        } else {
+            // Identify which limit is closest to target and use that
+            if rotate_to_target.angle_between(limit) <= rotate_to_target.angle_between(limit.inverse()) {
+                // rotate_to_target closer to limit
+                limit
+            } else {
+                // rotate_to_target closer to limit.inverse()
+                limit.inverse()
+            }
+        };
 
-        // DEBUG: update the debug component.
-        debug.rotation_current = curr.to_euler(EulerRot::ZYX).0;
-        debug.rotation_target = rot.target;
-        debug.rotation_limit = rot.limit;
-        debug.rotation_delta = delta;
-        debug.rotation_applied = applied_angle;
+        // DEBUG
+        debug.rotation_current = current.to_euler(EulerRot::ZYX).0;
+        debug.rotation_target = target.to_euler(EulerRot::ZYX).0;
+        debug.rotation_limit = limit.to_euler(EulerRot::ZYX).0;
+        debug.rotation_delta = rotate_to_target.to_euler(EulerRot::ZYX).0;
+        debug.rotation_applied = applied_angle.to_euler(EulerRot::ZYX).0;
 
-        // TODO: rotation works, but its applied way too fast, slow down and use slerp or something
-        // take in the time-delta in accord
-        //tran.rotate_z(applied_angle);
+        // LERP isn't right here with the time delta because it slows down over time because of the
+        // recalculation here.
+        //
+        // Should do some sort of calculation each time the target get changed, snapshot current
+        // position then calculate it, then use lerp over time to arrive to the target then idle
+        // till we get a new target value.
+        tran.rotate(Quat::IDENTITY.lerp(applied_angle, time.delta_seconds()));
     }
 }
 
@@ -158,7 +177,7 @@ fn debug_gitzmos(
         );
         gizmos.arc_2d(
             base,
-            current.slerp(target, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
+            current.lerp(target, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
             current.angle_between(target),
             70.,
             Color::GREEN,
@@ -171,7 +190,7 @@ fn debug_gitzmos(
         );
         gizmos.arc_2d(
             base,
-            current.slerp(current * delta, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
+            current.lerp(current * delta, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
             current.angle_between(current * delta),
             60.,
             Color::YELLOW,
@@ -184,7 +203,7 @@ fn debug_gitzmos(
         );
         gizmos.arc_2d(
             base,
-            current.slerp(current * applied, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
+            current.lerp(current * applied, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
             current.angle_between(current * applied),
             50.,
             Color::ORANGE,
@@ -289,7 +308,7 @@ pub fn add_ships(
         ))
             .insert(Ship)
             .insert(Velocity(ship.velocity))
-            .insert(Rotation{limit: ship.limit_r, target: ship.target_r})
+            .insert(Rotation{limit: ship.limit_r, current: transform.rotation, target: Quat::from_rotation_z(ship.target_r), start_time: 0.})
             .insert(ship.script)
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
