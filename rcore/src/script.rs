@@ -26,45 +26,32 @@ impl Plugin for ScriptPlugins {
     fn build(&self, app: &mut App) {
         app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 1.0, TimerMode::Repeating)))
             .insert_resource(ScriptEngine(new_engine()))
-            .add_systems(Update, process_scripts);
+            .add_systems(Update, process_on_update)
+            .add_systems(Update, process_on_collision);
     }
 }
 
-// TODO: should also have a way to process events (ie on collision an event is emitted, invoke the
-// entity's script on_collision function or something)
-fn process_scripts(
-    time: Res<Time>,
-    mut timer: ResMut<ScriptTimer>,
+fn process_on_collision(
     script_engine: Res<ScriptEngine>,
     mut collision_events: EventReader<CollisionEvent>,
     mut query: Query<(Entity, &mut Script)>,
-    mut ship_query: Query<(&Velocity, &Collision, &mut Rotation, &Transform)>,
 ) {
     // Handle collision events first
     for collision_event in collision_events.read() {
         match collision_event {
-            //struct Collision(u32);
             CollisionEvent::Started(e1, e2, _) => {
-                if let Ok([(_, mut e1_script), (_, mut e2_script)]) = query.get_many_mut([*e1, *e2]) {
+                if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
+                    for mut script in [e1_script, e2_script] {
+                        let ast = script.ast.clone();
 
-                    let e1_ast = e1_script.ast.clone();
-                    let res = script_engine.0.call_fn::<()>(
-                        &mut e1_script.scope,
-                        &e1_ast,
-                        "on_collision",
-                        (),
-                    );
-                    println!("Script Result - {:?}", res);
-
-                    let e2_ast = e2_script.ast.clone();
-                    let res = script_engine.0.call_fn::<()>(
-                        &mut e2_script.scope,
-                        &e2_ast,
-                        "on_collision",
-                        (),
-                    );
-                    println!("Script Result - {:?}", res);
-
+                        let res = script_engine.0.call_fn::<()>(
+                            &mut script.scope,
+                            &ast,
+                            "on_collision",
+                            (),
+                        );
+                        println!("Script Result - {:?}", res);
+                    }
                 } else {
                     println!("ERROR - SCRIPT - {:?}", collision_event);
                 }
@@ -72,7 +59,15 @@ fn process_scripts(
             _ => (),
         }
     }
+}
 
+fn process_on_update(
+    time: Res<Time>,
+    mut timer: ResMut<ScriptTimer>,
+    script_engine: Res<ScriptEngine>,
+    mut query: Query<(Entity, &mut Script)>,
+    mut ship_query: Query<(&mut Velocity, &Collision, &mut Rotation, &Transform)>,
+) {
     // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
         // TODO:
@@ -88,7 +83,7 @@ fn process_scripts(
 
             let rot = trans.rotation;
             let tran = trans.translation;
-            let vel = ship_query.component::<Velocity>(entity).0;
+            let vel = ship_query.component::<Velocity>(entity).target.length();
 
             // TODO: probs want to have a place for scripts to store their states and supply it to
             // each run since functions can't access top level global variables and yeah...
@@ -103,12 +98,16 @@ fn process_scripts(
                 ( tran.truncate(), vel, rot.to_euler(EulerRot::ZYX).0 ),
             );
 
-            // Vec<Dynamic>
             match res {
-                Ok(to_rot) => {
+                Ok(data) => {
+                    let to_rot: f32 = data[0].clone_cast();
                     let mut rotation = ship_query.component_mut::<Rotation>(entity);
                     // TODO: update this only when the target changes
                     rotation.target = Quat::from_rotation_z(to_rot);
+
+                    let to_mov: f32 = data[1].clone_cast();
+                    let mut velocity = ship_query.component_mut::<Velocity>(entity);
+                    velocity.target = Quat::from_rotation_z(to_rot).mul_vec3(Vec3::Y * to_mov).truncate();
                 },
                 Err(e) => println!("Script Error - {:?}", e),
             }

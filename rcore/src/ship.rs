@@ -13,7 +13,10 @@ use crate::script::Script;
 struct Ship;
 
 #[derive(Component)]
-pub struct Velocity(pub Vec2);
+pub struct Velocity {
+    limit: f32, // Per second?
+    pub target: Vec2,
+}
 
 #[derive(Component)]
 pub struct Rotation {
@@ -36,6 +39,8 @@ struct RotDebug {
 // Debugging data storage component
 #[derive(Component)]
 struct MovDebug {
+    limit: f32,
+    target: Vec2,
     current: f32,
 }
 
@@ -64,11 +69,23 @@ impl Plugin for ShipPlugins {
     }
 }
 
-// TODO: figure out the time bit so we can do the system in a correct delta-time savvy way
-fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
-    for (vec, mut tran) in query.iter_mut() {
-        tran.translation.x += vec.0.x;
-        tran.translation.y += vec.0.y;
+fn apply_velocity(
+    time: Res<Time>,
+    mut query: Query<(&Velocity, &mut Transform, Option<&mut MovDebug>)>
+) {
+    for (vec, mut tran, debug) in query.iter_mut() {
+        tran.translation.x += vec.target.x;
+        tran.translation.y += vec.target.y;
+
+        // DEBUG
+        match debug {
+            Some(mut dbg) => {
+                dbg.limit = vec.limit;
+                dbg.target = vec.target;
+                dbg.current = vec.target.length();
+            },
+            None => (),
+        }
     }
 }
 
@@ -77,8 +94,34 @@ fn debug_movement_gitzmos(
     query: Query<(&Transform, &MovDebug)>
 ) {
     for (tran, debug) in query.iter() {
+        let base = tran.translation.truncate();
+        let current = tran.rotation;
 
+        gizmos.line_2d(
+            base,
+            base + current.mul_vec3(Vec3::Y * 90.).truncate(),
+            Color::RED,
+        );
+
+        let zero_speed = draw_bar_gitzmo(base, current, 10., 25.);
+        gizmos.line_2d(zero_speed.0, zero_speed.1, Color::RED);
+
+        let limit = draw_bar_gitzmo(base, current, 15., debug.limit * 20. + 25.);
+        gizmos.line_2d(limit.0, limit.1, Color::RED);
     }
+}
+
+fn draw_bar_gitzmo(
+    base: Vec2,
+    rot: Quat,
+    width: f32,
+    distance: f32,
+) -> (Vec2, Vec2) {
+    let part_one = Vec3::Y * distance + Vec3::X * (width / 2.);
+    let part_two = Vec3::Y * distance + Vec3::NEG_X * (width / 2.);
+
+    (base + rot.mul_vec3(part_one).truncate(),
+    base + rot.mul_vec3(part_two).truncate())
 }
 
 fn apply_rotation(
@@ -214,17 +257,18 @@ pub struct StarterShip {
     velocity: Vec2,
     limit_r: f32,
     target_r: f32,
+    limit_v: f32,
     script: Script,
 }
 
 impl StarterShip {
-    pub fn new(position: Vec2, velocity: Vec2, limit_r: f32, target_r: f32, script: Script) -> StarterShip {
-        println!("New ship - limit: {}", limit_r);
+    pub fn new(position: Vec2, velocity: Vec2, limit_r: f32, target_r: f32, limit_v: f32, script: Script) -> StarterShip {
         StarterShip {
             position,
             velocity,
             limit_r,
             target_r,
+            limit_v,
             script,
         }
     }
@@ -261,7 +305,7 @@ pub fn add_ships(
             Fill::color(Color::GREEN),
         ))
             .insert(Ship)
-            .insert(Velocity(ship.velocity))
+            .insert(Velocity{limit: ship.limit_v, target: ship.velocity})
             .insert(Rotation{limit: ship.limit_r, target: Quat::from_rotation_z(ship.target_r)})
             .insert(ship.script)
 
@@ -273,7 +317,7 @@ pub fn add_ships(
 
             // Debug bits
             //.insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
-            .insert(MovDebug { current: 0. })
+            .insert(MovDebug { limit: 0., target: Vec2::ZERO, current: 0. })
 
             .insert(Collision(0));
     }
