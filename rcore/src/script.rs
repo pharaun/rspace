@@ -95,20 +95,20 @@ fn process_scripts(
             let ast = script.ast.clone();
 
             // TODO: accept the target rotation value out of the script via the return value
-            let res = script_engine.0.call_fn::<f32>(
+            // [ to_rot, to_vel ]
+            let res = script_engine.0.call_fn::<rhai::Array>(
                 &mut script.scope,
                 &ast,
                 "on_update",
                 ( tran.truncate(), vel, rot.to_euler(EulerRot::ZYX).0 ),
             );
 
+            // Vec<Dynamic>
             match res {
                 Ok(to_rot) => {
                     let mut rotation = ship_query.component_mut::<Rotation>(entity);
                     // TODO: update this only when the target changes
                     rotation.target = Quat::from_rotation_z(to_rot);
-                    rotation.current = rot;
-                    rotation.start_time = time.elapsed_seconds();
                 },
                 Err(e) => println!("Script Error - {:?}", e),
             }

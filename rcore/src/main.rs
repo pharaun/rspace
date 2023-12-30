@@ -30,33 +30,38 @@ fn main() {
         .add_systems(Startup, |commands: Commands, script_engine: Res<ScriptEngine>| {
             let ships = vec![
                 StarterShip::new(
-                    Vec2::new(350., 0.),
-                    Vec2::new(0., 0.),
-                    f32::to_radians(45.0),
-                    f32::to_radians(0.0),
-                    new_script(&ship_script(f32::to_radians(22.5)), &script_engine),
-                ),
-                StarterShip::new(
                     Vec2::new(150., 0.),
                     Vec2::new(0., 0.),
-                    f32::to_radians(45.0),
                     f32::to_radians(0.0),
-                    new_script(&ship_script(f32::to_radians(45.)), &script_engine),
+                    f32::to_radians(0.0),
+                    new_script(&ship_script(0., 1.), &script_engine),
                 ),
                 StarterShip::new(
                     Vec2::new(-150., 0.),
                     Vec2::new(0., 0.),
-                    f32::to_radians(45.0),
-                    f32::to_radians(180.0),
-                    new_script(&ship_script(f32::to_radians(90.)), &script_engine),
+                    f32::to_radians(0.0),
+                    f32::to_radians(0.0),
+                    new_script(&ship_script(0., -1.), &script_engine),
                 ),
-                StarterShip::new(
-                    Vec2::new(-350., 0.),
-                    Vec2::new(0., 0.),
-                    f32::to_radians(45.0),
-                    f32::to_radians(-90.0),
-                    new_script(&ship_script(f32::to_radians(-170.)), &script_engine),
-                ),
+
+
+//                // Test cases
+//                //  * flip flops on direction
+//                //  * Weird drifting on rotation
+//                StarterShip::new(
+//                    Vec2::new(-350., 0.),
+//                    Vec2::new(0., 0.),
+//                    f32::to_radians(45.0),
+//                    f32::to_radians(0.0),
+//                    new_script(&ship_script(f32::to_radians(180.), 0.), &script_engine),
+//                ),
+//                StarterShip::new(
+//                    Vec2::new(350., 0.),
+//                    Vec2::new(0., 0.),
+//                    f32::to_radians(179.0),
+//                    f32::to_radians(0.0),
+//                    new_script(&ship_script(f32::to_radians(-90.), 0.), &script_engine),
+//                ),
             ];
 
             add_ships(commands, ships);
@@ -65,18 +70,16 @@ fn main() {
 }
 
 // TODO: the scripting really needs to be better, this is hampering us
-fn ship_script(target_rotation: f32) -> String {
+fn ship_script(target_rotation: f32, target_vel: f32) -> String {
     format!(r#"
         fn on_update(pos, vel, rot) {{
-            log("rot - " + rot);
-
-            rot + {}
+            [rot + {}, {}]
         }}
 
         fn on_collision() {{
             log("collision");
         }}
         "#,
-        target_rotation,
+        target_rotation, target_vel
     )
 }

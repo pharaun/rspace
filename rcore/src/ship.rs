@@ -18,9 +18,7 @@ pub struct Velocity(pub Vec2);
 #[derive(Component)]
 pub struct Rotation {
     limit: f32, // Per Second?
-    pub current: Quat, // Current quat at the time of setting the target
     pub target: Quat,
-    pub start_time: f32, // time of this rotation set
 }
 
 // Ref-counted collision, if greater than zero, its colloding, otherwise
@@ -29,12 +27,16 @@ pub struct Collision(u32);
 
 // Debugging data storage component
 #[derive(Component)]
-struct Debug {
+struct RotDebug {
     rotation_current: f32,
     rotation_target: f32,
     rotation_limit: f32,
-    rotation_delta: f32,
-    rotation_applied: f32,
+}
+
+// Debugging data storage component
+#[derive(Component)]
+struct MovDebug {
+    current: f32,
 }
 
 
@@ -54,7 +56,8 @@ impl Plugin for ShipPlugins {
                     apply_rotation,
                 ),
             )
-            .add_systems(Update, debug_gitzmos)
+//            .add_systems(Update, debug_rotation_gitzmos)
+            .add_systems(Update, debug_movement_gitzmos)
 
             .add_systems(Update, process_events)
             .add_systems(Update, apply_collision.after(process_events));
@@ -69,83 +72,60 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>) {
     }
 }
 
-// TODO: figure out the time bit so we can do the system in a correct delta-time savvy way
-// TODO: this can probs be done better + tested better
-// TODO: this is 64hz, and the limit is at ~per second? so need to figure out how to convert the
-// limit to 64hz
+fn debug_movement_gitzmos(
+    mut gizmos: Gizmos,
+    query: Query<(&Transform, &MovDebug)>
+) {
+    for (tran, debug) in query.iter() {
+
+    }
+}
+
 fn apply_rotation(
     time: Res<Time>,
-    mut query: Query<(&Rotation, &mut Transform, &mut Debug)>
+    mut query: Query<(&Rotation, &mut Transform, Option<&mut RotDebug>)>
 ) {
-    for (rot, mut tran, mut debug) in query.iter_mut() {
+    for (rot, mut tran, debug) in query.iter_mut() {
         // Get current rotation vector, get the target rotation vector, do math, and then rotate
         let current = tran.rotation;
         let target = rot.target;
         let limit = Quat::from_rotation_z(rot.limit);
 
-//        // If delta is aproximately zero we are on our heading
-//        if (current.dot(target) - 1.).abs() < f32::EPSILON {
-//            continue;
-//        }
-
-        let rotate_to_target = target * current.inverse();
-
-        // Identify if target or limit rotation is greater,
-        // If target is greater, identify which limit is closest to the target and use that
-        let delta = rotate_to_target.to_euler(EulerRot::ZYX).0;
-        let applied_angle = if delta.abs() <= rot.limit.abs() {
-            // rotate_to_target is less than the limit, go ahead and apply
-            rotate_to_target
-        } else {
-            // Identify which limit is closest to target and use that
-            if rotate_to_target.angle_between(limit) <= rotate_to_target.angle_between(limit.inverse()) {
-                // rotate_to_target closer to limit
-                limit
-            } else {
-                // rotate_to_target closer to limit.inverse()
-                limit.inverse()
-            }
-        };
-
         // DEBUG
-        debug.rotation_current = current.to_euler(EulerRot::ZYX).0;
-        debug.rotation_target = target.to_euler(EulerRot::ZYX).0;
-        debug.rotation_limit = limit.to_euler(EulerRot::ZYX).0;
-        debug.rotation_delta = rotate_to_target.to_euler(EulerRot::ZYX).0;
-        debug.rotation_applied = applied_angle.to_euler(EulerRot::ZYX).0;
+        match debug {
+            Some(mut dbg) => {
+                dbg.rotation_current = current.to_euler(EulerRot::ZYX).0;
+                dbg.rotation_target = target.to_euler(EulerRot::ZYX).0;
+                dbg.rotation_limit = limit.to_euler(EulerRot::ZYX).0;
+            },
+            None => (),
+        }
 
-        // LERP isn't right here with the time delta because it slows down over time because of the
-        // recalculation here.
-        //
-        // Should do some sort of calculation each time the target get changed, snapshot current
-        // position then calculate it, then use lerp over time to arrive to the target then idle
-        // till we get a new target value.
-        tran.rotate(Quat::IDENTITY.lerp(applied_angle, time.delta_seconds()));
+        // If this is aproximately zero we are on our heading, bail
+        if (current.dot(target) - 1.).abs() < f32::EPSILON {
+            continue;
+        }
+
+        // Calculate the t-factor for the rotation.lerp
+        let max_angle = limit.to_euler(EulerRot::ZYX).0 * time.delta_seconds();
+        let angle = current.angle_between(target);
+        let t = (1_f32).min(max_angle / angle);
+
+        tran.rotation = tran.rotation.lerp(target, t);
     }
 }
 
 // Debug system
-fn debug_gitzmos(
+fn debug_rotation_gitzmos(
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &Debug)>
+    query: Query<(&Transform, &RotDebug)>
 ) {
     for (tran, debug) in query.iter() {
-        println!(
-            "cur: {}, targ: {}, limit: {}, delta: {}, applied: {}",
-            debug.rotation_current,
-            debug.rotation_target,
-            debug.rotation_limit,
-            debug.rotation_delta,
-            debug.rotation_applied,
-        );
-
         let base = tran.translation.truncate();
 
         let current = Quat::from_rotation_z(debug.rotation_current);
         let target = Quat::from_rotation_z(debug.rotation_target);
         let limit = Quat::from_rotation_z(debug.rotation_limit);
-        let delta = Quat::from_rotation_z(debug.rotation_delta);
-        let applied = Quat::from_rotation_z(debug.rotation_applied);
 
         gizmos.line_2d(
             base,
@@ -155,7 +135,7 @@ fn debug_gitzmos(
         gizmos.arc_2d(
             base,
             current.to_euler(EulerRot::ZYX).0 * -1.,
-            current.angle_between(current*limit*limit),
+            current.angle_between(current*limit) * 2.,
             80.,
             Color::RED,
         );
@@ -181,32 +161,6 @@ fn debug_gitzmos(
             current.angle_between(target),
             70.,
             Color::GREEN,
-        );
-
-        gizmos.line_2d(
-            base,
-            base + delta.mul_vec3(current.mul_vec3(Vec3::Y * 70.)).truncate(),
-            Color::YELLOW,
-        );
-        gizmos.arc_2d(
-            base,
-            current.lerp(current * delta, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
-            current.angle_between(current * delta),
-            60.,
-            Color::YELLOW,
-        );
-
-        gizmos.line_2d(
-            base,
-            base + applied.mul_vec3(current.mul_vec3(Vec3::Y * 60.)).truncate(),
-            Color::ORANGE,
-        );
-        gizmos.arc_2d(
-            base,
-            current.lerp(current * applied, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
-            current.angle_between(current * applied),
-            50.,
-            Color::ORANGE,
         );
     }
 }
@@ -308,7 +262,7 @@ pub fn add_ships(
         ))
             .insert(Ship)
             .insert(Velocity(ship.velocity))
-            .insert(Rotation{limit: ship.limit_r, current: transform.rotation, target: Quat::from_rotation_z(ship.target_r), start_time: 0.})
+            .insert(Rotation{limit: ship.limit_r, target: Quat::from_rotation_z(ship.target_r)})
             .insert(ship.script)
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
@@ -318,7 +272,8 @@ pub fn add_ships(
             .insert(Sensor)
 
             // Debug bits
-            .insert(Debug { rotation_current: 0., rotation_target: 0., rotation_limit: 0., rotation_delta: 0., rotation_applied: 0.})
+            //.insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
+            .insert(MovDebug { current: 0. })
 
             .insert(Collision(0));
     }
