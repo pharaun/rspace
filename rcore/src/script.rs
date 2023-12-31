@@ -156,13 +156,18 @@ fn process_on_update(
             match res {
                 Ok(data) => {
                     let to_rot: f32 = data[0].clone_cast();
-                    let mut rotation = ship_query.component_mut::<Rotation>(entity);
-                    // TODO: update this only when the target changes
-                    rotation.target = Quat::from_rotation_z(to_rot);
+                    if to_rot > f32::EPSILON {
+                        // Is greater than zero, apply
+                        let mut rotation = ship_query.component_mut::<Rotation>(entity);
+                        rotation.target = rot * Quat::from_rotation_z(to_rot);
+                    }
 
                     let to_mov: f32 = data[1].clone_cast();
-                    let mut velocity = ship_query.component_mut::<Velocity>(entity);
-                    velocity.target = Quat::from_rotation_z(to_rot).mul_vec3(Vec3::Y * to_mov).truncate();
+                    if to_mov > f32::EPSILON {
+                        // Is greater than zero, apply
+                        let mut velocity = ship_query.component_mut::<Velocity>(entity);
+                        velocity.target += rot.mul_vec3(Vec3::Y * to_mov).truncate();
+                    }
                 },
                 Err(e) => println!("Script Error - {:?}", e),
             }
