@@ -32,18 +32,18 @@ fn main() {
                 StarterShip::new(
                     Vec2::new(150., 0.),
                     Vec2::new(0., 0.),
-                    f32::to_radians(0.0),
+                    f32::to_radians(90.0),
                     f32::to_radians(0.0),
                     1.0,
-                    Script::new(&ship_script(0., 1.), &script_engine),
+                    Script::new(&ship_script(180., 1.), &script_engine),
                 ),
                 StarterShip::new(
                     Vec2::new(-150., 0.),
                     Vec2::new(0., 0.),
+                    f32::to_radians(90.0),
                     f32::to_radians(0.0),
-                    f32::to_radians(180.0),
                     1.0,
-                    Script::new(&ship_script(0., 1.), &script_engine),
+                    Script::new(&ship_script(180., 1.), &script_engine),
                 ),
 
 
@@ -74,21 +74,38 @@ fn main() {
 }
 
 // TODO: the scripting really needs to be better, this is hampering us
-fn ship_script(target_rotation: f32, target_vel: f32) -> String {
+fn ship_script(target_rot: f32, target_vel: f32) -> String {
     format!(r#"
         fn init() {{
-            if "flip" !in this {{
-                this.flip = false;
+            if "slowdown" !in this {{
+                this.slowdown = false;
             }}
         }}
         fn on_update(pos, vel, rot) {{
-            [rot + {}, vel + {}]
+            let add_vel = {};
+            let add_rot = {};
+
+            if vel > 5 && !this.slowdown{{
+                this.slowdown = true;
+            }}
+
+            if vel < 1  && this.slowdown {{
+                this.slowdown = false;
+            }}
+
+            log("Vel - " + vel + " - slowdown - " + this.slowdown);
+
+            if this.slowdown {{
+                [rot, vel - add_vel]
+            }} else {{
+                [rot, vel + add_vel]
+            }}
         }}
 
         fn on_collision() {{
             log("collision");
         }}
         "#,
-        target_rotation, target_vel
+        target_vel, target_rot
     )
 }

@@ -1,19 +1,18 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use rhai::{Engine, Scope, AST, Dynamic, CallFnOptions, Map};
+use rhai::{Engine, Scope, AST, Dynamic, CallFnOptions, Map, EvalAltResult, Variant, FuncArgs};
 
 use std::boxed::Box;
 
 use crate::ship::{Velocity, Rotation, Collision};
 
-// Primitive "Scripting" Component. Will develop in a more sophsicated interface to hook up to a VM
-// later on
+// Use this to develop what we need for the future alternative language/VM but for now rhai will do
 #[derive(Component)]
 pub struct Script {
     scope: Scope<'static>,
-    state: Box<Dynamic>,
-    ast: Box<AST>,
+    state: Dynamic,
+    ast: AST,
 }
 
 impl Script {
@@ -24,28 +23,38 @@ impl Script {
             Err(x) => panic!("AST: {:?}", x),
         };
 
-        let mut scope = Scope::new();
-        let mut state: Box<Dynamic> = Box::new(Map::new().into());
+        let scope = Scope::new();
+        let state: Dynamic = Map::new().into();
+        let mut script = Script { scope, state, ast };
 
         // Init the script
-        let options = CallFnOptions::new()
-            .eval_ast(false)
-            .bind_this_ptr(&mut state);
-
-        let res = engine.0.call_fn_with_options::<()>(
-            options,
-            &mut scope,
-            &ast,
-            "init",
-            (),
-        );
+        let res = script.invoke::<()>("init", (), engine);
 
         match res {
             Ok(()) => (),
             Err(e) => println!("Script Error - init - {:?}", e),
         }
 
-        Script { scope, state, ast: Box::new(ast) }
+        script
+    }
+
+    pub fn invoke<T: Variant + Clone>(
+        &mut self,
+        name: &str,
+        args: impl FuncArgs,
+        engine: &Res<ScriptEngine>
+    ) -> Result<T, Box<EvalAltResult>> {
+        let options = CallFnOptions::new()
+            .eval_ast(false)
+            .bind_this_ptr(&mut self.state);
+
+        engine.0.call_fn_with_options(
+            options,
+            &mut self.scope,
+            &self.ast,
+            &name,
+            args,
+        )
     }
 }
 
@@ -97,20 +106,7 @@ fn process_on_collision(
             CollisionEvent::Started(e1, e2, _) => {
                 if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
                     for mut script in [e1_script, e2_script] {
-                        let ast = script.ast.clone();
-                        let mut state = script.state.clone();
-
-                        let options = CallFnOptions::new()
-                            .eval_ast(false)
-                            .bind_this_ptr(&mut state);
-
-                        let res = engine.0.call_fn_with_options::<()>(
-                            options,
-                            &mut script.scope,
-                            &ast,
-                            "on_collision",
-                            (),
-                        );
+                        let res = script.invoke::<()>("on_collision", (), &engine);
 
                         match res {
                             Ok(()) => (),
@@ -150,20 +146,11 @@ fn process_on_update(
             let tran = trans.translation;
             let vel = ship_query.component::<Velocity>(entity).target.length();
 
-            let ast = script.ast.clone();
-            let mut state = script.state.clone();
-
-            let options = CallFnOptions::new()
-                .eval_ast(false)
-                .bind_this_ptr(&mut state);
-
             // [ to_rot, to_vel ]
-            let res = engine.0.call_fn_with_options::<rhai::Array>(
-                options,
-                &mut script.scope,
-                &ast,
+            let res = script.invoke::<rhai::Array>(
                 "on_update",
                 ( tran.truncate(), vel, rot.to_euler(EulerRot::ZYX).0 ),
+                &engine
             );
 
             match res {
