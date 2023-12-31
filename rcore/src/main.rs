@@ -5,9 +5,9 @@ mod arena;
 use crate::arena::ArenaPlugins;
 
 mod script;
+use crate::script::Script;
 use crate::script::ScriptPlugins;
 use crate::script::ScriptEngine;
-use crate::script::new_script;
 
 mod ship;
 use crate::ship::ShipPlugins;
@@ -35,7 +35,7 @@ fn main() {
                     f32::to_radians(0.0),
                     f32::to_radians(0.0),
                     1.0,
-                    new_script(&ship_script(0., 1.), &script_engine),
+                    Script::new(&ship_script(0., 1.), &script_engine),
                 ),
                 StarterShip::new(
                     Vec2::new(-150., 0.),
@@ -43,7 +43,7 @@ fn main() {
                     f32::to_radians(0.0),
                     f32::to_radians(180.0),
                     1.0,
-                    new_script(&ship_script(0., 1.), &script_engine),
+                    Script::new(&ship_script(0., 1.), &script_engine),
                 ),
 
 
@@ -56,7 +56,7 @@ fn main() {
 //                    f32::to_radians(45.0),
 //                    f32::to_radians(0.0),
 //                    0.0,
-//                    new_script(&ship_script(f32::to_radians(180.), 0.), &script_engine),
+//                    Script::new(&ship_script(f32::to_radians(180.), 0.), &script_engine),
 //                ),
 //                StarterShip::new(
 //                    Vec2::new(350., 0.),
@@ -64,7 +64,7 @@ fn main() {
 //                    f32::to_radians(179.0),
 //                    f32::to_radians(0.0),
 //                    0.0,
-//                    new_script(&ship_script(f32::to_radians(-90.), 0.), &script_engine),
+//                    Script::new(&ship_script(f32::to_radians(-90.), 0.), &script_engine),
 //                ),
             ];
 
@@ -76,6 +76,11 @@ fn main() {
 // TODO: the scripting really needs to be better, this is hampering us
 fn ship_script(target_rotation: f32, target_vel: f32) -> String {
     format!(r#"
+        fn init() {{
+            if "flip" !in this {{
+                this.flip = false;
+            }}
+        }}
         fn on_update(pos, vel, rot) {{
             [rot + {}, vel + {}]
         }}

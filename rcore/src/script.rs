@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use rhai::{Engine, Scope, AST};
+use rhai::{Engine, Scope, AST, Dynamic, CallFnOptions, Map};
 
 use std::boxed::Box;
 
@@ -12,27 +12,82 @@ use crate::ship::{Velocity, Rotation, Collision};
 #[derive(Component)]
 pub struct Script {
     scope: Scope<'static>,
+    state: Box<Dynamic>,
     ast: Box<AST>,
+}
+
+impl Script {
+    pub fn new(script: &str, engine: &Res<ScriptEngine>) -> Script {
+        // Compile script
+        let ast = match engine.0.compile(&script) {
+            Ok(ast) => ast,
+            Err(x) => panic!("AST: {:?}", x),
+        };
+
+        let mut scope = Scope::new();
+        let mut state: Box<Dynamic> = Box::new(Map::new().into());
+
+        // Init the script
+        let options = CallFnOptions::new()
+            .eval_ast(false)
+            .bind_this_ptr(&mut state);
+
+        let res = engine.0.call_fn_with_options::<()>(
+            options,
+            &mut scope,
+            &ast,
+            "init",
+            (),
+        );
+
+        match res {
+            Ok(()) => (),
+            Err(e) => println!("Script Error - init - {:?}", e),
+        }
+
+        Script { scope, state, ast: Box::new(ast) }
+    }
+}
+
+#[derive(Resource)]
+pub struct ScriptEngine(Engine);
+
+impl ScriptEngine {
+    pub fn new() -> ScriptEngine {
+        let mut engine = Engine::new();
+
+        engine.register_type_with_name::<Vec2>("Vec2")
+            .register_fn("new_vec2", |x: f64, y: f64| {
+                Vec2::new(x as f32, y as f32)
+            })
+            .register_fn("to_string", |vec: &mut Vec2| vec.to_string())
+            .register_fn("to_debug", |vec: &mut Vec2| format!("{vec:?}"))
+            .register_get("x", |vec: &mut Vec2| vec.x as f64)
+            .register_get("y", |vec: &mut Vec2| vec.y as f64);
+
+        engine.register_fn("log", |text: &str| {
+            println!("{text}");
+        });
+
+        ScriptEngine(engine)
+    }
 }
 
 #[derive(Resource)]
 struct ScriptTimer(Timer);
 
-#[derive(Resource)]
-pub struct ScriptEngine(Engine);
-
 pub struct ScriptPlugins;
 impl Plugin for ScriptPlugins {
     fn build(&self, app: &mut App) {
         app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 1.0, TimerMode::Repeating)))
-            .insert_resource(ScriptEngine(new_engine()))
+            .insert_resource(ScriptEngine::new())
             .add_systems(Update, process_on_update)
             .add_systems(Update, process_on_collision);
     }
 }
 
 fn process_on_collision(
-    script_engine: Res<ScriptEngine>,
+    engine: Res<ScriptEngine>,
     mut collision_events: EventReader<CollisionEvent>,
     mut query: Query<(Entity, &mut Script)>,
 ) {
@@ -43,14 +98,24 @@ fn process_on_collision(
                 if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
                     for mut script in [e1_script, e2_script] {
                         let ast = script.ast.clone();
+                        let mut state = script.state.clone();
 
-                        let res = script_engine.0.call_fn::<()>(
+                        let options = CallFnOptions::new()
+                            .eval_ast(false)
+                            .bind_this_ptr(&mut state);
+
+                        let res = engine.0.call_fn_with_options::<()>(
+                            options,
                             &mut script.scope,
                             &ast,
                             "on_collision",
                             (),
                         );
-                        println!("Script Result - {:?}", res);
+
+                        match res {
+                            Ok(()) => (),
+                            Err(e) => println!("Script Error - on_collision - {:?}", e),
+                        }
                     }
                 } else {
                     println!("ERROR - SCRIPT - {:?}", collision_event);
@@ -64,7 +129,7 @@ fn process_on_collision(
 fn process_on_update(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
-    script_engine: Res<ScriptEngine>,
+    engine: Res<ScriptEngine>,
     mut query: Query<(Entity, &mut Script)>,
     mut ship_query: Query<(&mut Velocity, &Collision, &mut Rotation, &Transform)>,
 ) {
@@ -85,13 +150,16 @@ fn process_on_update(
             let tran = trans.translation;
             let vel = ship_query.component::<Velocity>(entity).target.length();
 
-            // TODO: probs want to have a place for scripts to store their states and supply it to
-            // each run since functions can't access top level global variables and yeah...
             let ast = script.ast.clone();
+            let mut state = script.state.clone();
 
-            // TODO: accept the target rotation value out of the script via the return value
+            let options = CallFnOptions::new()
+                .eval_ast(false)
+                .bind_this_ptr(&mut state);
+
             // [ to_rot, to_vel ]
-            let res = script_engine.0.call_fn::<rhai::Array>(
+            let res = engine.0.call_fn_with_options::<rhai::Array>(
+                options,
                 &mut script.scope,
                 &ast,
                 "on_update",
@@ -113,35 +181,4 @@ fn process_on_update(
             }
         }
     }
-}
-
-fn new_engine() -> Engine {
-    let mut engine = Engine::new();
-
-    engine.register_type_with_name::<Vec2>("Vec2")
-        .register_fn("new_vec2", |x: f64, y: f64| {
-            Vec2::new(x as f32, y as f32)
-        })
-        .register_fn("to_string", |vec: &mut Vec2| vec.to_string())
-        .register_fn("to_debug", |vec: &mut Vec2| format!("{vec:?}"))
-        .register_get("x", |vec: &mut Vec2| vec.x as f64)
-        .register_get("y", |vec: &mut Vec2| vec.y as f64);
-
-    engine.register_fn("log", |text: &str| {
-        println!("{text}");
-    });
-
-    engine
-}
-
-pub fn new_script(script: &str, script_engine: &Res<ScriptEngine>) -> Script {
-    // TODO: probs want to do initial run to initialize global values and stuff
-    // before invoking all future runs via event-function calls
-    let scope = Scope::new();
-    let ast = match script_engine.0.compile(&script) {
-        Ok(ast) => ast,
-        Err(x) => panic!("AST: {:?}", x),
-    };
-
-    Script { scope, ast: Box::new(ast) }
 }
