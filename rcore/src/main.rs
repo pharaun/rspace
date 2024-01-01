@@ -34,7 +34,7 @@ fn main() {
                     Vec2::new(0., 0.),
                     f32::to_radians(90.0),
                     f32::to_radians(0.0),
-                    1.0,
+                    5.0,
                     Script::new(&ship_script(f32::to_radians(180.), 1.), &script_engine),
                 ),
 
@@ -89,7 +89,7 @@ fn ship_script(target_rot: f32, target_vel: f32) -> String {
             switch this.state {
                 // 0 = speed up
                 0 => {
-                    if vel > 10 {
+                    if vel.length() > 10 {
                         this.state = 1;
                     }
 
@@ -115,7 +115,7 @@ fn ship_script(target_rot: f32, target_vel: f32) -> String {
 
                 // 3 = slow down
                 3 => {
-                    if vel < 1 {
+                    if vel.length() < 1 {
                         this.state = 4;
                     }
 

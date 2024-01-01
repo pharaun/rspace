@@ -53,7 +53,8 @@ pub struct ShipPlugins;
 impl Plugin for ShipPlugins {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
-            .insert_resource(Time::<Fixed>::from_hz(64.0))
+            //.insert_resource(Time::<Fixed>::from_hz(64.0))
+            .insert_resource(Time::<Fixed>::from_hz(1.0))
             .add_systems(
                 FixedUpdate,
                 (
@@ -106,8 +107,20 @@ fn debug_movement_gitzmos(
         let zero_speed = draw_bar_gitzmo(base, current, 10., 25.);
         gizmos.line_2d(zero_speed.0, zero_speed.1, Color::RED);
 
-        let limit = draw_bar_gitzmo(base, current, 15., debug.limit * 20. + 25.);
+        let limit = draw_bar_gitzmo(base, current, 15., debug.limit * 5. + 25.);
         gizmos.line_2d(limit.0, limit.1, Color::RED);
+
+        let curr = draw_bar_gitzmo(base, current, 15., debug.current * 5. + 25.);
+        gizmos.line_2d(curr.0, curr.1, Color::ORANGE);
+
+//        let tar_rot = Quat::from_rotation_arc_2d(Vec3::Y.truncate(), debug.target.normalize());
+//        gizmos.line_2d(
+//            base,
+//            base + tar_rot.mul_vec3(Vec3::Y * 80.).truncate(),
+//            Color::RED,
+//        );
+//        let tar = draw_bar_gitzmo(base, tar_rot, 15., debug.target.length() * 20. + 25.);
+//        gizmos.line_2d(tar.0, tar.1, Color::GREEN);
     }
 }
 

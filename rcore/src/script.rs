@@ -65,14 +65,16 @@ impl ScriptEngine {
     pub fn new() -> ScriptEngine {
         let mut engine = Engine::new();
 
+        // TODO: register a function that gets an angle from a vec2
         engine.register_type_with_name::<Vec2>("Vec2")
-            .register_fn("new_vec2", |x: f64, y: f64| {
+            .register_fn("new_vec2", |x: f32, y: f32| {
                 Vec2::new(x as f32, y as f32)
             })
             .register_fn("to_string", |vec: &mut Vec2| vec.to_string())
             .register_fn("to_debug", |vec: &mut Vec2| format!("{vec:?}"))
-            .register_get("x", |vec: &mut Vec2| vec.x as f64)
-            .register_get("y", |vec: &mut Vec2| vec.y as f64);
+            .register_get("x", |vec: &mut Vec2| vec.x as f32)
+            .register_get("y", |vec: &mut Vec2| vec.y as f32)
+            .register_fn("length", |vec: &mut Vec2| vec.length() as f32);
 
         engine.register_fn("log", |text: &str| {
             println!("{text}");
@@ -144,7 +146,7 @@ fn process_on_update(
 
             let rot = trans.rotation;
             let tran = trans.translation;
-            let vel = ship_query.component::<Velocity>(entity).target.length();
+            let vel = ship_query.component::<Velocity>(entity).target;
 
             // [ to_rot, to_vel ]
             let res = script.invoke::<rhai::Array>(
@@ -162,6 +164,8 @@ fn process_on_update(
                         rotation.target = rot * Quat::from_rotation_z(to_rot);
                     }
 
+                    // TODO: deal with error rounding/error, ie if strictly going on X or Y axis,
+                    // zero out the other, things like that
                     let to_mov: f32 = data[1].clone_cast();
                     if to_mov > f32::EPSILON {
                         // Is greater than zero, apply
