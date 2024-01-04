@@ -146,7 +146,7 @@ fn process_on_update(
 
             let rot = trans.rotation;
             let tran = trans.translation;
-            let vel = ship_query.component::<Velocity>(entity).target;
+            let vel = ship_query.component::<Velocity>(entity).velocity;
 
             // [ to_rot, to_vel ]
             let res = script.invoke::<rhai::Array>(
@@ -164,13 +164,11 @@ fn process_on_update(
                         rotation.target = rot * Quat::from_rotation_z(to_rot);
                     }
 
-                    // TODO: deal with error rounding/error, ie if strictly going on X or Y axis,
-                    // zero out the other, things like that
-                    let to_mov: f32 = data[1].clone_cast();
-                    if to_mov > f32::EPSILON {
+                    let to_accelerate: f32 = data[1].clone_cast();
+                    if to_accelerate > f32::EPSILON {
                         // Is greater than zero, apply
                         let mut velocity = ship_query.component_mut::<Velocity>(entity);
-                        velocity.target += rot.mul_vec3(Vec3::Y * to_mov).truncate();
+                        velocity.acceleration = to_accelerate;
                     }
                 },
                 Err(e) => println!("Script Error - {:?}", e),

@@ -14,8 +14,10 @@ struct Ship;
 
 #[derive(Component)]
 pub struct Velocity {
-    limit: f32, // Per second?
-    pub target: Vec2,
+    pub acceleration: f32,
+    pub velocity: Vec2,
+
+    // TODO: develop the limits
 }
 
 #[derive(Component)]
@@ -39,9 +41,8 @@ struct RotDebug {
 // Debugging data storage component
 #[derive(Component)]
 struct MovDebug {
-    limit: f32,
-    target: Vec2,
-    current: f32,
+    velocity: Vec2,
+    acceleration: f32,
 }
 
 
@@ -53,8 +54,8 @@ pub struct ShipPlugins;
 impl Plugin for ShipPlugins {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
-            //.insert_resource(Time::<Fixed>::from_hz(64.0))
-            .insert_resource(Time::<Fixed>::from_hz(1.0))
+            .insert_resource(Time::<Fixed>::from_hz(64.0))
+            //.insert_resource(Time::<Fixed>::from_hz(2.0))
             .add_systems(
                 FixedUpdate,
                 (
@@ -72,21 +73,21 @@ impl Plugin for ShipPlugins {
 
 fn apply_velocity(
     time: Res<Time>,
-    mut query: Query<(&Velocity, &mut Transform, Option<&mut MovDebug>)>
+    mut query: Query<(&mut Velocity, &mut Transform, Option<&mut MovDebug>)>
 ) {
-    for (vec, mut tran, debug) in query.iter_mut() {
-        tran.translation.x += vec.target.x;
-        tran.translation.y += vec.target.y;
-
+    for (mut vec, mut tran, debug) in query.iter_mut() {
         // DEBUG
         match debug {
             Some(mut dbg) => {
-                dbg.limit = vec.limit;
-                dbg.target = vec.target;
-                dbg.current = vec.target.length();
+                dbg.acceleration = vec.acceleration;
+                dbg.velocity = vec.velocity;
             },
             None => (),
         }
+
+        let acceleration = tran.rotation.mul_vec3(Vec3::Y * vec.acceleration).truncate();
+        vec.velocity += acceleration * time.delta_seconds();
+        tran.translation += (vec.velocity * time.delta_seconds()).extend(0.);
     }
 }
 
@@ -96,31 +97,33 @@ fn debug_movement_gitzmos(
 ) {
     for (tran, debug) in query.iter() {
         let base = tran.translation.truncate();
-        let current = tran.rotation;
+        let heading = tran.rotation;
 
+        let debug_velocity = debug.velocity;
+        let debug_acceleration = heading.mul_vec3(Vec3::Y * debug.acceleration).truncate();
+
+        // Current heading
         gizmos.line_2d(
             base,
-            base + current.mul_vec3(Vec3::Y * 90.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
             Color::RED,
         );
 
-        let zero_speed = draw_bar_gitzmo(base, current, 10., 25.);
-        gizmos.line_2d(zero_speed.0, zero_speed.1, Color::RED);
+        // Velocity direction
+        gizmos.line_2d(
+            base,
+            base + debug_velocity.normalize() * 60.,
+            Color::GREEN,
+        );
 
-        let limit = draw_bar_gitzmo(base, current, 15., debug.limit * 5. + 25.);
-        gizmos.line_2d(limit.0, limit.1, Color::RED);
+        // Acceleration direction
+        gizmos.line_2d(
+            base,
+            base + debug_acceleration.normalize() * 50.,
+            Color::YELLOW,
+        );
 
-        let curr = draw_bar_gitzmo(base, current, 15., debug.current * 5. + 25.);
-        gizmos.line_2d(curr.0, curr.1, Color::ORANGE);
-
-//        let tar_rot = Quat::from_rotation_arc_2d(Vec3::Y.truncate(), debug.target.normalize());
-//        gizmos.line_2d(
-//            base,
-//            base + tar_rot.mul_vec3(Vec3::Y * 80.).truncate(),
-//            Color::RED,
-//        );
-//        let tar = draw_bar_gitzmo(base, tar_rot, 15., debug.target.length() * 20. + 25.);
-//        gizmos.line_2d(tar.0, tar.1, Color::GREEN);
+        //let zero_speed = draw_bar_gitzmo(base, current, 10., 25.);
     }
 }
 
@@ -270,18 +273,16 @@ pub struct StarterShip {
     velocity: Vec2,
     limit_r: f32,
     target_r: f32,
-    limit_v: f32,
     script: Script,
 }
 
 impl StarterShip {
-    pub fn new(position: Vec2, velocity: Vec2, limit_r: f32, target_r: f32, limit_v: f32, script: Script) -> StarterShip {
+    pub fn new(position: Vec2, velocity: Vec2, limit_r: f32, target_r: f32, script: Script) -> StarterShip {
         StarterShip {
             position,
             velocity,
             limit_r,
             target_r,
-            limit_v,
             script,
         }
     }
@@ -318,7 +319,7 @@ pub fn add_ships(
             Fill::color(Color::GREEN),
         ))
             .insert(Ship)
-            .insert(Velocity{limit: ship.limit_v, target: ship.velocity})
+            .insert(Velocity{velocity: ship.velocity, acceleration: 0. })
             .insert(Rotation{limit: ship.limit_r, target: Quat::from_rotation_z(ship.target_r)})
             .insert(ship.script)
 
@@ -330,7 +331,7 @@ pub fn add_ships(
 
             // Debug bits
             //.insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
-            .insert(MovDebug { limit: 0., target: Vec2::ZERO, current: 0. })
+            .insert(MovDebug { velocity: ship.velocity, acceleration: 0. })
 
             .insert(Collision(0));
     }

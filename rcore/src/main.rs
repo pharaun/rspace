@@ -34,7 +34,6 @@ fn main() {
                     Vec2::new(0., 0.),
                     f32::to_radians(90.0),
                     f32::to_radians(0.0),
-                    5.0,
                     Script::new(&ship_script(f32::to_radians(180.), 1.), &script_engine),
                 ),
 
@@ -46,7 +45,6 @@ fn main() {
 //                    Vec2::new(0., 0.),
 //                    f32::to_radians(45.0),
 //                    f32::to_radians(0.0),
-//                    0.0,
 //                    Script::new(&ship_script(f32::to_radians(180.), 0.), &script_engine),
 //                ),
 //                StarterShip::new(
@@ -54,7 +52,6 @@ fn main() {
 //                    Vec2::new(0., 0.),
 //                    f32::to_radians(179.0),
 //                    f32::to_radians(0.0),
-//                    0.0,
 //                    Script::new(&ship_script(f32::to_radians(-90.), 0.), &script_engine),
 //                ),
             ];
@@ -65,78 +62,68 @@ fn main() {
 }
 
 // TODO: the scripting really needs to be better, this is hampering us
-fn ship_script(target_rot: f32, target_vel: f32) -> String {
+fn ship_script(target_rot: f32, acceleration: f32) -> String {
     format!(r#"
         fn init() {{
             // Const
-            this.add_vel = {:.8};
+            this.acceleration = {:.8};
             this.add_rot = {:.8};
 
             // State
             this.state = 0;
+            this.next_state = [];
 
             // Counter
             this.counter = 0;
         }}
 
         {}"#,
-        target_vel, target_rot,
+        acceleration, target_rot,
         r#"
         // TODO: need better vel indicator (neg and pos and lateral state)
         fn on_update(pos, vel, rot) {
-            log("Vel - " + vel + " - state - " + this.state + " - counter - " + this.counter);
+            log("State - " + this.state + " - counter - " + this.counter + " - Pos - " + pos + " - Vel - " + vel + " - " + vel.length());
+
+            // If next_state is empty, it has ran out, so restock it with sequences
+            if this.next_state.is_empty() {
+                this.state = 0;
+                this.next_state += [1, 2, 1, 3, 1, 2, 1, 0]
+            }
 
             switch this.state {
                 // 0 = speed up
                 0 => {
                     if vel.length() > 10 {
-                        this.state = 1;
+                        this.state = this.next_state.shift();
                     }
 
-                    [0.0, this.add_vel]
+                    [0.0, this.acceleration]
                 },
 
-                // 1 = flip
+                // 1 = pause
                 1 => {
-                    this.state = 2;
-                    [this.add_rot, 0.0]
-                },
-
-                // 2 = countdown
-                2 => {
                     if this.counter > 3 {
                         this.counter = 0;
-                        this.state = 3;
+                        this.state = this.next_state.shift();
                     }
 
                     this.counter += 1;
                     [0.0, 0.0]
+                }
+
+                // 2 = flip
+                2 => {
+                    this.state = this.next_state.shift();
+                    [this.add_rot, 0.0]
                 },
 
                 // 3 = slow down
                 3 => {
-                    if vel.length() < 1 {
-                        this.state = 4;
+                    if vel.length() < 2 {
+                        this.state = this.next_state.shift();
                     }
 
-                    [0.0, this.add_vel]
-                },
-
-                // 4 = flip
-                4 => {
-                    this.state = 5;
-                    [this.add_rot, 0.0]
-                },
-
-                // 5 = countdown
-                5 => {
-                    if this.counter > 3 {
-                        this.counter = 0;
-                        this.state = 0;
-                    }
-
-                    this.counter += 1;
-                    [0.0, 0.0]
+                    [0.0, this.acceleration]
                 },
             }
         }
