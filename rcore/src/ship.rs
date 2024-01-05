@@ -87,20 +87,16 @@ fn apply_velocity(
             None => (),
         }
 
-        // TODO: figure out how to lerp? so it smoothly update, also there is an awkward
-        // sideway slide over time so would be nice to figure out why
+        // TODO: figure out how to lerp? There is also an awkward sideward acceleration
+        // when we rotate 180, figure out why that happens
         let mut acceleration = tran.rotation.mul_vec3(Vec3::Y * vec.acceleration).truncate();
 
         // Apply Lorentz factor only if it will increase the velocity
         // Inspiration: https://stackoverflow.com/a/2891162
         let new_velocity = vec.velocity + acceleration * time.delta_seconds();
 
-        println!("Ship:\n\tAcceleration: {:?}\n\tnew_velocity: {:?}, old_velocity: {:?}",
-            acceleration, new_velocity.length(), vec.velocity.length()
-        );
-
         if new_velocity.length() > vec.velocity.length() {
-            // Y = 1 / Sqrt(1 - v^2/c^2)
+            // Y = 1 / Sqrt(1 - v^2/c^2), Clamp (1 - v^2/c^2) to float min to avoid NaN and inf
             let lorentz = 1.0 / (
                 (1.0 - (
                     vec.velocity.length_squared() / vec.velocity_limit.powi(2)
@@ -111,8 +107,6 @@ fn apply_velocity(
             // curves, plus floating point imprecision... See if there's a better way to do it or
             // if we need to bite the bullet and go for a integrator for these
             acceleration /= lorentz;
-
-            println!("\tLimit: {:?}\n\tLorentz: {:?}\n\tnew_acceleration: {:?}", vec.velocity_limit, lorentz, acceleration);
         }
 
         // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
@@ -364,7 +358,7 @@ pub fn add_ships(
 
             // Debug bits
             //.insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
-            .insert(MovDebug { velocity: ship.velocity, acceleration: 0. })
+            //.insert(MovDebug { velocity: ship.velocity, acceleration: 0. })
 
             .insert(Collision(0));
     }
