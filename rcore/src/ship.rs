@@ -18,6 +18,7 @@ pub struct Velocity {
     pub velocity: Vec2,
 
     // TODO: develop the limits
+    velocity_limit: f32,
 }
 
 #[derive(Component)]
@@ -54,8 +55,8 @@ pub struct ShipPlugins;
 impl Plugin for ShipPlugins {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
-            .insert_resource(Time::<Fixed>::from_hz(64.0))
-            //.insert_resource(Time::<Fixed>::from_hz(2.0))
+            //.insert_resource(Time::<Fixed>::from_hz(64.0))
+            .insert_resource(Time::<Fixed>::from_hz(2.0))
             .add_systems(
                 FixedUpdate,
                 (
@@ -71,6 +72,7 @@ impl Plugin for ShipPlugins {
     }
 }
 
+// TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
 fn apply_velocity(
     time: Res<Time>,
     mut query: Query<(&mut Velocity, &mut Transform, Option<&mut MovDebug>)>
@@ -85,7 +87,36 @@ fn apply_velocity(
             None => (),
         }
 
-        let acceleration = tran.rotation.mul_vec3(Vec3::Y * vec.acceleration).truncate();
+        // TODO: figure out how to lerp? so it smoothly update, also there is an awkward
+        // sideway slide over time so would be nice to figure out why
+        let mut acceleration = tran.rotation.mul_vec3(Vec3::Y * vec.acceleration).truncate();
+
+        // Apply Lorentz factor only if it will increase the velocity
+        // Inspiration: https://stackoverflow.com/a/2891162
+        let new_velocity = vec.velocity + acceleration * time.delta_seconds();
+
+        println!("Ship:\n\tAcceleration: {:?}\n\tnew_velocity: {:?}, old_velocity: {:?}",
+            acceleration, new_velocity.length(), vec.velocity.length()
+        );
+
+        if new_velocity.length() > vec.velocity.length() {
+            // Y = 1 / Sqrt(1 - v^2/c^2)
+            let lorentz = 1.0 / (
+                (1.0 - (
+                    vec.velocity.length_squared() / vec.velocity_limit.powi(2)
+                )).max(f32::MIN_POSITIVE)
+            ).sqrt();
+
+            // TODO: it does go over 10 but that's cuz of delta-time and changing acceleration
+            // curves, plus floating point imprecision... See if there's a better way to do it or
+            // if we need to bite the bullet and go for a integrator for these
+            acceleration /= lorentz;
+
+            println!("\tLimit: {:?}\n\tLorentz: {:?}\n\tnew_acceleration: {:?}", vec.velocity_limit, lorentz, acceleration);
+        }
+
+        // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
+        // do so. Could optionally allow for a heading change while preserving the current velocity
         vec.velocity += acceleration * time.delta_seconds();
         tran.translation += (vec.velocity * time.delta_seconds()).extend(0.);
     }
@@ -271,16 +302,18 @@ fn process_events(
 pub struct StarterShip {
     position: Vec2,
     velocity: Vec2,
+    limit_v: f32,
     limit_r: f32,
     target_r: f32,
     script: Script,
 }
 
 impl StarterShip {
-    pub fn new(position: Vec2, velocity: Vec2, limit_r: f32, target_r: f32, script: Script) -> StarterShip {
+    pub fn new(position: Vec2, velocity: Vec2, limit_v: f32, limit_r: f32, target_r: f32, script: Script) -> StarterShip {
         StarterShip {
             position,
             velocity,
+            limit_v,
             limit_r,
             target_r,
             script,
@@ -319,7 +352,7 @@ pub fn add_ships(
             Fill::color(Color::GREEN),
         ))
             .insert(Ship)
-            .insert(Velocity{velocity: ship.velocity, acceleration: 0. })
+            .insert(Velocity{velocity: ship.velocity, acceleration: 0., velocity_limit: ship.limit_v})
             .insert(Rotation{limit: ship.limit_r, target: Quat::from_rotation_z(ship.target_r)})
             .insert(ship.script)
 

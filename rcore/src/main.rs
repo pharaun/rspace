@@ -32,6 +32,7 @@ fn main() {
                 StarterShip::new(
                     Vec2::new(0., 0.),
                     Vec2::new(0., 0.),
+                    10.0, // Velocity limit
                     f32::to_radians(90.0),
                     f32::to_radians(0.0),
                     Script::new(&ship_script(f32::to_radians(180.), 1.), &script_engine),
@@ -82,7 +83,7 @@ fn ship_script(target_rot: f32, acceleration: f32) -> String {
         r#"
         // TODO: need better vel indicator (neg and pos and lateral state)
         fn on_update(pos, vel, rot) {
-            log("State - " + this.state + " - counter - " + this.counter + " - Pos - " + pos + " - Vel - " + vel + " - " + vel.length());
+            //log("State - " + this.state + " - counter - " + this.counter + " - Pos - " + pos + " - Vel - " + vel + " - " + vel.length());
 
             // If next_state is empty, it has ran out, so restock it with sequences
             if this.next_state.is_empty() {
