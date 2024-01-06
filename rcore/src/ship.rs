@@ -6,9 +6,13 @@ use crate::script::Script;
 
 // TODO:
 // - faction
-// - heat
-// - hp
-// - radar + shield -> Arc (direction + arc width)
+// - heat - affect radar discovery & engine and other system health
+// - hp - collision/damaging (ammo/missiles/etc)
+// - shield -> Arc (direction + arc width) - less wide == more damage reduction where if its
+// pinsized its nearly 100% but if its 360 its nearly 0% damage reduction
+// - ship types (missiles, big, middle, small size ship)
+// - Ship energy (fuel for engine? and heat production)
+// - Ship construction (each ship can build a ship same size or smaller than itself?
 #[derive(Component)]
 struct Ship;
 
@@ -30,6 +34,13 @@ pub struct Rotation {
 // Ref-counted collision, if greater than zero, its colloding, otherwise
 #[derive(Component)]
 pub struct Collision(u32);
+
+// Radar:
+//  TODO: Other types such as fixed radar (missiles?) and rotating radar
+//  - Direction + arc-width (boosting detection distance)
+#[derive(Component)]
+pub struct Radar {
+}
 
 // Debugging data storage component
 #[derive(Component)]
@@ -95,18 +106,20 @@ fn apply_velocity(
         // Inspiration: https://stackoverflow.com/a/2891162
         let new_velocity = vec.velocity + acceleration * time.delta_seconds();
 
-        if new_velocity.length() > vec.velocity.length() {
+        // TODO: this is not realistic, but keeps ship controllable (ie easy deceleration)
+        if new_velocity.length_squared() > vec.velocity.length_squared() {
             // Y = 1 / Sqrt(1 - v^2/c^2), Clamp (1 - v^2/c^2) to float min to avoid NaN and inf
-            let lorentz = 1.0 / (
+            // Simplified via multiplying by the factor rather than diving
+            let lorentz = (
                 (1.0 - (
                     vec.velocity.length_squared() / vec.velocity_limit.powi(2)
-                )).max(f32::MIN_POSITIVE)
+                )).max(0.0)
             ).sqrt();
 
             // TODO: it does go over 10 but that's cuz of delta-time and changing acceleration
             // curves, plus floating point imprecision... See if there's a better way to do it or
             // if we need to bite the bullet and go for a integrator for these
-            acceleration /= lorentz;
+            acceleration *= lorentz;
         }
 
         // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
@@ -293,6 +306,7 @@ fn process_events(
 // - Way to refer each ship to an AI script
 // - Possibly an way to customize the starting ship (via the AI script or some other config for
 // each ship)
+// - Dig into ECS archtype to help with some of these setup stuff
 pub struct StarterShip {
     position: Vec2,
     velocity: Vec2,
