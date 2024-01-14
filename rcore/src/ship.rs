@@ -40,6 +40,9 @@ pub struct Collision(u32);
 //  - Direction + arc-width (boosting detection distance)
 #[derive(Component)]
 pub struct Radar {
+    limit: f32, // Per second?
+    pub arc: f32, // Radian the width of the arc
+    pub target: Quat, // Direction the radar should be pointing in
 }
 
 // Debugging data storage component
@@ -55,6 +58,17 @@ struct RotDebug {
 struct MovDebug {
     velocity: Vec2,
     acceleration: f32,
+}
+
+// Debugging radar
+#[derive(Component)]
+struct RadarDebug {
+    rotation_current: f32,
+    rotation_target: f32,
+    rotation_limit: f32,
+
+    radar_length: f32,
+    radar_arc: f32,
 }
 
 
@@ -73,10 +87,12 @@ impl Plugin for ShipPlugins {
                 (
                     apply_velocity,
                     apply_rotation,
+                    apply_radar_rotation,
                 ),
             )
 //            .add_systems(Update, debug_rotation_gitzmos)
-            .add_systems(Update, debug_movement_gitzmos)
+//            .add_systems(Update, debug_movement_gitzmos)
+            .add_systems(Update, debug_radar_gitzmos)
 
             .add_systems(Update, process_events)
             .add_systems(Update, apply_collision.after(process_events));
@@ -262,6 +278,28 @@ fn debug_rotation_gitzmos(
     }
 }
 
+// TODO:
+// - radar rotation system
+// - radar arc2length via area rule system?
+// - radar detection system -> emits contact events.
+// - Script subsystem listen for contact event and act upon it
+fn apply_radar_rotation(
+    time: Res<Time>,
+    mut query: Query<(&Radar, &mut Transform, Option<&mut RadarDebug>)>
+) {
+    for (rot, mut tran, debug) in query.iter_mut() {
+    }
+}
+
+// Probs a universal debugger that debug rotation + arc2length, and detection?
+fn debug_radar_gitzmos(
+    mut gizmos: Gizmos,
+    query: Query<(&Transform, &RadarDebug)>
+) {
+    for (tran, debug) in query.iter() {
+    }
+}
+
 fn apply_collision(mut query: Query<(&Collision, &mut Fill)>) {
     for (collision, mut fill) in query.iter_mut() {
         if collision.0 == 0 {
@@ -313,17 +351,34 @@ pub struct StarterShip {
     limit_v: f32,
     limit_r: f32,
     target_r: f32,
+    limit_radar: f32,
+    arc_radar: f32,
+    target_radar: f32,
     script: Script,
 }
 
+// TODO: time to implement a builder pattern since this is getting tedious
 impl StarterShip {
-    pub fn new(position: Vec2, velocity: Vec2, limit_v: f32, limit_r: f32, target_r: f32, script: Script) -> StarterShip {
+    pub fn new(
+        position: Vec2,
+        velocity: Vec2,
+        limit_v: f32,
+        limit_r: f32,
+        target_r: f32,
+        limit_radar: f32,
+        arc_radar: f32,
+        target_radar: f32,
+        script: Script
+    ) -> StarterShip {
         StarterShip {
             position,
             velocity,
             limit_v,
             limit_r,
             target_r,
+            limit_radar,
+            arc_radar,
+            target_radar,
             script,
         }
     }
@@ -334,7 +389,7 @@ pub fn add_ships(
     ships: Vec<StarterShip>
 ) {
     for ship in ships {
-        let path = {
+        let ship_path = {
             let mut path = PathBuilder::new();
             let _ = path.move_to(Vec2::new(0.0, 20.0));
             let _ = path.line_to(Vec2::new(10.0, -20.0));
@@ -344,12 +399,21 @@ pub fn add_ships(
             path.build()
         };
 
+        let radar_path = {
+            let mut path = PathBuilder::new();
+            let _ = path.move_to(Vec2::new(5.0, 0.0));
+            let _ = path.arc(Vec2::new(0.0, 0.0), Vec2::new(5.0, 4.5), f32::to_radians(-180.0), f32::to_radians(0.0));
+            let _ = path.move_to(Vec2::new(0.0, 2.0));
+            let _ = path.line_to(Vec2::new(0.0, -4.5));
+            path.build()
+        };
+
         let mut transform = Transform::from_translation(ship.position.extend(0.));
         transform.rotate_z(ship.target_r);
 
         commands.spawn((
             ShapeBundle {
-                path: path,
+                path: ship_path,
                 spatial: SpatialBundle {
                     transform: transform,
                     ..default()
@@ -362,6 +426,7 @@ pub fn add_ships(
             .insert(Ship)
             .insert(Velocity{velocity: ship.velocity, acceleration: 0., velocity_limit: ship.limit_v})
             .insert(Rotation{limit: ship.limit_r, target: Quat::from_rotation_z(ship.target_r)})
+            .insert(Radar{limit: ship.limit_radar, arc: ship.arc_radar, target: Quat::from_rotation_z(ship.target_radar)})
             .insert(ship.script)
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
@@ -373,7 +438,26 @@ pub fn add_ships(
             // Debug bits
             //.insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
             //.insert(MovDebug { velocity: ship.velocity, acceleration: 0. })
+            .insert(RadarDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0., radar_length: 0., radar_arc: 0.})
 
-            .insert(Collision(0));
+            .insert(Collision(0))
+
+            // Insert the graphics for the radar dish
+            .with_children(|parent| {
+                let mut transform = Transform::from_translation(Vec2::new(0., -2.).extend(1.));
+                transform.rotate_z(ship.target_radar);
+
+                parent.spawn((
+                    ShapeBundle {
+                        path: radar_path,
+                        spatial: SpatialBundle {
+                            transform: transform,
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    Stroke::new(Color::MAROON, 1.5),
+                ));
+            });
     }
 }

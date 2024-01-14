@@ -35,6 +35,9 @@ fn main() {
                     10.0, // Velocity limit
                     f32::to_radians(90.0),
                     f32::to_radians(0.0),
+                    5.0, // Radar Velocity limit
+                    f32::to_radians(180.0),
+                    f32::to_radians(0.0),
                     Script::new(&ship_script(f32::to_radians(180.), 1.), &script_engine),
                 ),
 

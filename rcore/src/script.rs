@@ -93,6 +93,7 @@ impl Plugin for ScriptPlugins {
         app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 1.0, TimerMode::Repeating)))
             .insert_resource(ScriptEngine::new())
             .add_systems(Update, process_on_update)
+            // TODO: on_sensor
             .add_systems(Update, process_on_collision);
     }
 }
