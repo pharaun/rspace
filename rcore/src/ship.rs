@@ -287,7 +287,24 @@ fn apply_radar_rotation(
     time: Res<Time>,
     mut query: Query<(&Radar, &mut Transform, Option<&mut RadarDebug>)>
 ) {
-    for (rot, mut tran, debug) in query.iter_mut() {
+    for (radar, mut tran, debug) in query.iter_mut() {
+        // Get current rotation vector, get the target rotation vector, do math, and then rotate
+        let current = tran.rotation;
+        let target = radar.target;
+        let limit = Quat::from_rotation_z(radar.limit);
+
+        // DEBUG
+        match debug {
+            Some(mut dbg) => {
+                dbg.rotation_current = current.to_euler(EulerRot::ZYX).0;
+                dbg.rotation_target = target.to_euler(EulerRot::ZYX).0;
+                dbg.rotation_limit = limit.to_euler(EulerRot::ZYX).0;
+
+                dbg.radar_length = 0f32;
+                dbg.radar_arc = radar.arc;
+            },
+            None => (),
+        }
     }
 }
 
