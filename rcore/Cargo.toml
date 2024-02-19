@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy_prototype_lyon = "0.10"
-bevy_rapier2d = { version = "0.23", features = [ "debug-render-2d" ] }
+bevy_prototype_lyon = "0.11"
+bevy_rapier2d = { version = "0.25", features = [ "debug-render-2d" ] }
 
 # Scripting language to develop the VM/future language bits
 rhai = { version = "1.16", features = [ "sync", "f32_float", "internals" ] }
 
 [dependencies.bevy]
-version = "0.12"
+version = "0.13"
 default-features = false
 
 features = [
