@@ -4,6 +4,49 @@ use bevy_rapier2d::prelude::*;
 
 use crate::script::Script;
 
+// INFO:
+// - Ship class: Tiny, Small, Med, Large where they would occupy roughly
+//  * Missile/mines
+//  * Fighter
+//  * Gunship/frigate
+//  * Cruiser/Construction ship
+//
+// But there is some flexibity ie:
+//  * missile with no engine in it -> mine
+//  * missile with engine but no computer/radar/etc -> rocket/torpedo
+//  * missile with intelligence/radar/fuel/engine -> missile
+//
+// Unclear if i want to also allow for that level of flexibity in ie fighter/gunship tier of ships
+// possibly up to cruiser, image a cruiser sized missile, but that kinda seems ehh, so i feel like
+// useful missiles would be tiny or small (torpedos for eg) but anything larger is not.
+//
+// Each thing takes a certain amount of power/fuel while active ie:
+// - radar, computer, bomb, gun, etc... so a misssile can accelerate with some fuel then go into
+// sleep till its close to the enemy and wake up and do final targeting adjustment/burst of
+// acceleration to hit the target.
+// - Unclear if we want to allow for guns on missile, ie it expires and fires off a laser at the
+// enemy
+// - This could be a interesting variant, instead of missiles actually hitting the enemy we can
+// have them having an explode final step which implodes into a powerful xray-laser that then goes
+// in a specified direction. then fighter, possibly say gunship can do the same for a even more
+// powerful laser.
+//
+// Maybe there is an concept where a cruiser doesn't have weapons but it can offload/generate:
+//  - missile/fighter/gunship sized laser-bomb and then when they blow up they can serve as the
+//  cruiser gun for eg.
+//
+// Balancing:
+// - probs have to figure out the explosion->laser effect on how to balance/make it work, and
+// figure out if we still want normal types of ammo at all or if we want it to be mainly cruisers
+// and cruisers that can build other cruisers, then everything smaller than a cruiser can be ...
+// well... weapons for the cruiser (ie medium frigate sized bomb-laser) to accelerate an immense
+// amount of power/particle at the enemy at a decent range.
+//
+// This would make targeting/gunnery kida interesting where cruisers would focus on finding targets
+// or it could delegate it to a target-finder ship and then that would then instruct various groups
+// of weapons to fire in a particular direction or accelerate toward that direction and fire when
+// near.
+
 // TODO:
 // - faction
 // - heat - affect radar discovery & engine and other system health
