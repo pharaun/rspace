@@ -143,11 +143,11 @@ fn process_on_update(
         //  -or- just update the components directly?
         for (entity, mut script) in query.iter_mut() {
 
-            let trans = ship_query.component::<Transform>(entity);
+            let trans = ship_query.get(entity).unwrap().3;
 
             let rot = trans.rotation;
             let tran = trans.translation;
-            let vel = ship_query.component::<Velocity>(entity).velocity;
+            let vel = ship_query.get(entity).unwrap().0.velocity;
 
             // [ to_rot, to_vel ]
             let res = script.invoke::<rhai::Array>(
@@ -161,14 +161,14 @@ fn process_on_update(
                     let to_rot: f32 = data[0].clone_cast();
                     if to_rot > f32::EPSILON {
                         // Is greater than zero, apply
-                        let mut rotation = ship_query.component_mut::<Rotation>(entity);
+                        let mut rotation = ship_query.get_mut(entity).unwrap().2;
                         rotation.target = rot * Quat::from_rotation_z(to_rot);
                     }
 
                     let to_accelerate: f32 = data[1].clone_cast();
                     if to_accelerate > f32::EPSILON {
                         // Is greater than zero, apply
-                        let mut velocity = ship_query.component_mut::<Velocity>(entity);
+                        let mut velocity = ship_query.get_mut(entity).unwrap().0;
                         velocity.acceleration = to_accelerate;
                     }
                 },

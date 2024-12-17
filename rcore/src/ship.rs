@@ -203,21 +203,21 @@ fn debug_movement_gitzmos(
         gizmos.line_2d(
             base,
             base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
-            Color::RED,
+            bevy::color::palettes::css::RED,
         );
 
         // Velocity direction
         gizmos.line_2d(
             base,
             base + debug_velocity.normalize() * 60.,
-            Color::GREEN,
+            bevy::color::palettes::css::GREEN,
         );
 
         // Acceleration direction
         gizmos.line_2d(
             base,
             base + debug_acceleration.normalize() * 50.,
-            Color::YELLOW,
+            bevy::color::palettes::css::YELLOW,
         );
 
         //let zero_speed = draw_bar_gitzmo(base, current, 10., 25.);
@@ -286,37 +286,37 @@ fn debug_rotation_gitzmos(
         gizmos.line_2d(
             base,
             base + current.mul_vec3(Vec3::Y * 90.).truncate(),
-            Color::RED,
+            bevy::color::palettes::css::RED,
         );
         gizmos.arc_2d(
             base,
             current.to_euler(EulerRot::ZYX).0 * -1.,
             current.angle_between(current*limit) * 2.,
             80.,
-            Color::RED,
+            bevy::color::palettes::css::RED,
         );
         gizmos.line_2d(
             base,
             base + limit.mul_vec3(current.mul_vec3(Vec3::Y * 85.)).truncate(),
-            Color::RED,
+            bevy::color::palettes::css::RED,
         );
         gizmos.line_2d(
             base,
             base + limit.inverse().mul_vec3(current.mul_vec3(Vec3::Y * 85.)).truncate(),
-            Color::RED,
+            bevy::color::palettes::css::RED,
         );
 
         gizmos.line_2d(
             base,
             base + target.mul_vec3(Vec3::Y * 80.).truncate(),
-            Color::GREEN,
+            bevy::color::palettes::css::GREEN,
         );
         gizmos.arc_2d(
             base,
             current.lerp(target, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
             current.angle_between(target),
             70.,
-            Color::GREEN,
+            bevy::color::palettes::css::GREEN,
         );
     }
 }
@@ -363,9 +363,9 @@ fn debug_radar_gitzmos(
 fn apply_collision(mut query: Query<(&Collision, &mut Fill)>) {
     for (collision, mut fill) in query.iter_mut() {
         if collision.0 == 0 {
-            fill.color = Color::GREEN;
+            fill.color = bevy::prelude::Color::Srgba(bevy::color::palettes::css::GREEN);
         } else {
-            fill.color = Color::RED;
+            fill.color = bevy::prelude::Color::Srgba(bevy::color::palettes::css::RED);
         }
     }
 }
@@ -480,8 +480,8 @@ pub fn add_ships(
                 },
                 ..default()
             },
-            Stroke::new(Color::BLACK, 2.0),
-            Fill::color(Color::GREEN),
+            Stroke::new(bevy::color::palettes::css::BLACK, 2.0),
+            Fill::color(bevy::color::palettes::css::GREEN),
         ))
             .insert(Ship)
             .insert(Velocity{velocity: ship.velocity, acceleration: 0., velocity_limit: ship.limit_v})
@@ -516,7 +516,7 @@ pub fn add_ships(
                         },
                         ..default()
                     },
-                    Stroke::new(Color::MAROON, 1.5),
+                    Stroke::new(bevy::color::palettes::css::MAROON, 1.5),
                 ));
             });
     }

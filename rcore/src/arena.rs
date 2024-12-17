@@ -66,8 +66,8 @@ fn add_arena_bounds(mut commands: Commands) {
             },
             ..default()
         },
-        Stroke::new(Color::RED, 1.0),
-        Fill::color(Color::BLUE),
+        Stroke::new(bevy::prelude::Color::Srgba(bevy::color::palettes::css::RED), 1.0),
+        Fill::color(bevy::prelude::Color::Srgba(bevy::color::palettes::css::BLUE)),
         ArenaMarker,
     ));
 }
