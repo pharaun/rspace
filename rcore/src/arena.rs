@@ -22,7 +22,7 @@ impl Plugin for ArenaPlugins {
 
 fn camera_setup(mut commands: Commands) {
     commands.spawn((
-        Camera2dBundle::default(),
+        Camera2d::default(),
         CameraMarker,
     ));
 }
@@ -60,10 +60,7 @@ fn add_arena_bounds(mut commands: Commands) {
     commands.spawn((
         ShapeBundle {
             path: path,
-            spatial: SpatialBundle {
-                transform: Transform::from_xyz(0., 0., -1.),
-                ..default()
-            },
+            transform: Transform::from_xyz(0., 0., -1.),
             ..default()
         },
         Stroke::new(bevy::prelude::Color::Srgba(bevy::color::palettes::css::RED), 1.0),

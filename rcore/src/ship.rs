@@ -133,8 +133,8 @@ impl Plugin for ShipPlugins {
                     apply_radar_rotation,
                 ),
             )
-//            .add_systems(Update, debug_rotation_gitzmos)
-//            .add_systems(Update, debug_movement_gitzmos)
+            .add_systems(Update, debug_rotation_gitzmos)
+            .add_systems(Update, debug_movement_gitzmos)
             .add_systems(Update, debug_radar_gitzmos)
 
             .add_systems(Update, process_events)
@@ -163,7 +163,7 @@ fn apply_velocity(
 
         // Apply Lorentz factor only if it will increase the velocity
         // Inspiration: https://stackoverflow.com/a/2891162
-        let new_velocity = vec.velocity + acceleration * time.delta_seconds();
+        let new_velocity = vec.velocity + acceleration * time.delta_secs();
 
         // TODO: this is not realistic, but keeps ship controllable (ie easy deceleration)
         if new_velocity.length_squared() > vec.velocity.length_squared() {
@@ -183,8 +183,8 @@ fn apply_velocity(
 
         // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
         // do so. Could optionally allow for a heading change while preserving the current velocity
-        vec.velocity += acceleration * time.delta_seconds();
-        tran.translation += (vec.velocity * time.delta_seconds()).extend(0.);
+        vec.velocity += acceleration * time.delta_secs();
+        tran.translation += (vec.velocity * time.delta_secs()).extend(0.);
     }
 }
 
@@ -219,22 +219,7 @@ fn debug_movement_gitzmos(
             base + debug_acceleration.normalize() * 50.,
             bevy::color::palettes::css::YELLOW,
         );
-
-        //let zero_speed = draw_bar_gitzmo(base, current, 10., 25.);
     }
-}
-
-fn draw_bar_gitzmo(
-    base: Vec2,
-    rot: Quat,
-    width: f32,
-    distance: f32,
-) -> (Vec2, Vec2) {
-    let part_one = Vec3::Y * distance + Vec3::X * (width / 2.);
-    let part_two = Vec3::Y * distance + Vec3::NEG_X * (width / 2.);
-
-    (base + rot.mul_vec3(part_one).truncate(),
-    base + rot.mul_vec3(part_two).truncate())
 }
 
 fn apply_rotation(
@@ -263,7 +248,7 @@ fn apply_rotation(
         }
 
         // Calculate the t-factor for the rotation.lerp
-        let max_angle = limit.to_euler(EulerRot::ZYX).0 * time.delta_seconds();
+        let max_angle = limit.to_euler(EulerRot::ZYX).0 * time.delta_secs();
         let angle = current.angle_between(target);
         let t = (1_f32).min(max_angle / angle);
 
@@ -289,8 +274,12 @@ fn debug_rotation_gitzmos(
             bevy::color::palettes::css::RED,
         );
         gizmos.arc_2d(
-            base,
-            current.to_euler(EulerRot::ZYX).0 * -1.,
+            Isometry2d::new(
+                base,
+                Rot2::radians(
+                    (current.to_euler(EulerRot::ZYX).0 * -1.) + (current.angle_between(current*limit) * 2.) * 0.5
+                )
+            ),
             current.angle_between(current*limit) * 2.,
             80.,
             bevy::color::palettes::css::RED,
@@ -312,8 +301,12 @@ fn debug_rotation_gitzmos(
             bevy::color::palettes::css::GREEN,
         );
         gizmos.arc_2d(
-            base,
-            current.lerp(target, 0.5).to_euler(EulerRot::ZYX).0 * -1.,
+            Isometry2d::new(
+                base,
+                Rot2::radians(
+                    (current.lerp(target, 0.5).to_euler(EulerRot::ZYX).0 * -1.) + current.angle_between(target) * 0.5
+                )
+            ),
             current.angle_between(target),
             70.,
             bevy::color::palettes::css::GREEN,
@@ -474,10 +467,7 @@ pub fn add_ships(
         commands.spawn((
             ShapeBundle {
                 path: ship_path,
-                spatial: SpatialBundle {
-                    transform: transform,
-                    ..default()
-                },
+                transform: transform,
                 ..default()
             },
             Stroke::new(bevy::color::palettes::css::BLACK, 2.0),
@@ -510,10 +500,7 @@ pub fn add_ships(
                 parent.spawn((
                     ShapeBundle {
                         path: radar_path,
-                        spatial: SpatialBundle {
-                            transform: transform,
-                            ..default()
-                        },
+                        transform: transform,
                         ..default()
                     },
                     Stroke::new(bevy::color::palettes::css::MAROON, 1.5),

@@ -16,7 +16,6 @@ use crate::ship::add_ships;
 
 fn main() {
     App::new()
-        .insert_resource(Msaa::default())
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(10.0))
         //.add_plugins(RapierDebugRenderPlugin::default())
