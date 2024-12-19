@@ -10,6 +10,9 @@ bevy_rapier2d = { version = "0.28", features = [ "debug-render-2d" ] }
 # Scripting language to develop the VM/future language bits
 rhai = { version = "1.20", features = [ "sync", "f32_float", "internals" ] }
 
+# FPS dialog
+iyes_perf_ui = { git = "https://github.com/IyesGames/iyes_perf_ui.git", branch = "main" }
+
 [dependencies.bevy]
 version = "0.15"
 default-features = false

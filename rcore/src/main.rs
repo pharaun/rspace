@@ -1,6 +1,12 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
+use iyes_perf_ui::PerfUiPlugin;
+use iyes_perf_ui::entries::PerfUiAllEntries;
+use iyes_perf_ui::ui::root::PerfUiRoot;
+use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPSWorst;
+use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPS;
+
 mod arena;
 use crate::arena::ArenaPlugins;
 
@@ -20,6 +26,10 @@ fn main() {
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(10.0))
         //.add_plugins(RapierDebugRenderPlugin::default())
 
+        // FPS
+        .add_plugins(FpsPlugins)
+
+        // Game bits
         .add_plugins(ArenaPlugins)
         .add_plugins(ScriptPlugins)
         .add_plugins(ShipPlugins)
@@ -136,4 +146,24 @@ fn ship_script(target_rot: f32, acceleration: f32) -> String {
         }
         "#,
     )
+}
+
+pub struct FpsPlugins;
+impl Plugin for FpsPlugins {
+    fn build(&self, app: &mut App) {
+        // we want Bevy to measure these values for us:
+        app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
+            .add_plugins(PerfUiPlugin)
+            .add_systems(Startup, |mut commands: Commands| {
+                commands.spawn((
+                    PerfUiRoot {
+                        display_labels: false,
+                        layout_horizontal: true,
+                        ..default()
+                    },
+                    PerfUiEntryFPS::default(),
+                    PerfUiEntryFPSWorst::default(),
+                ));
+            });
+    }
 }
