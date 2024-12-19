@@ -323,7 +323,7 @@ fn apply_radar_rotation(
     time: Res<Time>,
     mut query: Query<(&Radar, &mut Transform, Option<&mut RadarDebug>)>
 ) {
-    for (radar, mut tran, debug) in query.iter_mut() {
+    for (radar, tran, debug) in query.iter_mut() {
         // Get current rotation vector, get the target rotation vector, do math, and then rotate
         let current = tran.rotation;
         let target = radar.target;
@@ -346,7 +346,7 @@ fn apply_radar_rotation(
 
 // Probs a universal debugger that debug rotation + arc2length, and detection?
 fn debug_radar_gitzmos(
-    mut gizmos: Gizmos,
+    gizmos: Gizmos,
     query: Query<(&Transform, &RadarDebug)>
 ) {
     for (tran, debug) in query.iter() {
