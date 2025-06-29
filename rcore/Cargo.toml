@@ -1,20 +1,23 @@
 [package]
 name = "rcore"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-bevy_prototype_lyon = "0.13"
-bevy_rapier2d = { version = "0.28", features = [ "debug-render-2d" ] }
+bevy_prototype_lyon = { git = "https://github.com/rparrett/bevy_prototype_lyon", branch = "fix-dynamic-examples" }
+bevy_rapier2d = { version = "0.30", features = [ "debug-render-2d" ] }
 
 # Scripting language to develop the VM/future language bits
-rhai = { version = "1.20", features = [ "sync", "f32_float", "internals" ] }
+rhai = { version = "1.22", features = [ "sync", "f32_float", "internals" ] }
+
+# Testing out switching to rune for async compution
+rune = "0.14"
 
 # FPS dialog
-iyes_perf_ui = { git = "https://github.com/IyesGames/iyes_perf_ui.git", branch = "main" }
+iyes_perf_ui = "0.5.0"
 
 [dependencies.bevy]
-version = "0.15"
+version = "0.16"
 default-features = false
 
 features = [
@@ -37,6 +40,10 @@ features = [
   "animation",          # Animation support
   "tonemapping_luts",   # Support different camera Tonemapping modes (enables KTX2+zstd)
   "default_font",       # Embed a minimal default font for text/UI
+
+  # Bevy 0.16
+  "std",
+  "async_executor",
 
   # File formats:
   "png",    # PNG image format for simple 2D images

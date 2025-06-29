@@ -353,12 +353,12 @@ fn debug_radar_gitzmos(
     }
 }
 
-fn apply_collision(mut query: Query<(&Collision, &mut Fill)>) {
-    for (collision, mut fill) in query.iter_mut() {
+fn apply_collision(mut query: Query<(&Collision, &mut Shape)>) {
+    for (collision, mut shape) in query.iter_mut() {
         if collision.0 == 0 {
-            fill.color = bevy::prelude::Color::Srgba(bevy::color::palettes::css::GREEN);
+            shape.fill.unwrap().color = bevy::prelude::Color::Srgba(bevy::color::palettes::css::GREEN);
         } else {
-            fill.color = bevy::prelude::Color::Srgba(bevy::color::palettes::css::RED);
+            shape.fill.unwrap().color = bevy::prelude::Color::Srgba(bevy::color::palettes::css::RED);
         }
     }
 }
@@ -442,36 +442,28 @@ pub fn add_ships(
     ships: Vec<StarterShip>
 ) {
     for ship in ships {
-        let ship_path = {
-            let mut path = PathBuilder::new();
-            let _ = path.move_to(Vec2::new(0.0, 20.0));
-            let _ = path.line_to(Vec2::new(10.0, -20.0));
-            let _ = path.line_to(Vec2::new(0.0, -10.0));
-            let _ = path.line_to(Vec2::new(-10.0, -20.0));
-            let _ = path.close();
-            path.build()
-        };
+        let ship_path = ShapePath::new()
+            .move_to(Vec2::new(0.0, 20.0))
+            .line_to(Vec2::new(10.0, -20.0))
+            .line_to(Vec2::new(0.0, -10.0))
+            .line_to(Vec2::new(-10.0, -20.0))
+            .close();
 
-        let radar_path = {
-            let mut path = PathBuilder::new();
-            let _ = path.move_to(Vec2::new(5.0, 0.0));
-            let _ = path.arc(Vec2::new(0.0, 0.0), Vec2::new(5.0, 4.5), f32::to_radians(-180.0), f32::to_radians(0.0));
-            let _ = path.move_to(Vec2::new(0.0, 2.0));
-            let _ = path.line_to(Vec2::new(0.0, -4.5));
-            path.build()
-        };
+        let radar_path = ShapePath::new()
+            .move_to(Vec2::new(5.0, 0.0))
+            .arc(Vec2::new(0.0, 0.0), Vec2::new(5.0, 4.5), f32::to_radians(-180.0), f32::to_radians(0.0))
+            .move_to(Vec2::new(0.0, 2.0))
+            .line_to(Vec2::new(0.0, -4.5));
 
         let mut transform = Transform::from_translation(ship.position.extend(0.));
         transform.rotate_z(ship.target_r);
 
         commands.spawn((
-            ShapeBundle {
-                path: ship_path,
-                transform: transform,
-                ..default()
-            },
-            Stroke::new(bevy::color::palettes::css::BLACK, 2.0),
-            Fill::color(bevy::color::palettes::css::GREEN),
+            ShapeBuilder::with(&ship_path)
+                .fill(Fill::color(bevy::color::palettes::css::GREEN))
+                .stroke(Stroke::new(bevy::color::palettes::css::BLACK, 2.0))
+                .build(),
+            transform
         ))
             .insert(Ship)
             .insert(Velocity{velocity: ship.velocity, acceleration: 0., velocity_limit: ship.limit_v})
@@ -486,8 +478,8 @@ pub fn add_ships(
             .insert(Sensor)
 
             // Debug bits
-            //.insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
-            //.insert(MovDebug { velocity: ship.velocity, acceleration: 0. })
+            .insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
+            .insert(MovDebug { velocity: ship.velocity, acceleration: 0. })
             .insert(RadarDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0., radar_length: 0., radar_arc: 0.})
 
             .insert(Collision(0))
@@ -498,12 +490,10 @@ pub fn add_ships(
                 transform.rotate_z(ship.target_radar);
 
                 parent.spawn((
-                    ShapeBundle {
-                        path: radar_path,
-                        transform: transform,
-                        ..default()
-                    },
-                    Stroke::new(bevy::color::palettes::css::MAROON, 1.5),
+                    ShapeBuilder::with(&radar_path)
+                        .stroke(Stroke::new(bevy::color::palettes::css::MAROON, 1.5))
+                        .build(),
+                    transform
                 ));
             });
     }

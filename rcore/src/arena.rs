@@ -47,24 +47,19 @@ fn wrap_arena(mut query: Query<&mut Transform, Changed<Transform>>) {
 }
 
 fn add_arena_bounds(mut commands: Commands) {
-    let path = {
-        let mut path = PathBuilder::new();
-        let _ = path.move_to(Vec2::new(-(ARENA_WIDTH / 2.0), -(ARENA_HEIGHT / 2.0)));
-        let _ = path.line_to(Vec2::new(ARENA_WIDTH / 2.0, -(ARENA_HEIGHT / 2.0)));
-        let _ = path.line_to(Vec2::new(ARENA_WIDTH / 2.0, ARENA_HEIGHT / 2.0));
-        let _ = path.line_to(Vec2::new(-(ARENA_WIDTH / 2.0), ARENA_HEIGHT / 2.0));
-        let _ = path.close();
-        path.build()
-    };
+    let path = ShapePath::new()
+        .move_to(Vec2::new(-(ARENA_WIDTH / 2.0), -(ARENA_HEIGHT / 2.0)))
+        .line_to(Vec2::new(ARENA_WIDTH / 2.0, -(ARENA_HEIGHT / 2.0)))
+        .line_to(Vec2::new(ARENA_WIDTH / 2.0, ARENA_HEIGHT / 2.0))
+        .line_to(Vec2::new(-(ARENA_WIDTH / 2.0), ARENA_HEIGHT / 2.0))
+        .close();
 
     commands.spawn((
-        ShapeBundle {
-            path: path,
-            transform: Transform::from_xyz(0., 0., -1.),
-            ..default()
-        },
-        Stroke::new(bevy::prelude::Color::Srgba(bevy::color::palettes::css::RED), 1.0),
-        Fill::color(bevy::prelude::Color::Srgba(bevy::color::palettes::css::BLUE)),
+        ShapeBuilder::with(&path)
+            .fill(Fill::color(bevy::prelude::Color::Srgba(bevy::color::palettes::css::BLUE)))
+            .stroke(Stroke::new(bevy::prelude::Color::Srgba(bevy::color::palettes::css::RED), 1.0))
+            .build(),
+        Transform::from_xyz(0., 0., -1.),
         ArenaMarker,
     ));
 }

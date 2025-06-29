@@ -7,18 +7,13 @@ use iyes_perf_ui::ui::root::PerfUiRoot;
 use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPSWorst;
 use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPS;
 
-mod arena;
-use crate::arena::ArenaPlugins;
-
-mod script;
-use crate::script::Script;
-use crate::script::ScriptPlugins;
-use crate::script::ScriptEngine;
-
-mod ship;
-use crate::ship::ShipPlugins;
-use crate::ship::StarterShip;
-use crate::ship::add_ships;
+use rcore::arena::ArenaPlugins;
+use rcore::script::Script;
+use rcore::script::ScriptPlugins;
+use rcore::script::ScriptEngine;
+use rcore::ship::ShipPlugins;
+use rcore::ship::StarterShip;
+use rcore::ship::add_ships;
 
 fn main() {
     App::new()
@@ -152,7 +147,7 @@ pub struct FpsPlugins;
 impl Plugin for FpsPlugins {
     fn build(&self, app: &mut App) {
         // we want Bevy to measure these values for us:
-        app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
+        app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
             .add_plugins(PerfUiPlugin)
             .add_systems(Startup, |mut commands: Commands| {
                 commands.spawn((
