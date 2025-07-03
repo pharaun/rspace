@@ -253,7 +253,7 @@ fn find_label(name: &str, label_type: ast::AddrRefType, symbol: &[((String, ast:
         ast::AddrRefType::Global => {
             // Word label
             for val in symbol.iter() {
-                if let ((ref sl, ast::LabelType::Global), spos) = val {
+                if let ((sl, ast::LabelType::Global), spos) = val {
                     if sl == name {
                         return *spos
                     }
@@ -264,7 +264,7 @@ fn find_label(name: &str, label_type: ast::AddrRefType, symbol: &[((String, ast:
         ast::AddrRefType::LocalForward => {
             // Local Forward, aka numberical
             for val in symbol.iter() {
-                if let ((ref sl, ast::LabelType::Local), spos) = val {
+                if let ((sl, ast::LabelType::Local), spos) = val {
                     if (sl == name) & (*spos >= inst_pos) {
                         return *spos
                     }
@@ -275,7 +275,7 @@ fn find_label(name: &str, label_type: ast::AddrRefType, symbol: &[((String, ast:
         ast::AddrRefType::LocalBackward => {
             // Local Backward, aka numberical
             for val in symbol.iter().rev() {
-                if let ((ref sl, ast::LabelType::Local), spos) = val {
+                if let ((sl, ast::LabelType::Local), spos) = val {
                     if (sl == name) & (*spos <= inst_pos) {
                         return *spos
                     }
