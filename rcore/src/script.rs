@@ -7,6 +7,42 @@ use std::boxed::Box;
 
 use crate::ship::{Velocity, Rotation, Collision};
 
+// TODO: Design
+//
+// I'm not sure bout the precise design right now but I think some sort of system that has this
+// flow could work
+// 1. iterate over all entity with an Script AI
+// 2. encode relevant "hardware" state from the ECS
+// 3. feed it to the VM, the vm + script does stuff to it
+// 4. script exits/suspend
+// 5. reconcile changes to "hardware" state back to ECS
+//
+// I think that basic loop is fine, the problem is how to have a good usable experience in the
+// scripting language. Like it would be nice to be able at some level be able to tell the ship to
+// go to a specific heading and wait till it is before proceeding with the program.
+//
+// The alternative is to run the program everytime till the heading matches the one you want, then
+// you resume your code.
+//
+// This i think leads to a more event-based code design which leads to breaking up of the logic
+// sometime and more state management in the scripting, tho thisi s kinda closer to hardware, where
+// you can poll the hardware till a desirable state happen.
+//
+// however in hardware you can also tell the cpu to sleep till it gets woken up (interrupt).
+//
+// The advantage of the event flow is that you can enter it every tick, and execute some code, till
+// the event you are interested in happen then you do the thing. But it can make reasoning about
+// certain code flows harder instead of being like:
+// go to a - wait
+// go to b - wait
+// go to c - wait
+//
+// in the code, it leads you to be like
+// go to a, return
+// event -> is at A yet, no return
+// ....
+// event -> is at A, yes, goto b return
+
 // Use this to develop what we need for the future alternative language/VM but for now rhai will do
 #[derive(Component)]
 pub struct Script {

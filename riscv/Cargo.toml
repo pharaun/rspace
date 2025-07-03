@@ -2,7 +2,7 @@
 name = "riscv"
 version = "0.1.0"
 authors = ["Anja Berens <pharaun666@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 # phf_codegen
 build = "build.rs"
