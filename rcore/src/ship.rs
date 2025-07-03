@@ -354,7 +354,7 @@ fn debug_radar_gitzmos(
 }
 
 fn apply_collision(mut query: Query<(&Collision, &mut Shape)>) {
-    for (collision, mut shape) in query.iter_mut() {
+    for (collision, shape) in query.iter_mut() {
         if collision.0 == 0 {
             shape.fill.unwrap().color = bevy::prelude::Color::Srgba(bevy::color::palettes::css::GREEN);
         } else {

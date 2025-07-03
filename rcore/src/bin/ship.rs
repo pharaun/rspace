@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use iyes_perf_ui::PerfUiPlugin;
-use iyes_perf_ui::entries::PerfUiAllEntries;
 use iyes_perf_ui::ui::root::PerfUiRoot;
 use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPSWorst;
 use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPS;
