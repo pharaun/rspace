@@ -44,23 +44,31 @@ fn main() {
                     Script::new(&ship_script(f32::to_radians(180.), 1.), &script_engine),
                 ),
 
-//                // Test cases
-//                //  * flip flops on direction
-//                //  * Weird drifting on rotation
-//                StarterShip::new(
-//                    Vec2::new(-350., 0.),
-//                    Vec2::new(0., 0.),
-//                    f32::to_radians(45.0),
-//                    f32::to_radians(0.0),
-//                    Script::new(&ship_script(f32::to_radians(180.), 0.), &script_engine),
-//                ),
-//                StarterShip::new(
-//                    Vec2::new(350., 0.),
-//                    Vec2::new(0., 0.),
-//                    f32::to_radians(179.0),
-//                    f32::to_radians(0.0),
-//                    Script::new(&ship_script(f32::to_radians(-90.), 0.), &script_engine),
-//                ),
+                // Test cases
+                //  * flip flops on direction
+                //  * Weird drifting on rotation
+                StarterShip::new(
+                    Vec2::new(-350., 0.),
+                    Vec2::new(0., 0.),
+                    10.0, // Velocity limit
+                    f32::to_radians(45.0),
+                    f32::to_radians(0.0),
+                    5.0, // Radar Velocity limit
+                    f32::to_radians(180.0),
+                    f32::to_radians(0.0),
+                    Script::new(&ship_script(f32::to_radians(180.), 0.), &script_engine),
+                ),
+                StarterShip::new(
+                    Vec2::new(350., 0.),
+                    Vec2::new(0., 0.),
+                    10.0, // Velocity limit
+                    f32::to_radians(179.0),
+                    f32::to_radians(0.0),
+                    5.0, // Radar Velocity limit
+                    f32::to_radians(180.0),
+                    f32::to_radians(0.0),
+                    Script::new(&ship_script(f32::to_radians(-90.), 0.), &script_engine),
+                ),
             ];
 
             add_ships(commands, ships);

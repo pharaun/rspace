@@ -6,7 +6,7 @@ use std::io::prelude::*;
 fn main() {
     let mut rom: [u8; 4096] = [0; 4096];
     let mut file = File::open("/tmp/test").unwrap();
-    file.read_exact(&mut rom).unwrap();
+    file.read(&mut rom).unwrap();
 
     let mut vm = riscv::vm::Emul32::new_with_rom(rom);
 
