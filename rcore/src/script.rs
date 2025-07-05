@@ -5,7 +5,11 @@ use rhai::{Engine, Scope, AST, Dynamic, CallFnOptions, Map, EvalAltResult, Varia
 
 use std::boxed::Box;
 
-use crate::ship::{Velocity, Rotation, Collision};
+use crate::ship::{
+    movement::Velocity,
+    rotation::Rotation,
+    collision::Collision,
+};
 
 // TODO: Design
 //
