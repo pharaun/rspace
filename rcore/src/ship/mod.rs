@@ -113,6 +113,7 @@ impl Plugin for ShipPlugins {
     }
 }
 
+
 // TODO:
 // - Way to load a scene (which sets up where each ships are and any other obstance or resources in
 // the gameworld)
@@ -122,42 +123,110 @@ impl Plugin for ShipPlugins {
 // - Dig into ECS archtype to help with some of these setup stuff
 pub struct StarterShip {
     position: Vec2,
-    velocity: Vec2,
-    limit_v: f32,
-    limit_r: f32,
-    target_r: f32,
-    limit_radar: f32,
-    arc_radar: f32,
-    target_radar: f32,
+    velocity: Velocity,
+    rotation: Rotation,
+    radar: Radar,
     script: Script,
 }
 
-// TODO: time to implement a builder pattern since this is getting tedious
 impl StarterShip {
-    pub fn new(
-        position: Vec2,
-        velocity: Vec2,
-        limit_v: f32,
-        limit_r: f32,
-        target_r: f32,
-        limit_radar: f32,
-        arc_radar: f32,
-        target_radar: f32,
-        script: Script
-    ) -> StarterShip {
-        StarterShip {
-            position,
-            velocity,
-            limit_v,
-            limit_r,
-            target_r,
-            limit_radar,
-            arc_radar,
-            target_radar,
+    pub fn builder(script: Script) -> ShipBuilder {
+        ShipBuilder::new(script)
+    }
+}
+
+// Builder to make building a starter ship nicer
+pub struct ShipBuilder {
+    position: Vec2,
+    velocity: Velocity,
+    rotation: Rotation,
+    radar: Radar,
+    script: Script,
+}
+
+impl ShipBuilder {
+    pub fn new(script: Script) -> ShipBuilder {
+        ShipBuilder {
+            position: Vec2::new(0., 0.),
+            velocity: Velocity {
+                velocity: Vec2::new(0., 0.),
+                acceleration: 0.0,
+                velocity_limit: 10.0,
+            },
+            rotation: Rotation {
+                limit: f32::to_radians(90.),
+                target: Quat::from_rotation_z(f32::to_radians(0.))
+            },
+            radar: Radar {
+                limit: 5.,
+                arc: f32::to_radians(180.),
+                // Start off same direction as the parent ship
+                target: Quat::from_rotation_z(f32::to_radians(0.))
+            },
             script,
         }
     }
+
+    // Settings
+    pub fn position(mut self, position: Vec2) -> ShipBuilder {
+        self.position = position;
+        self
+    }
+
+    pub fn velocity(mut self, velocity: Vec2) -> ShipBuilder {
+        self.velocity.velocity = velocity;
+        self
+    }
+
+    pub fn acceleration(mut self, acceleration: f32) -> ShipBuilder {
+        self.velocity.acceleration = acceleration;
+        self
+    }
+
+    pub fn velocity_limit(mut self, limit: f32) -> ShipBuilder {
+        self.velocity.velocity_limit = limit;
+        self
+    }
+
+    pub fn rotation(mut self, target: f32) -> ShipBuilder {
+        let rotation = Quat::from_rotation_z(f32::to_radians(target));
+        self.rotation.target = rotation;
+        self.radar.target = rotation;
+        self
+    }
+
+    pub fn rotation_limit(mut self, limit: f32) -> ShipBuilder {
+        self.rotation.limit = f32::to_radians(limit);
+        self
+    }
+
+    pub fn radar_arc(mut self, arc: f32) -> ShipBuilder {
+        self.radar.arc = f32::to_radians(arc);
+        self
+    }
+
+    pub fn radar_limit(mut self, limit: f32) -> ShipBuilder {
+        self.radar.limit = limit;
+        self
+    }
+
+    pub fn script(mut self, script: Script) -> ShipBuilder {
+        self.script = script;
+        self
+    }
+
+    // TODO: can we do it as a ref so that we can make multiple ships quickly
+    pub fn build(self) -> StarterShip {
+        StarterShip {
+            position: self.position,
+            velocity: self.velocity,
+            rotation: self.rotation,
+            radar: self.radar,
+            script: self.script,
+        }
+    }
 }
+
 
 pub fn add_ships(
     mut commands: Commands,
@@ -177,8 +246,9 @@ pub fn add_ships(
             .move_to(Vec2::new(0.0, 2.0))
             .line_to(Vec2::new(0.0, -4.5));
 
+        let radar_target = ship.radar.target;
         let mut transform = Transform::from_translation(ship.position.extend(0.));
-        transform.rotate_z(ship.target_r);
+        transform.rotate(ship.rotation.target);
 
         commands.spawn((
             ShapeBuilder::with(&ship_path)
@@ -188,9 +258,9 @@ pub fn add_ships(
             transform
         ))
             .insert(Ship)
-            .insert(Velocity{velocity: ship.velocity, acceleration: 0., velocity_limit: ship.limit_v})
-            .insert(Rotation{limit: ship.limit_r, target: Quat::from_rotation_z(ship.target_r)})
-            .insert(Radar{limit: ship.limit_radar, arc: ship.arc_radar, target: Quat::from_rotation_z(ship.target_radar)})
+            .insert(ship.velocity)
+            .insert(ship.rotation)
+            .insert(ship.radar)
             .insert(ship.script)
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
@@ -201,7 +271,7 @@ pub fn add_ships(
 
             // Debug bits
             .insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
-            .insert(MovDebug { velocity: ship.velocity, acceleration: 0. })
+            .insert(MovDebug { velocity: Vec2::new(0., 0.), acceleration: 0. })
             .insert(RadarDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0., radar_length: 0., radar_arc: 0.})
 
             .insert(Collision(0))
@@ -209,7 +279,7 @@ pub fn add_ships(
             // Insert the graphics for the radar dish
             .with_children(|parent| {
                 let mut transform = Transform::from_translation(Vec2::new(0., -2.).extend(1.));
-                transform.rotate_z(ship.target_radar);
+                transform.rotate(radar_target);
 
                 parent.spawn((
                     ShapeBuilder::with(&radar_path)

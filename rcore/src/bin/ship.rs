@@ -11,8 +11,8 @@ use rcore::script::Script;
 use rcore::script::ScriptPlugins;
 use rcore::script::ScriptEngine;
 use rcore::ship::ShipPlugins;
-use rcore::ship::StarterShip;
 use rcore::ship::add_ships;
+use rcore::ship::ShipBuilder;
 
 fn main() {
     App::new()
@@ -32,49 +32,45 @@ fn main() {
         // things limit_r, target_r,
         .add_systems(Startup, |commands: Commands, script_engine: Res<ScriptEngine>| {
             let ships = vec![
-                StarterShip::new(
-                    Vec2::new(0., 0.),
-                    Vec2::new(0., 0.),
-                    10.0, // Velocity limit
-                    f32::to_radians(90.0),
-                    f32::to_radians(0.0),
-                    5.0, // Radar Velocity limit
-                    f32::to_radians(180.0),
-                    f32::to_radians(0.0),
-                    Script::new(&ship_script(f32::to_radians(180.), 1.), &script_engine),
-                ),
+                ShipBuilder::new(Script::new(&ship_script(f32::to_radians(180.), 1.), &script_engine))
+                    .position(Vec2::new(0., 0.))
+                    .velocity(Vec2::new(0., 0.))
+                    .velocity_limit(10.)
+                    .rotation_limit(90.)
+                    .rotation(0.)
+                    .radar_limit(5.)
+                    .radar_arc(180.)
+                    .build(),
 
                 // Test cases
                 //  * flip flops on direction
                 //  * Weird drifting on rotation
-                StarterShip::new(
-                    Vec2::new(-350., 0.),
-                    Vec2::new(0., 0.),
-                    10.0, // Velocity limit
-                    f32::to_radians(45.0),
-                    f32::to_radians(0.0),
-                    5.0, // Radar Velocity limit
-                    f32::to_radians(180.0),
-                    f32::to_radians(0.0),
-                    Script::new(&ship_script(f32::to_radians(180.), 0.), &script_engine),
-                ),
-                StarterShip::new(
-                    Vec2::new(350., 0.),
-                    Vec2::new(0., 0.),
-                    10.0, // Velocity limit
-                    f32::to_radians(179.0),
-                    f32::to_radians(0.0),
-                    5.0, // Radar Velocity limit
-                    f32::to_radians(180.0),
-                    f32::to_radians(0.0),
-                    Script::new(&ship_script(f32::to_radians(-90.), 0.), &script_engine),
-                ),
+                ShipBuilder::new(Script::new(&ship_script(f32::to_radians(180.), 0.), &script_engine))
+                    .position(Vec2::new(-350., 0.))
+                    .velocity(Vec2::new(0., 0.))
+                    .velocity_limit(10.)
+                    .rotation_limit(45.)
+                    .rotation(0.)
+                    .radar_limit(5.)
+                    .radar_arc(180.)
+                    .build(),
+
+                ShipBuilder::new(Script::new(&ship_script(f32::to_radians(-90.), 0.), &script_engine))
+                    .position(Vec2::new(350., 0.))
+                    .velocity(Vec2::new(0., 0.))
+                    .velocity_limit(10.)
+                    .rotation_limit(179.)
+                    .rotation(0.)
+                    .radar_limit(5.)
+                    .radar_arc(180.)
+                    .build(),
             ];
 
             add_ships(commands, ships);
         })
         .run();
 }
+
 
 // TODO: the scripting really needs to be better, this is hampering us
 fn ship_script(target_rot: f32, acceleration: f32) -> String {
