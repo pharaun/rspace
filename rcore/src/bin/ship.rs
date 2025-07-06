@@ -6,6 +6,9 @@ use iyes_perf_ui::ui::root::PerfUiRoot;
 use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPSWorst;
 use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPS;
 
+use std::collections::HashMap;
+use rust_dynamic::value::Value;
+
 use rcore::arena::ArenaPlugins;
 use rcore::script::Script;
 use rcore::script::ScriptPlugins;
@@ -31,7 +34,7 @@ fn main() {
         // things limit_r, target_r,
         .add_systems(Startup, |commands: Commands| {
             let ships = vec![
-                ShipBuilder::new(Script::new(on_update, on_collision))
+                ShipBuilder::new(Script::new(on_init, on_update, on_collision))
                     .position(Vec2::new(0., 0.))
                     .velocity(Vec2::new(0., 0.))
                     .velocity_limit(10.)
@@ -72,94 +75,37 @@ fn main() {
 
 
 // Function for the ship
-fn on_update(pos: Vec2, vel: Vec2, rot: f32) -> (f32, f32) {
-    println!("on_update");
-    (0., 0.)
+fn on_init() -> HashMap<&'static str, Value> {
+    HashMap::from([
+        // Const
+        ("acceleration", Value::from(1.).unwrap()),
+        ("add_rot", Value::from(180.).unwrap()),
+    ])
 }
 
-fn on_collision() {
+fn approx_equal(a: f32, b: f32) -> bool {
+    (a - b).abs() < 0.01
+}
+
+// Minimal go back and forth ship script
+// TODO: figure out the X axis drift, there's a slow sideway drift due to rotation
+// - going upward it snaps between 180 and 0
+// - going downward it slowly changes between 0 to 180 and never quite snaps to 180
+// - figure out why
+fn on_update(state: &mut HashMap<&'static str, Value>, pos: Vec2, vel: Vec2, rot: f32) -> (f32, f32) {
+    println!("on_update: Pos - {:?} - Vel - {:?} - {:?} - Rot - {:?}", pos, vel, vel.length(), rot);
+
+    if vel.length() < 10. && (approx_equal(rot, 0.) || approx_equal(rot, -3.1415925)) {
+        (0., 1.)
+    } else if vel.length() > 10. && (approx_equal(rot, 0.) || approx_equal(rot, -3.1415925)) {
+        (f32::to_radians(180.), 0.)
+    } else {
+        (0., 0.)
+    }
+}
+
+fn on_collision(state: &mut HashMap<&'static str, Value>) {
     println!("on_collision");
-}
-
-
-// TODO: the scripting really needs to be better, this is hampering us
-fn ship_script(target_rot: f32, acceleration: f32) -> String {
-    format!(r#"
-        fn init() {{
-            // Const
-            this.acceleration = {:.8};
-            this.add_rot = {:.8};
-
-            // State
-            this.state = 0;
-            this.next_state = [];
-
-            // Counter
-            this.counter = 0;
-        }}
-
-        {}"#,
-        acceleration, target_rot,
-        r#"
-        // TODO: need better vel indicator (neg and pos and lateral state)
-        fn on_update(pos, vel, rot) {
-            log("Pos - " + pos + " - Vel - " + vel + " - " + vel.length());
-
-            // If next_state is empty, it has ran out, so restock it with sequences
-            if this.next_state.is_empty() {
-                this.state = 0;
-                this.next_state += [1, 1, 2, 1, 1, 3, 1, 1, 2, 1, 1, 0]
-            }
-
-            switch this.state {
-                // 0 = speed up
-                0 => {
-                    if vel.length() > 10 {
-                        this.state = this.next_state.shift();
-                    }
-
-                    log("State - Speedup");
-                    [0.0, this.acceleration]
-                },
-
-                // 1 = pause
-                1 => {
-                    if this.counter > 3 {
-                        this.counter = 0;
-                        this.state = this.next_state.shift();
-                    }
-
-                    this.counter += 1;
-
-                    log("State - Pause");
-                    [0.0, 0.0]
-                }
-
-                // 2 = flip
-                2 => {
-                    this.state = this.next_state.shift();
-
-                    log("State - Flip");
-                    [this.add_rot, 0.0]
-                },
-
-                // 3 = slow down
-                3 => {
-                    if vel.length() < 2 {
-                        this.state = this.next_state.shift();
-                    }
-
-                    log("State - Slowdown");
-                    [0.0, this.acceleration]
-                },
-            }
-        }
-
-        fn on_collision() {
-            log("collision");
-        }
-        "#,
-    )
 }
 
 pub struct FpsPlugins;

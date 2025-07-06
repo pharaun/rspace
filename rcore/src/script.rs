@@ -1,8 +1,12 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
+use std::sync::Arc;
+use std::sync::Mutex;
+
 use std::boxed::Box;
-use std::any::Any;
+use std::collections::HashMap;
+use rust_dynamic::value::Value;
 
 use crate::ship::{
     movement::Velocity,
@@ -49,17 +53,20 @@ use crate::ship::{
 // Use this to develop what we need for the future alternative language/VM but for now rhai will do
 #[derive(Component)]
 pub struct Script {
-    on_update: Box<dyn Fn(Vec2, Vec2, f32) -> (f32, f32) + Send + Sync>,
-    on_collision: Box<dyn Fn() + Send + Sync>,
+    state: Arc<Mutex<HashMap<&'static str, Value>>>,
+    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, Vec2, Vec2, f32) -> (f32, f32) + Send + Sync>,
+    on_collision: Box<dyn Fn(&mut HashMap<&'static str, Value>) + Send + Sync>,
 }
 
 impl Script {
-    pub fn new<U, C>(on_update: U, on_collision: C) -> Script
+    pub fn new<I, U, C>(on_init: I, on_update: U, on_collision: C) -> Script
     where
-        U: Fn(Vec2, Vec2, f32) -> (f32, f32) + Send + Sync + 'static,
-        C: Fn() -> () + Send + Sync + 'static,
+        I: Fn() -> HashMap<&'static str, Value>,
+        U: Fn(&mut HashMap<&'static str, Value>, Vec2, Vec2, f32) -> (f32, f32) + Send + Sync + 'static,
+        C: Fn(&mut HashMap<&'static str, Value>) -> () + Send + Sync + 'static,
     {
         Script {
+            state: Arc::new(Mutex::new(on_init())),
             on_update: Box::new(on_update),
             on_collision: Box::new(on_collision),
         }
@@ -90,7 +97,9 @@ fn process_on_collision(
                 if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
                     for mut script in [e1_script, e2_script] {
                         // Invoke collision handler
-                        (script.on_collision)();
+                        let state = script.state.clone();
+                        let mut mut_state = state.lock().unwrap();
+                        (script.on_collision)(&mut mut_state);
                     }
                 } else {
                     println!("ERROR - SCRIPT - {:?}", collision_event);
@@ -125,11 +134,15 @@ fn process_on_update(
             let vel = ship_query.get(entity).unwrap().0.velocity;
 
             // [ to_rot, to_vel ]
+            let state = script.state.clone();
+            let mut mut_state = state.lock().unwrap();
             let res = (script.on_update)(
+                &mut mut_state,
                 tran.truncate(),
                 vel,
                 rot.to_euler(EulerRot::ZYX).0,
             );
+            println!("Ret - {:?}", res);
 
             let to_rot: f32 = res.0;
             if to_rot > f32::EPSILON {
