@@ -75,21 +75,21 @@ pub(crate) fn debug_movement_gitzmos(
 
         // Current heading
         gizmos.line_2d(
-            base,
+            base + heading.mul_vec3(Vec3::Y * 40.).truncate(),
             base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
             bevy::color::palettes::css::RED,
         );
 
         // Velocity direction
         gizmos.line_2d(
-            base,
+            base + debug_velocity.normalize() * 40.,
             base + debug_velocity.normalize() * 60.,
             bevy::color::palettes::css::GREEN,
         );
 
         // Acceleration direction
         gizmos.line_2d(
-            base,
+            base + debug_acceleration.normalize() * 40.,
             base + debug_acceleration.normalize() * 50.,
             bevy::color::palettes::css::YELLOW,
         );

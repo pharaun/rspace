@@ -56,7 +56,7 @@ fn add_arena_bounds(mut commands: Commands) {
 
     commands.spawn((
         ShapeBuilder::with(&path)
-            .fill(Fill::color(bevy::prelude::Color::Srgba(bevy::color::palettes::css::BLUE)))
+            .fill(Fill::color(Color::srgb(0.15, 0.15, 0.15)))
             .stroke(Stroke::new(bevy::prelude::Color::Srgba(bevy::color::palettes::css::RED), 1.0))
             .build(),
         Transform::from_xyz(0., 0., -1.),

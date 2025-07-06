@@ -1,9 +1,8 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use rhai::{Engine, Scope, AST, Dynamic, CallFnOptions, Map, EvalAltResult, Variant, FuncArgs};
-
 use std::boxed::Box;
+use std::any::Any;
 
 use crate::ship::{
     movement::Velocity,
@@ -50,77 +49,20 @@ use crate::ship::{
 // Use this to develop what we need for the future alternative language/VM but for now rhai will do
 #[derive(Component)]
 pub struct Script {
-    scope: Scope<'static>,
-    state: Dynamic,
-    ast: AST,
+    on_update: Box<dyn Fn(Vec2, Vec2, f32) -> (f32, f32) + Send + Sync>,
+    on_collision: Box<dyn Fn() + Send + Sync>,
 }
 
 impl Script {
-    pub fn new(script: &str, engine: &Res<ScriptEngine>) -> Script {
-        // Compile script
-        let ast = match engine.0.compile(&script) {
-            Ok(ast) => ast,
-            Err(x) => panic!("AST: {:?}", x),
-        };
-
-        let scope = Scope::new();
-        let state: Dynamic = Map::new().into();
-        let mut script = Script { scope, state, ast };
-
-        // Init the script
-        let res = script.invoke::<()>("init", (), engine);
-
-        match res {
-            Ok(()) => (),
-            Err(e) => println!("Script Error - init - {:?}", e),
+    pub fn new<U, C>(on_update: U, on_collision: C) -> Script
+    where
+        U: Fn(Vec2, Vec2, f32) -> (f32, f32) + Send + Sync + 'static,
+        C: Fn() -> () + Send + Sync + 'static,
+    {
+        Script {
+            on_update: Box::new(on_update),
+            on_collision: Box::new(on_collision),
         }
-
-        script
-    }
-
-    pub fn invoke<T: Variant + Clone>(
-        &mut self,
-        name: &str,
-        args: impl FuncArgs,
-        engine: &Res<ScriptEngine>
-    ) -> Result<T, Box<EvalAltResult>> {
-        let options = CallFnOptions::new()
-            .eval_ast(false)
-            .bind_this_ptr(&mut self.state);
-
-        engine.0.call_fn_with_options(
-            options,
-            &mut self.scope,
-            &self.ast,
-            &name,
-            args,
-        )
-    }
-}
-
-#[derive(Resource)]
-pub struct ScriptEngine(Engine);
-
-impl ScriptEngine {
-    pub fn new() -> ScriptEngine {
-        let mut engine = Engine::new();
-
-        // TODO: register a function that gets an angle from a vec2
-        engine.register_type_with_name::<Vec2>("Vec2")
-            .register_fn("new_vec2", |x: f32, y: f32| {
-                Vec2::new(x as f32, y as f32)
-            })
-            .register_fn("to_string", |vec: &mut Vec2| vec.to_string())
-            .register_fn("to_debug", |vec: &mut Vec2| format!("{vec:?}"))
-            .register_get("x", |vec: &mut Vec2| vec.x as f32)
-            .register_get("y", |vec: &mut Vec2| vec.y as f32)
-            .register_fn("length", |vec: &mut Vec2| vec.length() as f32);
-
-        engine.register_fn("log", |text: &str| {
-            println!("{text}");
-        });
-
-        ScriptEngine(engine)
     }
 }
 
@@ -131,7 +73,6 @@ pub struct ScriptPlugins;
 impl Plugin for ScriptPlugins {
     fn build(&self, app: &mut App) {
         app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 1.0, TimerMode::Repeating)))
-            .insert_resource(ScriptEngine::new())
             .add_systems(Update, process_on_update)
             // TODO: on_sensor
             .add_systems(Update, process_on_collision);
@@ -139,7 +80,6 @@ impl Plugin for ScriptPlugins {
 }
 
 fn process_on_collision(
-    engine: Res<ScriptEngine>,
     mut collision_events: EventReader<CollisionEvent>,
     mut query: Query<(Entity, &mut Script)>,
 ) {
@@ -149,12 +89,8 @@ fn process_on_collision(
             CollisionEvent::Started(e1, e2, _) => {
                 if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
                     for mut script in [e1_script, e2_script] {
-                        let res = script.invoke::<()>("on_collision", (), &engine);
-
-                        match res {
-                            Ok(()) => (),
-                            Err(e) => println!("Script Error - on_collision - {:?}", e),
-                        }
+                        // Invoke collision handler
+                        (script.on_collision)();
                     }
                 } else {
                     println!("ERROR - SCRIPT - {:?}", collision_event);
@@ -168,7 +104,6 @@ fn process_on_collision(
 fn process_on_update(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
-    engine: Res<ScriptEngine>,
     mut query: Query<(Entity, &mut Script)>,
     mut ship_query: Query<(&mut Velocity, &Collision, &mut Rotation, &Transform)>,
 ) {
@@ -190,29 +125,24 @@ fn process_on_update(
             let vel = ship_query.get(entity).unwrap().0.velocity;
 
             // [ to_rot, to_vel ]
-            let res = script.invoke::<rhai::Array>(
-                "on_update",
-                ( tran.truncate(), vel, rot.to_euler(EulerRot::ZYX).0 ),
-                &engine
+            let res = (script.on_update)(
+                tran.truncate(),
+                vel,
+                rot.to_euler(EulerRot::ZYX).0,
             );
 
-            match res {
-                Ok(data) => {
-                    let to_rot: f32 = data[0].clone_cast();
-                    if to_rot > f32::EPSILON {
-                        // Is greater than zero, apply
-                        let mut rotation = ship_query.get_mut(entity).unwrap().2;
-                        rotation.target = rot * Quat::from_rotation_z(to_rot);
-                    }
+            let to_rot: f32 = res.0;
+            if to_rot > f32::EPSILON {
+                // Is greater than zero, apply
+                let mut rotation = ship_query.get_mut(entity).unwrap().2;
+                rotation.target = rot * Quat::from_rotation_z(to_rot);
+            }
 
-                    let to_accelerate: f32 = data[1].clone_cast();
-                    if to_accelerate > f32::EPSILON {
-                        // Is greater than zero, apply
-                        let mut velocity = ship_query.get_mut(entity).unwrap().0;
-                        velocity.acceleration = to_accelerate;
-                    }
-                },
-                Err(e) => println!("Script Error - {:?}", e),
+            let to_accelerate: f32 = res.1;
+            if to_accelerate > f32::EPSILON {
+                // Is greater than zero, apply
+                let mut velocity = ship_query.get_mut(entity).unwrap().0;
+                velocity.acceleration = to_accelerate;
             }
         }
     }
