@@ -9,6 +9,7 @@ use bevy_rapier2d::prelude::Sensor;
 use crate::script::Script;
 
 pub mod movement;
+use crate::ship::movement::interpolate_transforms;
 use crate::ship::movement::Velocity;
 use crate::ship::movement::apply_velocity;
 use crate::ship::movement::MovDebug;
@@ -104,6 +105,7 @@ impl Plugin for ShipPlugins {
                     apply_radar_rotation,
                 ),
             )
+            .add_systems(Update, interpolate_transforms)
             .add_systems(Update, debug_rotation_gitzmos)
             .add_systems(Update, debug_movement_gitzmos)
             .add_systems(Update, debug_radar_gitzmos)
@@ -112,7 +114,6 @@ impl Plugin for ShipPlugins {
             .add_systems(Update, apply_collision.after(process_collision_event));
     }
 }
-
 
 // TODO:
 // - Way to load a scene (which sets up where each ships are and any other obstance or resources in
@@ -262,6 +263,10 @@ pub fn add_ships(
             .insert(ship.rotation)
             .insert(ship.radar)
             .insert(ship.script)
+
+            // Simulation components
+            .insert(movement::Position(ship.position))
+            .insert(movement::PreviousPosition(ship.position))
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
             .insert(Collider::cuboid(10.0, 20.0))

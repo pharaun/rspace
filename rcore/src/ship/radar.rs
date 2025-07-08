@@ -16,7 +16,7 @@ pub struct Radar {
 // - radar detection system -> emits contact events.
 // - Script subsystem listen for contact event and act upon it
 pub(crate) fn apply_radar_rotation(
-    time: Res<Time>,
+    time: Res<Time<Fixed>>,
     mut query: Query<(&Radar, &mut Transform, Option<&mut RadarDebug>)>
 ) {
     for (radar, tran, debug) in query.iter_mut() {

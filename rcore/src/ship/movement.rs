@@ -1,5 +1,33 @@
 use bevy::prelude::*;
 
+// Simulation position,
+// Transform is separate and a visual layer, we need to redo the code to better
+// separate the rendering layer from the simulation layer
+#[derive(Component)]
+pub struct Position(pub Vec2);
+
+#[derive(Component)]
+pub struct PreviousPosition(pub Vec2);
+
+// Handles rendering
+// Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
+// Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
+// - Since we do have velocity information so we should be able to do better interpolation
+pub(crate) fn interpolate_transforms(
+    mut query: Query<(&mut Transform, &Position, &PreviousPosition)>,
+    fixed_time: Res<Time<Fixed>>
+) {
+    // How much of a "partial timestep" has accumulated since the last fixed timestep run.
+    // Between `0.0` and `1.0`.
+    let overstep = fixed_time.overstep_fraction();
+
+    for (mut transform, position, previous_position) in &mut query {
+        // Linearly interpolate the translation from the old position to the current one.
+        transform.translation = previous_position.0.lerp(position.0, overstep).extend(0.);
+    }
+}
+
+
 #[derive(Component)]
 pub struct Velocity {
     pub acceleration: f32,
@@ -10,11 +38,12 @@ pub struct Velocity {
 }
 
 // TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
+// TODO: remove dependence on Transform and instead do a fixed rotation component
 pub(crate) fn apply_velocity(
-    time: Res<Time>,
-    mut query: Query<(&mut Velocity, &mut Transform, Option<&mut MovDebug>)>
+    time: Res<Time<Fixed>>,
+    mut query: Query<(&mut Velocity, &Transform, &mut Position, &mut PreviousPosition, Option<&mut MovDebug>)>
 ) {
-    for (mut vec, mut tran, debug) in query.iter_mut() {
+    for (mut vec, tran, mut position, mut previous_position, debug) in query.iter_mut() {
         // DEBUG
         match debug {
             Some(mut dbg) => {
@@ -51,7 +80,12 @@ pub(crate) fn apply_velocity(
         // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
         // do so. Could optionally allow for a heading change while preserving the current velocity
         vec.velocity += acceleration * time.delta_secs();
-        tran.translation += (vec.velocity * time.delta_secs()).extend(0.);
+
+        // Update the previous position with the current position, then update the current position
+        // with the new values
+        previous_position.0 = position.0;
+        position.0 += vec.velocity * time.delta_secs();
+        //tran.translation += (vec.velocity * time.delta_secs()).extend(0.);
     }
 }
 

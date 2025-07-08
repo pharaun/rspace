@@ -7,7 +7,7 @@ pub struct Rotation {
 }
 
 pub(crate) fn apply_rotation(
-    time: Res<Time>,
+    time: Res<Time<Fixed>>,
     mut query: Query<(&Rotation, &mut Transform, Option<&mut RotDebug>)>
 ) {
     for (rot, mut tran, debug) in query.iter_mut() {
