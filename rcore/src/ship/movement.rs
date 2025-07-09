@@ -39,6 +39,7 @@ pub struct Velocity {
 
 // TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
 // TODO: remove dependence on Transform and instead do a fixed rotation component
+// TODO: separate the debug stuff out to its own component/system
 pub(crate) fn apply_velocity(
     time: Res<Time<Fixed>>,
     mut query: Query<(&mut Velocity, &Transform, &mut Position, &mut PreviousPosition, Option<&mut MovDebug>)>

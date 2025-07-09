@@ -1,4 +1,24 @@
 use bevy::prelude::*;
+use std::f32::consts::PI;
+
+const FRAC_PI_128: f32 = PI / 128.0;
+
+// Fixed rotation: 0 = 0, 1 = π/128, 64 = π/2, 128 = π/1, ...
+#[derive(Component)]
+pub struct FixedRotation(pub u8);
+
+fn fixed_to_quat(fixed: u8) -> Quat {
+    Quat::from_rotation_z(FRAC_PI_128 * fixed as f32)
+}
+
+
+fn quat_to_fixed(quat: Quat) -> u8 {
+    quat.to_euler(EulerRot::ZYX).0;
+    1
+}
+
+
+
 
 #[derive(Component)]
 pub struct Rotation {
@@ -6,6 +26,7 @@ pub struct Rotation {
     pub target: Quat,
 }
 
+// TODO: separate the debug stuff out to its own component/system
 pub(crate) fn apply_rotation(
     time: Res<Time<Fixed>>,
     mut query: Query<(&Rotation, &mut Transform, Option<&mut RotDebug>)>
@@ -36,6 +57,7 @@ pub(crate) fn apply_rotation(
         let angle = current.angle_between(target);
         let t = (1_f32).min(max_angle / angle);
 
+        // TODO: probs want slerp here not lerp
         tran.rotation = tran.rotation.lerp(target, t);
     }
 }
@@ -103,4 +125,21 @@ pub(crate) fn debug_rotation_gitzmos(
             bevy::color::palettes::css::GREEN,
         );
     }
+}
+
+
+// Hacky test to at least verify the fixed quat math, you shouldn't compare floats directly
+#[test]
+fn test_fixed_to_quat() {
+    assert_eq!(Quat::from_rotation_z(0.), fixed_to_quat(0));
+    assert_eq!(Quat::from_rotation_z(PI/128.), fixed_to_quat(1));
+    assert_eq!(Quat::from_rotation_z(PI/64.), fixed_to_quat(2));
+    assert_eq!(Quat::from_rotation_z(PI/32.), fixed_to_quat(4));
+    assert_eq!(Quat::from_rotation_z(PI/16.), fixed_to_quat(8));
+    assert_eq!(Quat::from_rotation_z(PI/8.), fixed_to_quat(16));
+    assert_eq!(Quat::from_rotation_z(PI/4.), fixed_to_quat(32));
+    assert_eq!(Quat::from_rotation_z(PI/2.), fixed_to_quat(64));
+    assert_eq!(Quat::from_rotation_z(PI), fixed_to_quat(128));
+    assert_eq!(Quat::from_rotation_z(PI + PI/2.), fixed_to_quat(192));
+    assert_eq!(Quat::from_rotation_z(PI + PI - PI/128.), fixed_to_quat(255));
 }

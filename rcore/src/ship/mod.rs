@@ -91,6 +91,10 @@ struct Ship;
 // still bundle the assets in the ECS, but have all of the system interact within
 // the ECS then after things settle -> have a system that takes the ship plugin content
 // system and update the sprite/assets/etc to display that information on the screen
+// TODO: probs want to have 2 or 3 separate subsystem
+//  - Rendering bits for the ship
+//  - Simulation bits (ie universal sim bits)
+//  - Specific per ship features
 pub struct ShipPlugins;
 impl Plugin for ShipPlugins {
     fn build(&self, app: &mut App) {
@@ -275,8 +279,8 @@ pub fn add_ships(
             .insert(Sensor)
 
             // Debug bits
-//            .insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
-            .insert(MovDebug { velocity: Vec2::new(0., 0.), acceleration: 0. })
+            .insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
+//            .insert(MovDebug { velocity: Vec2::new(0., 0.), acceleration: 0. })
 //            .insert(RadarDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0., radar_length: 0., radar_arc: 0.})
 
             .insert(Collision(0))

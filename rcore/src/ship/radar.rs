@@ -15,6 +15,17 @@ pub struct Radar {
 // - radar arc2length via area rule system?
 // - radar detection system -> emits contact events.
 // - Script subsystem listen for contact event and act upon it
+//
+// Radar detection system
+// - check the distance of all contacts
+//  * optimization (use kdtree)
+//  * optimization (check enemy contacts only)
+// - These within a certain distance, are then checked again for their angle
+// - This will then be compared to the radar angle (is it within?), if so
+// - This final list will be all of the entities that are 'detected' by the radar, we can then deal
+// with ECM and any other warfare stuff later
+// - This approach is basically "converting" each entities into a polaris coordination from your
+// ship/radar
 pub(crate) fn apply_radar_rotation(
     time: Res<Time<Fixed>>,
     mut query: Query<(&Radar, &mut Transform, Option<&mut RadarDebug>)>
