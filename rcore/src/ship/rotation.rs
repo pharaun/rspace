@@ -1,24 +1,8 @@
 use bevy::prelude::*;
 use std::f32::consts::PI;
 
-const FRAC_PI_128: f32 = PI / 128.0;
-
-// Fixed rotation: 0 = 0, 1 = π/128, 64 = π/2, 128 = π/1, ...
 #[derive(Component)]
-pub struct FixedRotation(pub u8);
-
-fn fixed_to_quat(fixed: u8) -> Quat {
-    Quat::from_rotation_z(FRAC_PI_128 * fixed as f32)
-}
-
-
-fn quat_to_fixed(quat: Quat) -> u8 {
-    quat.to_euler(EulerRot::ZYX).0;
-    1
-}
-
-
-
+pub struct FixedRotation(AbsRot);
 
 #[derive(Component)]
 pub struct Rotation {
@@ -128,18 +112,75 @@ pub(crate) fn debug_rotation_gitzmos(
 }
 
 
+// Stepped Rotation: inspiration bevy::math::Rot2 - Which is clamped to the range (-π, π]
+const FRAC_PI_128: f32 = PI / 128.0;
+
+// Absolute Rotation:
+// 0   =   0º North
+// 64  =  90º East
+// 128 = 180º South
+// 192 = 270º West
+// Radian: 0 = 0, 1 = π/128, 64 = π/2, 128 = π/1, ...
+#[derive(Debug, PartialEq)]
+pub struct AbsRot(u8);
+
+impl AbsRot {
+    pub fn to_quat(&self) -> Quat {
+        Quat::from_rotation_z(FRAC_PI_128 * self.0 as f32)
+    }
+
+    pub fn from_quat(quat: Quat) -> Self {
+        let tmp = {
+            let tmp = quat.to_euler(EulerRot::ZYX).0 / FRAC_PI_128;
+            if tmp < 0.0 {
+                tmp + 256.
+            } else {
+                tmp
+            }
+        };
+        println!("Float: {:?}, Floor: {:?}, Rounding: {:?} Ceiling: {:?}", tmp, tmp.floor(), tmp.round(), tmp.ceil());
+        AbsRot(tmp.round() as u8)
+    }
+}
+
+// Relative Rotation: (Used for heading rotations)
+// 0 = Direct ahead
+// -64 = 90º Left
+//  64 = 90º Right
+// Clamped: [-128, 128)
+#[derive(Debug, PartialEq)]
+pub struct RelRot(i8);
+
+impl RelRot {
+}
+
 // Hacky test to at least verify the fixed quat math, you shouldn't compare floats directly
 #[test]
-fn test_fixed_to_quat() {
-    assert_eq!(Quat::from_rotation_z(0.), fixed_to_quat(0));
-    assert_eq!(Quat::from_rotation_z(PI/128.), fixed_to_quat(1));
-    assert_eq!(Quat::from_rotation_z(PI/64.), fixed_to_quat(2));
-    assert_eq!(Quat::from_rotation_z(PI/32.), fixed_to_quat(4));
-    assert_eq!(Quat::from_rotation_z(PI/16.), fixed_to_quat(8));
-    assert_eq!(Quat::from_rotation_z(PI/8.), fixed_to_quat(16));
-    assert_eq!(Quat::from_rotation_z(PI/4.), fixed_to_quat(32));
-    assert_eq!(Quat::from_rotation_z(PI/2.), fixed_to_quat(64));
-    assert_eq!(Quat::from_rotation_z(PI), fixed_to_quat(128));
-    assert_eq!(Quat::from_rotation_z(PI + PI/2.), fixed_to_quat(192));
-    assert_eq!(Quat::from_rotation_z(PI + PI - PI/128.), fixed_to_quat(255));
+fn test_to_quat() {
+    assert_eq!(Quat::from_rotation_z(0.),      AbsRot(0).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI/128.), AbsRot(1).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI/64.),  AbsRot(2).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI/32.),  AbsRot(4).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI/16.),  AbsRot(8).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI/8.),   AbsRot(16).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI/4.),   AbsRot(32).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI/2.),   AbsRot(64).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI),      AbsRot(128).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI + PI/2.), AbsRot(192).to_quat());
+    assert_eq!(Quat::from_rotation_z(PI + PI - PI/128.), AbsRot(255).to_quat());
+}
+
+#[test]
+fn test_from_quat() {
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(0.)),      AbsRot(0));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI/128.)), AbsRot(1));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI/64.)),  AbsRot(2));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI/32.)),  AbsRot(4));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI/16.)),  AbsRot(8));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI/8.)),   AbsRot(16));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI/4.)),   AbsRot(32));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI/2.)),   AbsRot(64));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI)),      AbsRot(128));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI + PI/2.)), AbsRot(192));
+    assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI + PI - PI/128.)), AbsRot(255));
 }
