@@ -36,20 +36,9 @@ pub struct TargetRotation {
 // TODO: separate the debug stuff out to its own component/system
 pub(crate) fn apply_rotation(
     time: Res<Time<Fixed>>,
-    mut query: Query<(&TargetRotation, &mut Rotation, &mut PreviousRotation, Option<&mut RotDebug>)>
+    mut query: Query<(&TargetRotation, &mut Rotation, &mut PreviousRotation)>
 ) {
-    for (target_rot, mut rotation, mut previous_rotation, debug) in query.iter_mut() {
-        // DEBUG
-        match debug {
-            Some(mut dbg) => {
-                dbg.rotation_current = rotation.0.to_quat().to_euler(EulerRot::ZYX).0;
-                dbg.rotation_target = target_rot.target.to_quat().to_euler(EulerRot::ZYX).0;
-                // TODO: redo these
-                dbg.rotation_limit = target_rot.target.to_quat().to_euler(EulerRot::ZYX).0;
-            },
-            None => (),
-        }
-
+    for (target_rot, mut rotation, mut previous_rotation) in query.iter_mut() {
         previous_rotation.0 = rotation.0;
 
         // If rotation is the same as the target rotation, bail
@@ -157,65 +146,45 @@ fn test_from_quat() {
 
 
 #[derive(Component)]
-pub struct RotDebug {
-    pub rotation_current: f32,
-    pub rotation_target: f32,
-    pub rotation_limit: f32,
-}
+pub struct RotDebug;
 
 pub(crate) fn debug_rotation_gitzmos(
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &RotDebug)>
+    query: Query<(&Transform, &TargetRotation), With<RotDebug>>
 ) {
-    for (tran, debug) in query.iter() {
+    for (tran, target) in query.iter() {
         let base = tran.translation.truncate();
+        let heading = tran.rotation;
+        let target = target.target.to_quat();
 
-        let current = Quat::from_rotation_z(debug.rotation_current);
-        let target = Quat::from_rotation_z(debug.rotation_target);
-        let limit = Quat::from_rotation_z(debug.rotation_limit);
+        // TODO: add in limit for the rotation
 
+        // Current heading
         gizmos.line_2d(
-            base,
-            base + current.mul_vec3(Vec3::Y * 90.).truncate(),
-            bevy::color::palettes::css::RED,
-        );
-        gizmos.arc_2d(
-            Isometry2d::new(
-                base,
-                Rot2::radians(
-                    (current.to_euler(EulerRot::ZYX).0 * -1.) + (current.angle_between(current*limit) * 2.) * 0.5
-                )
-            ),
-            current.angle_between(current*limit) * 2.,
-            80.,
-            bevy::color::palettes::css::RED,
-        );
-        gizmos.line_2d(
-            base,
-            base + limit.mul_vec3(current.mul_vec3(Vec3::Y * 85.)).truncate(),
-            bevy::color::palettes::css::RED,
-        );
-        gizmos.line_2d(
-            base,
-            base + limit.inverse().mul_vec3(current.mul_vec3(Vec3::Y * 85.)).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 100.).truncate(),
             bevy::color::palettes::css::RED,
         );
 
+        // Target heading
         gizmos.line_2d(
-            base,
-            base + target.mul_vec3(Vec3::Y * 80.).truncate(),
+            base + target.mul_vec3(Vec3::Y * 70.).truncate(),
+            base + target.mul_vec3(Vec3::Y * 90.).truncate(),
             bevy::color::palettes::css::GREEN,
         );
-        gizmos.arc_2d(
-            Isometry2d::new(
-                base,
-                Rot2::radians(
-                    (current.lerp(target, 0.5).to_euler(EulerRot::ZYX).0 * -1.) + current.angle_between(target) * 0.5
-                )
-            ),
-            current.angle_between(target),
-            70.,
-            bevy::color::palettes::css::GREEN,
-        );
+
+        // Limit + Arcs for rotation direction
+        // 70-80 length line
+        //gizmos.arc_2d(
+        //    Isometry2d::new(
+        //        base,
+        //        Rot2::radians(
+        //            (current.to_euler(EulerRot::ZYX).0 * -1.) + (current.angle_between(current*limit) * 2.) * 0.5
+        //        )
+        //    ),
+        //    current.angle_between(current*limit) * 2.,
+        //    80.,
+        //    bevy::color::palettes::css::RED,
+        //);
     }
 }

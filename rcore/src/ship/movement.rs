@@ -42,18 +42,9 @@ pub struct Velocity {
 // TODO: separate the debug stuff out to its own component/system
 pub(crate) fn apply_velocity(
     time: Res<Time<Fixed>>,
-    mut query: Query<(&mut Velocity, &Transform, &mut Position, &mut PreviousPosition, Option<&mut MovDebug>)>
+    mut query: Query<(&mut Velocity, &Transform, &mut Position, &mut PreviousPosition)>
 ) {
-    for (mut vec, tran, mut position, mut previous_position, debug) in query.iter_mut() {
-        // DEBUG
-        match debug {
-            Some(mut dbg) => {
-                dbg.acceleration = vec.acceleration;
-                dbg.velocity = vec.velocity;
-            },
-            None => (),
-        }
-
+    for (mut vec, tran, mut position, mut previous_position) in query.iter_mut() {
         // TODO: figure out how to lerp? There is also an awkward sideward acceleration
         // when we rotate 180, figure out why that happens
         let mut acceleration = tran.rotation.mul_vec3(Vec3::Y * vec.acceleration).truncate();
@@ -92,40 +83,37 @@ pub(crate) fn apply_velocity(
 
 
 #[derive(Component)]
-pub struct MovDebug {
-    pub velocity: Vec2,
-    pub acceleration: f32,
-}
+pub struct MovDebug;
 
 pub(crate) fn debug_movement_gitzmos(
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &MovDebug)>
+    query: Query<(&Transform, &Velocity), With<MovDebug>>
 ) {
-    for (tran, debug) in query.iter() {
+    for (tran, vel) in query.iter() {
         let base = tran.translation.truncate();
         let heading = tran.rotation;
-
-        let debug_velocity = debug.velocity;
-        let debug_acceleration = heading.mul_vec3(Vec3::Y * debug.acceleration).truncate();
+        let velocity = vel.velocity;
+        let acceleration = heading.mul_vec3(Vec3::Y * vel.acceleration).truncate();
 
         // Current heading
         gizmos.line_2d(
-            base + heading.mul_vec3(Vec3::Y * 40.).truncate(),
-            base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 30.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 60.).truncate(),
             bevy::color::palettes::css::RED,
         );
 
         // Velocity direction
         gizmos.line_2d(
-            base + debug_velocity.normalize() * 40.,
-            base + debug_velocity.normalize() * 60.,
+            base + velocity.normalize() * 30.,
+            base + velocity.normalize() * 50.,
             bevy::color::palettes::css::GREEN,
         );
 
         // Acceleration direction
+        // TODO: indicate if there is acceleration or not
         gizmos.line_2d(
-            base + debug_acceleration.normalize() * 40.,
-            base + debug_acceleration.normalize() * 50.,
+            base + acceleration.normalize() * 30.,
+            base + acceleration.normalize() * 40.,
             bevy::color::palettes::css::YELLOW,
         );
     }

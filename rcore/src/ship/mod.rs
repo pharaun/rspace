@@ -288,9 +288,9 @@ pub fn add_ships(
             .insert(Sensor)
 
             // Debug bits
-            .insert(RotDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0.})
-//            .insert(MovDebug { velocity: Vec2::new(0., 0.), acceleration: 0. })
-//            .insert(RadarDebug { rotation_current: 0., rotation_target: 0., rotation_limit: 0., radar_length: 0., radar_arc: 0.})
+            .insert(MovDebug)
+            .insert(RotDebug)
+//            .insert(RadarDebug)
 
             .insert(Collision(0))
 
