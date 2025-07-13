@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::ship::Rotation;
 
 // Simulation position,
 // Transform is separate and a visual layer, we need to redo the code to better
@@ -42,12 +43,14 @@ pub struct Velocity {
 // TODO: separate the debug stuff out to its own component/system
 pub(crate) fn apply_velocity(
     time: Res<Time<Fixed>>,
-    mut query: Query<(&mut Velocity, &Transform, &mut Position, &mut PreviousPosition)>
+    mut query: Query<(&mut Velocity, &Rotation, &mut Position, &mut PreviousPosition)>
 ) {
-    for (mut vec, tran, mut position, mut previous_position) in query.iter_mut() {
+    for (mut vec, rot, mut position, mut previous_position) in query.iter_mut() {
+        previous_position.0 = position.0;
+
         // TODO: figure out how to lerp? There is also an awkward sideward acceleration
         // when we rotate 180, figure out why that happens
-        let mut acceleration = tran.rotation.mul_vec3(Vec3::Y * vec.acceleration).truncate();
+        let mut acceleration = rot.0.to_quat().mul_vec3(Vec3::Y * vec.acceleration).truncate();
 
         // Apply Lorentz factor only if it will increase the velocity
         // Inspiration: https://stackoverflow.com/a/2891162
@@ -72,12 +75,7 @@ pub(crate) fn apply_velocity(
         // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
         // do so. Could optionally allow for a heading change while preserving the current velocity
         vec.velocity += acceleration * time.delta_secs();
-
-        // Update the previous position with the current position, then update the current position
-        // with the new values
-        previous_position.0 = position.0;
         position.0 += vec.velocity * time.delta_secs();
-        //tran.translation += (vec.velocity * time.delta_secs()).extend(0.);
     }
 }
 

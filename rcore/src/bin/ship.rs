@@ -38,7 +38,7 @@ fn main() {
                     .position(Vec2::new(0., 0.))
                     .velocity(Vec2::new(0., 0.))
                     .velocity_limit(10.)
-                    .rotation_limit(64)
+                    .rotation_limit(16)
                     .rotation(0.)
                     .radar_limit(5.)
                     .radar_arc(180.)
@@ -92,7 +92,7 @@ fn approx_equal(a: f32, b: f32) -> bool {
 // - going upward it snaps between 180 and 0
 // - going downward it slowly changes between 0 to 180 and never quite snaps to 180
 // - figure out why
-fn on_update(state: &mut HashMap<&'static str, Value>, pos: Vec2, vel: Vec2, rot: f32) -> (f32, f32) {
+fn on_update(_state: &mut HashMap<&'static str, Value>, pos: Vec2, vel: Vec2, rot: f32) -> (f32, f32) {
     println!("on_update: Pos - {:?} - Vel - {:?} - {:?} - Rot - {:?}", pos, vel, vel.length(), rot);
 
     if vel.length() < 10. && (approx_equal(rot, 0.) || approx_equal(rot, -3.1415925)) {
@@ -104,7 +104,7 @@ fn on_update(state: &mut HashMap<&'static str, Value>, pos: Vec2, vel: Vec2, rot
     }
 }
 
-fn on_collision(state: &mut HashMap<&'static str, Value>) {
+fn on_collision(_state: &mut HashMap<&'static str, Value>) {
     println!("on_collision");
 }
 

@@ -96,7 +96,7 @@ fn process_on_collision(
         match collision_event {
             CollisionEvent::Started(e1, e2, _) => {
                 if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
-                    for mut script in [e1_script, e2_script] {
+                    for script in [e1_script, e2_script] {
                         // Invoke collision handler
                         let state = script.state.clone();
                         let mut mut_state = state.lock().unwrap();
@@ -126,7 +126,7 @@ fn process_on_update(
         //  -or- invoke script functions directly to update a state that gets synchronized to the
         //  ship
         //  -or- just update the components directly?
-        for (entity, mut script) in query.iter_mut() {
+        for (entity, script) in query.iter_mut() {
 
             let trans = ship_query.get(entity).unwrap().3;
 

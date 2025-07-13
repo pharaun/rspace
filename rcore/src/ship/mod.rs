@@ -18,7 +18,6 @@ use crate::ship::movement::debug_movement_gitzmos;
 pub mod rotation;
 use crate::ship::rotation::interpolate_rotation;
 use crate::ship::rotation::Rotation;
-use crate::ship::rotation::PreviousRotation;
 use crate::ship::rotation::apply_rotation;
 use crate::ship::rotation::RotDebug;
 use crate::ship::rotation::debug_rotation_gitzmos;
@@ -169,7 +168,7 @@ impl ShipBuilder {
                 velocity_limit: 10.0,
             },
             rotation: TargetRotation {
-                limit: 64,
+                limit: 16,
                 target: AbsRot::from_quat(Quat::from_rotation_z(f32::to_radians(0.))),
             },
             radar: Radar {
@@ -295,7 +294,7 @@ pub fn add_ships(
             // Debug bits
             .insert(MovDebug)
             .insert(RotDebug)
-//            .insert(RadarDebug)
+            .insert(RadarDebug)
 
             .insert(Collision(0))
 
