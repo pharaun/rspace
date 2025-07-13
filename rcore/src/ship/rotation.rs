@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 use std::f32::consts::PI;
+use std::ops::AddAssign;
+use std::ops::Add;
 
 #[derive(Component)]
 pub struct Rotation(pub AbsRot);
@@ -33,7 +35,6 @@ pub struct TargetRotation {
     pub target: AbsRot,
 }
 
-// TODO: separate the debug stuff out to its own component/system
 pub(crate) fn apply_rotation(
     time: Res<Time<Fixed>>,
     mut query: Query<(&TargetRotation, &mut Rotation, &mut PreviousRotation)>
@@ -46,14 +47,17 @@ pub(crate) fn apply_rotation(
             continue;
         }
 
-        // TODO: redo this logic
-        // Calculate the t-factor for the rotation.lerp
-        let max_angle = target_rot.limit as f32 * time.delta_secs();
-        let angle = rotation.0.angle_between(target_rot.target);
-        let t = (1_f32).min(max_angle / angle as f32);
+        // Clamp the rotation
+        let limit = target_rot.limit as f32 * time.delta_secs();
+        let angle = rotation.0.angle_between(target_rot.target).clamp(limit.round() as u8);
+        rotation.0 += angle;
 
-        // TODO: probs want to slerp here not lerp
-        rotation.0 = rotation.0.lerp(target_rot.target, t);
+        println!("DBG: prev rot: {:?} next rot: {:?} angle: {:?} limit: {:?}",
+            previous_rotation.0,
+            rotation.0,
+            angle.0,
+            limit
+        );
     }
 }
 
@@ -87,18 +91,27 @@ impl AbsRot {
         AbsRot(tmp.round() as u8)
     }
 
-    // TODO: redo to use relrot and all of those logic
-    pub fn angle_between(&self, target: AbsRot) -> u8 {
-        if self.0 < target.0 {
-            target.0 - self.0
+    // TODO: Hack flipped the sign, need to figure out what we want semantics wise first
+    pub fn angle_between(&self, target: AbsRot) -> RelRot {
+        RelRot(-(self.0 as i16 - target.0 as i16) as i8)
+    }
+}
+
+impl Add<RelRot> for AbsRot {
+    type Output = AbsRot;
+
+    fn add(self, rhs: RelRot) -> AbsRot {
+        if rhs.0 < 0 {
+            AbsRot(self.0.overflowing_sub((-rhs.0) as u8).0)
         } else {
-            self.0 - target.0
+            AbsRot(self.0.overflowing_add(rhs.0 as u8).0)
         }
     }
+}
 
-    // TODO: don't need lerp on absrot? somewhere else?
-    pub fn lerp(&self, target: AbsRot, t: f32) -> AbsRot {
-        AbsRot::from_quat(self.to_quat().lerp(target.to_quat(), t))
+impl AddAssign<RelRot> for AbsRot {
+    fn add_assign(&mut self, rhs: RelRot) {
+        *self = *self + rhs
     }
 }
 
@@ -107,10 +120,21 @@ impl AbsRot {
 // -64 = 90º Left
 //  64 = 90º Right
 // Clamped: [-128, 128)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct RelRot(i8);
 
 impl RelRot {
+    pub fn clamp(&self, clamp: u8) -> RelRot {
+        if clamp >= 128 {
+            *self
+        } else if self.0 < -(clamp as i8) {
+            RelRot(-(clamp as i8))
+        } else if self.0 > clamp as i8 {
+            RelRot(clamp as i8)
+        } else {
+            *self
+        }
+    }
 }
 
 // Hacky test to at least verify the fixed quat math, you shouldn't compare floats directly
@@ -142,6 +166,27 @@ fn test_from_quat() {
     assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI)),      AbsRot(128));
     assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI + PI/2.)), AbsRot(192));
     assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(PI + PI - PI/128.)), AbsRot(255));
+}
+
+// TODO: I think we need to identify/do hand-ness conversion/checks here because yeah
+#[test]
+fn test_angle_between() {
+    assert_eq!(AbsRot(0).angle_between(AbsRot(1)), RelRot(-1));
+    assert_eq!(AbsRot(0).angle_between(AbsRot(255)), RelRot(1));
+}
+
+#[test]
+fn test_clamp() {
+    assert_eq!(RelRot(0).clamp(1), RelRot(0));
+    assert_eq!(RelRot(2).clamp(1), RelRot(1));
+    assert_eq!(RelRot(-2).clamp(1), RelRot(-1));
+}
+
+#[test]
+fn test_add_rel_to_abs() {
+    assert_eq!(AbsRot(0) + RelRot(0), AbsRot(0));
+    assert_eq!(AbsRot(0) + RelRot(1), AbsRot(1));
+    assert_eq!(AbsRot(0) + RelRot(-1), AbsRot(255));
 }
 
 

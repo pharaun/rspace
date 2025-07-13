@@ -11,6 +11,7 @@ struct CameraMarker;
 #[derive(Component)]
 struct ArenaMarker;
 
+// TODO: Add more support for other things like gizmos to support the wrap
 pub struct ArenaPlugins;
 impl Plugin for ArenaPlugins {
     fn build(&self, app: &mut App) {
