@@ -10,9 +10,11 @@ use rust_dynamic::value::Value;
 
 use crate::ship::{
     movement::Velocity,
-    collision::Collision,
     rotation::AbsRot,
     rotation::TargetRotation,
+    rotation::RelRot,
+    movement::Position,
+    rotation::Rotation,
 };
 
 // TODO: Design
@@ -55,7 +57,7 @@ use crate::ship::{
 #[derive(Component)]
 pub struct Script {
     state: Arc<Mutex<HashMap<&'static str, Value>>>,
-    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, Vec2, Vec2, f32) -> (f32, f32) + Send + Sync>,
+    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, Vec2, Vec2, AbsRot) -> (RelRot, f32) + Send + Sync>,
     on_collision: Box<dyn Fn(&mut HashMap<&'static str, Value>) + Send + Sync>,
 }
 
@@ -63,7 +65,7 @@ impl Script {
     pub fn new<I, U, C>(on_init: I, on_update: U, on_collision: C) -> Script
     where
         I: Fn() -> HashMap<&'static str, Value>,
-        U: Fn(&mut HashMap<&'static str, Value>, Vec2, Vec2, f32) -> (f32, f32) + Send + Sync + 'static,
+        U: Fn(&mut HashMap<&'static str, Value>, Vec2, Vec2, AbsRot) -> (RelRot, f32) + Send + Sync + 'static,
         C: Fn(&mut HashMap<&'static str, Value>) -> () + Send + Sync + 'static,
     {
         Script {
@@ -115,7 +117,10 @@ fn process_on_update(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
     mut query: Query<(Entity, &mut Script)>,
-    mut ship_query: Query<(&mut Velocity, &Collision, &mut TargetRotation, &Transform)>,
+    mut ship_query: Query<(
+        &mut Velocity, &Position,
+        &mut TargetRotation, &Rotation
+    )>,
 ) {
     // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
@@ -127,36 +132,33 @@ fn process_on_update(
         //  ship
         //  -or- just update the components directly?
         for (entity, script) in query.iter_mut() {
+            let ship = ship_query.get(entity).unwrap();
 
-            let trans = ship_query.get(entity).unwrap().3;
+            let vel = ship.0;
+            let pos = ship.1.0;
+            let rot = ship.3.0;
 
-            let rot = trans.rotation;
-            let tran = trans.translation;
-            let vel = ship_query.get(entity).unwrap().0.velocity;
-
-            // [ to_rot, to_vel ]
             let state = script.state.clone();
             let mut mut_state = state.lock().unwrap();
             let res = (script.on_update)(
                 &mut mut_state,
-                tran.truncate(),
-                vel,
-                rot.to_euler(EulerRot::ZYX).0,
+                pos,
+                vel.velocity,
+                rot,
             );
+            // [ to_rot, to_vel ]
             println!("Ret - {:?}", res);
 
-            let to_rot: f32 = res.0;
-            if to_rot > f32::EPSILON {
-                // Is greater than zero, apply
+            // Not zero, apply
+            if res.0 != RelRot(0) {
                 let mut rotation = ship_query.get_mut(entity).unwrap().2;
-                rotation.target = AbsRot::from_quat(rot * Quat::from_rotation_z(to_rot));
+                rotation.target = rot + res.0;
             }
 
-            let to_accelerate: f32 = res.1;
-            if to_accelerate > f32::EPSILON {
-                // Is greater than zero, apply
+            // Not zero, apply
+            if res.1 > 0.0 {
                 let mut velocity = ship_query.get_mut(entity).unwrap().0;
-                velocity.acceleration = to_accelerate;
+                velocity.acceleration = res.1;
             }
         }
     }

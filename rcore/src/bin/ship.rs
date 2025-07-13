@@ -15,6 +15,8 @@ use rcore::script::ScriptPlugins;
 use rcore::ship::ShipPlugins;
 use rcore::ship::add_ships;
 use rcore::ship::ShipBuilder;
+use rcore::ship::rotation::RelRot;
+use rcore::ship::rotation::AbsRot;
 
 fn main() {
     App::new()
@@ -83,24 +85,20 @@ fn on_init() -> HashMap<&'static str, Value> {
     ])
 }
 
-fn approx_equal(a: f32, b: f32) -> bool {
-    (a - b).abs() < 0.01
-}
-
 // Minimal go back and forth ship script
 // TODO: figure out the X axis drift, there's a slow sideway drift due to rotation
 // - going upward it snaps between 180 and 0
 // - going downward it slowly changes between 0 to 180 and never quite snaps to 180
 // - figure out why
-fn on_update(_state: &mut HashMap<&'static str, Value>, pos: Vec2, vel: Vec2, rot: f32) -> (f32, f32) {
+fn on_update(_state: &mut HashMap<&'static str, Value>, pos: Vec2, vel: Vec2, rot: AbsRot) -> (RelRot, f32) {
     println!("on_update: Pos - {:?} - Vel - {:?} - {:?} - Rot - {:?}", pos, vel, vel.length(), rot);
 
-    if vel.length() < 10. && (approx_equal(rot, 0.) || approx_equal(rot, -3.1415925)) {
-        (0., 1.)
-    } else if vel.length() > 10. && (approx_equal(rot, 0.) || approx_equal(rot, -3.1415925)) {
-        (f32::to_radians(180.), 0.)
+    if vel.length() < 10. && (rot == AbsRot(0)) || (rot == AbsRot(128)) {
+        (RelRot(0), 1.)
+    } else if vel.length() > 10. && (rot == AbsRot(0)) || (rot == AbsRot(128)) {
+        (RelRot(-128), 0.)
     } else {
-        (0., 0.)
+        (RelRot(0), 0.)
     }
 }
 

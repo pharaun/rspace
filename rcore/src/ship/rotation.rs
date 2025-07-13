@@ -72,7 +72,7 @@ const FRAC_PI_128: f32 = PI / 128.0;
 // 192 = 270º West
 // Radian: 0 = 0, 1 = π/128, 64 = π/2, 128 = π/1, ...
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct AbsRot(u8);
+pub struct AbsRot(pub u8);
 
 impl AbsRot {
     pub fn to_quat(&self) -> Quat {
@@ -102,9 +102,9 @@ impl Add<RelRot> for AbsRot {
 
     fn add(self, rhs: RelRot) -> AbsRot {
         if rhs.0 < 0 {
-            AbsRot(self.0.overflowing_sub((-rhs.0) as u8).0)
+            AbsRot(self.0.wrapping_sub((-(rhs.0 as i16)) as u8))
         } else {
-            AbsRot(self.0.overflowing_add(rhs.0 as u8).0)
+            AbsRot(self.0.wrapping_add(rhs.0 as u8))
         }
     }
 }
@@ -121,7 +121,7 @@ impl AddAssign<RelRot> for AbsRot {
 //  64 = 90º Right
 // Clamped: [-128, 128)
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct RelRot(i8);
+pub struct RelRot(pub i8);
 
 impl RelRot {
     pub fn clamp(&self, clamp: u8) -> RelRot {
