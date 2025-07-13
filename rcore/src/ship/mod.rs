@@ -113,8 +113,13 @@ impl Plugin for ShipPlugins {
                     apply_radar_rotation,
                 ),
             )
-            .add_systems(Update, interpolate_transforms)
-            .add_systems(Update, interpolate_rotation)
+            .add_systems(
+                RunFixedMainLoop,
+                (
+                    interpolate_transforms.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+                    interpolate_rotation.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+                ),
+            )
             .add_systems(Update, debug_rotation_gitzmos)
             .add_systems(Update, debug_movement_gitzmos)
             .add_systems(Update, debug_radar_gitzmos)
