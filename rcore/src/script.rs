@@ -149,17 +149,12 @@ fn process_on_update(
             // [ to_rot, to_vel ]
             println!("Ret - {:?}", res);
 
-            // Not zero, apply
-            if res.0 != RelRot(0) {
-                let mut rotation = ship_query.get_mut(entity).unwrap().2;
-                rotation.target = rot + res.0;
-            }
+            // Always apply
+            let mut rotation = ship_query.get_mut(entity).unwrap().2;
+            rotation.target += res.0;
 
-            // Not zero, apply
-            if res.1 > 0.0 {
-                let mut velocity = ship_query.get_mut(entity).unwrap().0;
-                velocity.acceleration = res.1;
-            }
+            let mut velocity = ship_query.get_mut(entity).unwrap().0;
+            velocity.acceleration = res.1;
         }
     }
 }

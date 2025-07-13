@@ -52,6 +52,8 @@ pub(crate) fn apply_velocity(
         // when we rotate 180, figure out why that happens
         let mut acceleration = rot.0.to_quat().mul_vec3(Vec3::Y * vec.acceleration).truncate();
 
+        println!("Accel: {:?}", acceleration);
+
         // Apply Lorentz factor only if it will increase the velocity
         // Inspiration: https://stackoverflow.com/a/2891162
         let new_velocity = vec.velocity + acceleration * time.delta_secs();
@@ -108,11 +110,32 @@ pub(crate) fn debug_movement_gitzmos(
         );
 
         // Acceleration direction
-        // TODO: indicate if there is acceleration or not
-        gizmos.line_2d(
-            base + acceleration.normalize() * 30.,
-            base + acceleration.normalize() * 40.,
-            bevy::color::palettes::css::YELLOW,
-        );
+        if vel.acceleration > 0.0 {
+            gizmos.line_2d(
+                base + acceleration.normalize() * 30.,
+                base + acceleration.normalize() * 40.,
+                bevy::color::palettes::css::YELLOW,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod test_movement {
+    use std::f32::consts::PI;
+    use bevy::prelude::Vec2;
+    use bevy::prelude::Vec3;
+    use bevy::prelude::Quat;
+    use crate::ship::AbsRot;
+
+    #[test]
+    fn test_acceleration_vector_rot() {
+        assert_eq!(Vec2::new(0., 10.), AbsRot(0).to_quat().mul_vec3(Vec3::Y * 10.).truncate());
+        assert_eq!(Vec2::new(-10., 0.), AbsRot(64).to_quat().mul_vec3(Vec3::Y * 10.).truncate());
+        assert_eq!(Vec2::new(10., 0.), AbsRot(192).to_quat().mul_vec3(Vec3::Y * 10.).truncate());
+
+        // TODO: These ends up being the same, slight drift sideway.
+        assert_eq!(Vec2::new(0., -10.), Quat::from_rotation_z(PI).mul_vec3(Vec3::Y * 10.).truncate());
+        assert_eq!(Vec2::new(0., -10.), AbsRot(128).to_quat().mul_vec3(Vec3::Y * 10.).truncate());
     }
 }

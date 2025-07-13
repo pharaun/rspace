@@ -93,11 +93,19 @@ fn on_init() -> HashMap<&'static str, Value> {
 fn on_update(_state: &mut HashMap<&'static str, Value>, pos: Vec2, vel: Vec2, rot: AbsRot) -> (RelRot, f32) {
     println!("on_update: Pos - {:?} - Vel - {:?} - {:?} - Rot - {:?}", pos, vel, vel.length(), rot);
 
-    if vel.length() < 10. && (rot == AbsRot(0)) || (rot == AbsRot(128)) {
-        (RelRot(0), 1.)
-    } else if vel.length() > 10. && (rot == AbsRot(0)) || (rot == AbsRot(128)) {
-        (RelRot(-128), 0.)
+    if rot == AbsRot(0) || rot == AbsRot(128) {
+        if vel.y < 10. && rot == AbsRot(0){
+            println!("Accelerate");
+            (RelRot(0), 1.)
+        } else if vel.y > -10. && rot == AbsRot(128) {
+            println!("Decelerate");
+            (RelRot(0), 1.)
+        } else {
+            println!("Rotate");
+            (RelRot(-128), 0.)
+        }
     } else {
+        println!("Idle");
         (RelRot(0), 0.)
     }
 }
