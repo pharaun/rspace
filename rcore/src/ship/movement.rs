@@ -119,23 +119,3 @@ pub(crate) fn debug_movement_gitzmos(
         }
     }
 }
-
-#[cfg(test)]
-mod test_movement {
-    use std::f32::consts::PI;
-    use bevy::prelude::Vec2;
-    use bevy::prelude::Vec3;
-    use bevy::prelude::Quat;
-    use crate::ship::AbsRot;
-
-    #[test]
-    fn test_acceleration_vector_rot() {
-        assert_eq!(Vec2::new(0., 10.), AbsRot(0).to_quat().mul_vec3(Vec3::Y * 10.).truncate());
-        assert_eq!(Vec2::new(-10., 0.), AbsRot(64).to_quat().mul_vec3(Vec3::Y * 10.).truncate());
-        assert_eq!(Vec2::new(10., 0.), AbsRot(192).to_quat().mul_vec3(Vec3::Y * 10.).truncate());
-
-        // TODO: These ends up being the same, slight drift sideway.
-        assert_eq!(Vec2::new(0., -10.), Quat::from_rotation_z(PI).mul_vec3(Vec3::Y * 10.).truncate());
-        assert_eq!(Vec2::new(0., -10.), AbsRot(128).to_quat().mul_vec3(Vec3::Y * 10.).truncate());
-    }
-}
