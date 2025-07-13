@@ -16,10 +16,14 @@ use crate::ship::movement::MovDebug;
 use crate::ship::movement::debug_movement_gitzmos;
 
 pub mod rotation;
+use crate::ship::rotation::interpolate_rotation;
 use crate::ship::rotation::Rotation;
+use crate::ship::rotation::PreviousRotation;
 use crate::ship::rotation::apply_rotation;
 use crate::ship::rotation::RotDebug;
 use crate::ship::rotation::debug_rotation_gitzmos;
+use crate::ship::rotation::TargetRotation;
+use crate::ship::rotation::AbsRot;
 
 pub mod radar;
 use crate::ship::radar::Radar;
@@ -110,6 +114,7 @@ impl Plugin for ShipPlugins {
                 ),
             )
             .add_systems(Update, interpolate_transforms)
+            .add_systems(Update, interpolate_rotation)
             .add_systems(Update, debug_rotation_gitzmos)
             .add_systems(Update, debug_movement_gitzmos)
             .add_systems(Update, debug_radar_gitzmos)
@@ -129,7 +134,7 @@ impl Plugin for ShipPlugins {
 pub struct StarterShip {
     position: Vec2,
     velocity: Velocity,
-    rotation: Rotation,
+    rotation: TargetRotation,
     radar: Radar,
     script: Script,
 }
@@ -144,7 +149,7 @@ impl StarterShip {
 pub struct ShipBuilder {
     position: Vec2,
     velocity: Velocity,
-    rotation: Rotation,
+    rotation: TargetRotation,
     radar: Radar,
     script: Script,
 }
@@ -158,9 +163,9 @@ impl ShipBuilder {
                 acceleration: 0.0,
                 velocity_limit: 10.0,
             },
-            rotation: Rotation {
-                limit: f32::to_radians(90.),
-                target: Quat::from_rotation_z(f32::to_radians(0.))
+            rotation: TargetRotation {
+                limit: 64,
+                target: AbsRot::from_quat(Quat::from_rotation_z(f32::to_radians(0.))),
             },
             radar: Radar {
                 limit: 5.,
@@ -195,13 +200,13 @@ impl ShipBuilder {
 
     pub fn rotation(mut self, target: f32) -> ShipBuilder {
         let rotation = Quat::from_rotation_z(f32::to_radians(target));
-        self.rotation.target = rotation;
+        self.rotation.target = AbsRot::from_quat(rotation);
         self.radar.target = rotation;
         self
     }
 
-    pub fn rotation_limit(mut self, limit: f32) -> ShipBuilder {
-        self.rotation.limit = f32::to_radians(limit);
+    pub fn rotation_limit(mut self, limit: u8) -> ShipBuilder {
+        self.rotation.limit = limit;
         self
     }
 
@@ -252,8 +257,9 @@ pub fn add_ships(
             .line_to(Vec2::new(0.0, -4.5));
 
         let radar_target = ship.radar.target;
+        let ship_target = ship.rotation.target;
         let mut transform = Transform::from_translation(ship.position.extend(0.));
-        transform.rotate(ship.rotation.target);
+        transform.rotate(ship_target.to_quat());
 
         commands.spawn((
             ShapeBuilder::with(&ship_path)
@@ -271,6 +277,9 @@ pub fn add_ships(
             // Simulation components
             .insert(movement::Position(ship.position))
             .insert(movement::PreviousPosition(ship.position))
+
+            .insert(rotation::Rotation(ship_target))
+            .insert(rotation::PreviousRotation(ship_target))
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
             .insert(Collider::cuboid(10.0, 20.0))

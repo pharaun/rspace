@@ -10,8 +10,9 @@ use rust_dynamic::value::Value;
 
 use crate::ship::{
     movement::Velocity,
-    rotation::Rotation,
     collision::Collision,
+    rotation::AbsRot,
+    rotation::TargetRotation,
 };
 
 // TODO: Design
@@ -114,7 +115,7 @@ fn process_on_update(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
     mut query: Query<(Entity, &mut Script)>,
-    mut ship_query: Query<(&mut Velocity, &Collision, &mut Rotation, &Transform)>,
+    mut ship_query: Query<(&mut Velocity, &Collision, &mut TargetRotation, &Transform)>,
 ) {
     // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
@@ -148,7 +149,7 @@ fn process_on_update(
             if to_rot > f32::EPSILON {
                 // Is greater than zero, apply
                 let mut rotation = ship_query.get_mut(entity).unwrap().2;
-                rotation.target = rot * Quat::from_rotation_z(to_rot);
+                rotation.target = AbsRot::from_quat(rot * Quat::from_rotation_z(to_rot));
             }
 
             let to_accelerate: f32 = res.1;
