@@ -15,8 +15,8 @@ use rcore::script::ScriptPlugins;
 use rcore::ship::ShipPlugins;
 use rcore::ship::add_ships;
 use rcore::ship::ShipBuilder;
-use rcore::ship::rotation::RelRot;
-use rcore::ship::rotation::AbsRot;
+use rcore::math::RelRot;
+use rcore::math::AbsRot;
 
 fn main() {
     App::new()

@@ -6,6 +6,7 @@ use bevy_rapier2d::prelude::ActiveEvents;
 use bevy_rapier2d::prelude::Collider;
 use bevy_rapier2d::prelude::Sensor;
 
+use crate::math::AbsRot;
 use crate::script::Script;
 
 pub mod movement;
@@ -22,7 +23,6 @@ use crate::ship::rotation::apply_rotation;
 use crate::ship::rotation::RotDebug;
 use crate::ship::rotation::debug_rotation_gitzmos;
 use crate::ship::rotation::TargetRotation;
-use crate::ship::rotation::AbsRot;
 
 pub mod radar;
 use crate::ship::radar::Radar;

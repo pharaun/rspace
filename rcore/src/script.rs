@@ -10,12 +10,13 @@ use rust_dynamic::value::Value;
 
 use crate::ship::{
     movement::Velocity,
-    rotation::AbsRot,
     rotation::TargetRotation,
-    rotation::RelRot,
     movement::Position,
     rotation::Rotation,
 };
+
+use crate::math::AbsRot;
+use crate::math::RelRot;
 
 // TODO: Design
 //
