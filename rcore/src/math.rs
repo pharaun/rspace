@@ -5,7 +5,13 @@ use std::ops::Add;
 use bevy::prelude::EulerRot;
 use bevy::prelude::Quat;
 
-// TODO: move all of the Abs & Rel rotation stuff to its own game-math-lib spot
+// TODO: figure out better math stuff for integer angle math and stuff:
+// https://stackoverflow.com/questions/77480605/nextion-calculate-inverse-tan-arctan-without-trig-functions-or-floating-point
+// https://github.com/ddribin/trigint
+//
+// Would like to avoid floating point math/rotation/etc as much as possible to allow for integer
+// angles, and integer position. But for now this is good enough.
+
 // Stepped Rotation: inspiration bevy::math::Rot2 - Which is clamped to the range (-π, π]
 const FRAC_PI_128: f32 = PI / 128.0;
 

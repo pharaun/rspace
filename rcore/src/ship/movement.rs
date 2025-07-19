@@ -29,6 +29,9 @@ pub(crate) fn interpolate_transforms(
 }
 
 
+// TODO: for now have a single accleration vector from the main engine only, but eventually
+// I want to have RCS so that there can be a small amount of lateral and backward movement
+// but you would still need the main engine for heavy acceleration.
 #[derive(Component)]
 pub struct Velocity {
     pub acceleration: f32,

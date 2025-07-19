@@ -11,7 +11,7 @@ bevy_rapier2d = { version = "0.30", features = [ "debug-render-2d" ] }
 rust_dynamic = "0.48.0"
 
 # FPS dialog
-iyes_perf_ui = "0.5.0"
+bevy_screen_diagnostics = "0.8"
 
 [dependencies.bevy]
 version = "0.16"

@@ -1,10 +1,9 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use iyes_perf_ui::PerfUiPlugin;
-use iyes_perf_ui::ui::root::PerfUiRoot;
-use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPSWorst;
-use iyes_perf_ui::entries::diagnostics::PerfUiEntryFPS;
+use bevy_screen_diagnostics::ScreenDiagnosticsPlugin;
+use bevy_screen_diagnostics::ScreenEntityDiagnosticsPlugin;
+use bevy_screen_diagnostics::ScreenFrameDiagnosticsPlugin;
 
 use std::collections::HashMap;
 use rust_dynamic::value::Value;
@@ -118,18 +117,9 @@ pub struct FpsPlugins;
 impl Plugin for FpsPlugins {
     fn build(&self, app: &mut App) {
         // we want Bevy to measure these values for us:
-        app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
-            .add_plugins(PerfUiPlugin)
-            .add_systems(Startup, |mut commands: Commands| {
-                commands.spawn((
-                    PerfUiRoot {
-                        display_labels: false,
-                        layout_horizontal: true,
-                        ..default()
-                    },
-                    PerfUiEntryFPS::default(),
-                    PerfUiEntryFPSWorst::default(),
-                ));
-            });
+        app
+            .add_plugins(ScreenDiagnosticsPlugin::default())
+            .add_plugins(ScreenFrameDiagnosticsPlugin)
+            .add_plugins(ScreenEntityDiagnosticsPlugin);
     }
 }
