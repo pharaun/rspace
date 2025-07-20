@@ -35,14 +35,14 @@ fn main() {
         // things limit_r, target_r,
         .add_systems(Startup, |commands: Commands| {
             let ships = vec![
-                ShipBuilder::new(Script::new(on_init, on_update, on_collision))
+                ShipBuilder::new(Script::new(on_init, on_update, on_contact, on_collision))
                     .position(0, 0)
                     .velocity(0, 0)
                     .velocity_limit(100)
                     .rotation(AbsRot(0))
                     .rotation_limit(16)
-                    .radar_limit(5.)
-                    .radar_arc(180.)
+                    .radar(AbsRot(0))
+                    .radar_arc(64)
                     .build(),
             ];
 
@@ -59,6 +59,10 @@ fn on_init() -> HashMap<&'static str, Value> {
         ("acc", Value::from(20).unwrap()),
         ("dec", Value::from(10).unwrap()),
         ("rot", Value::from(-128).unwrap()),
+        // Variables
+        ("collision", Value::from(false).unwrap()),
+        ("target.x", Value::from(0).unwrap()),
+        ("target.y", Value::from(0).unwrap()),
     ])
 }
 
@@ -67,7 +71,7 @@ fn on_init() -> HashMap<&'static str, Value> {
 // - going upward it snaps between 180 and 0
 // - going downward it slowly changes between 0 to 180 and never quite snaps to 180
 // - figure out why
-fn on_update(state: &mut HashMap<&'static str, Value>, pos: IVec2, vel: IVec2, rot: AbsRot) -> (RelRot, i32) {
+fn on_update(state: &mut HashMap<&'static str, Value>, pos: IVec2, vel: IVec2, rot: AbsRot) -> (RelRot, i32, RelRot) {
     println!("on_update: Pos - {:?} - Vel - {:?} - Rot - {:?}", pos, vel, rot);
 
     let acc: i32 = state.get("acc").unwrap().cast_int().unwrap() as i32;
@@ -77,18 +81,24 @@ fn on_update(state: &mut HashMap<&'static str, Value>, pos: IVec2, vel: IVec2, r
     if rot == AbsRot(0) || rot == AbsRot(128) {
         if vel.y < 95 && rot == AbsRot(0){
             println!("Accelerate");
-            (RelRot(0), acc)
+            (RelRot(0), acc, RelRot(0))
         } else if vel.y > -95 && rot == AbsRot(128) {
             println!("Decelerate");
-            (RelRot(0), dec)
+            (RelRot(0), dec, RelRot(0))
         } else {
-            println!("Rotate");
-            (RelRot(arot), 0)
+            println!("Rotate & Radar");
+            (RelRot(arot), 0, RelRot(64))
         }
     } else {
         println!("Idle");
-        (RelRot(0), 0)
+        (RelRot(0), 0, RelRot(0))
     }
+}
+
+fn on_contact(state: &mut HashMap<&'static str, Value>, target_pos: IVec2) {
+    state.insert("target.x", Value::from(target_pos.x).unwrap());
+    state.insert("target.y", Value::from(target_pos.y).unwrap());
+    println!("on_contact");
 }
 
 fn on_collision(state: &mut HashMap<&'static str, Value>) {

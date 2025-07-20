@@ -13,6 +13,7 @@ use crate::ship::{
     rotation::TargetRotation,
     movement::Position,
     rotation::Rotation,
+    radar::ContactEvent,
 };
 
 use crate::math::AbsRot;
@@ -58,20 +59,23 @@ use crate::math::RelRot;
 #[derive(Component)]
 pub struct Script {
     state: Arc<Mutex<HashMap<&'static str, Value>>>,
-    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32) + Send + Sync>,
+    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot) + Send + Sync>,
+    on_contact: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2) + Send + Sync>,
     on_collision: Box<dyn Fn(&mut HashMap<&'static str, Value>) + Send + Sync>,
 }
 
 impl Script {
-    pub fn new<I, U, C>(on_init: I, on_update: U, on_collision: C) -> Script
+    pub fn new<I, U, R, C>(on_init: I, on_update: U, on_contact: R, on_collision: C) -> Script
     where
         I: Fn() -> HashMap<&'static str, Value>,
-        U: Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32) + Send + Sync + 'static,
+        U: Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot) + Send + Sync + 'static,
+        R: Fn(&mut HashMap<&'static str, Value>, IVec2) + Send + Sync + 'static,
         C: Fn(&mut HashMap<&'static str, Value>) -> () + Send + Sync + 'static,
     {
         Script {
             state: Arc::new(Mutex::new(on_init())),
             on_update: Box::new(on_update),
+            on_contact: Box::new(on_contact),
             on_collision: Box::new(on_collision),
         }
     }
@@ -85,8 +89,8 @@ impl Plugin for ScriptPlugins {
     fn build(&self, app: &mut App) {
         app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 1.0, TimerMode::Repeating)))
             .add_systems(Update, process_on_update)
-            // TODO: on_sensor
-            .add_systems(Update, process_on_collision);
+            .add_systems(Update, process_on_collision)
+            .add_systems(Update, process_on_contact);
     }
 }
 
@@ -110,6 +114,24 @@ fn process_on_collision(
                 }
             },
             _ => (),
+        }
+    }
+}
+
+fn process_on_contact(
+    mut contact_events: EventReader<ContactEvent>,
+    mut query: Query<(Entity, &Position, &mut Script)>,
+) {
+    // Invoke the script for contact
+    for contact_event in contact_events.read() {
+        let ContactEvent(e1, e2) = contact_event;
+        if let Ok([(_, _, e1_script), (_, e2_pos, _)]) = query.get_many_mut([*e1, *e2]) {
+            // E1 knows where e2 is
+            let state = e1_script.state.clone();
+            let mut mut_state = state.lock().unwrap();
+            (e1_script.on_contact)(&mut mut_state, e2_pos.0);
+        } else {
+            println!("ERROR - SCRIPT - {:?}", contact_event);
         }
     }
 }
@@ -147,7 +169,7 @@ fn process_on_update(
                 vel.velocity,
                 rot,
             );
-            // [ to_rot, to_vel ]
+            // [ to_rot, to_vel , to_rdr_rot ]
             println!("Ret - {:?}", res);
 
             // Always apply
@@ -156,6 +178,8 @@ fn process_on_update(
 
             let mut velocity = ship_query.get_mut(entity).unwrap().0;
             velocity.acceleration = res.1;
+
+            // TODO: Radar apply
         }
     }
 }

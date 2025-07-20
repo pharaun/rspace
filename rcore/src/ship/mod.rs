@@ -28,9 +28,10 @@ use crate::ship::rotation::TargetRotation;
 
 pub mod radar;
 use crate::ship::radar::Radar;
-use crate::ship::radar::apply_radar_rotation;
+use crate::ship::radar::apply_radar;
 use crate::ship::radar::RadarDebug;
 use crate::ship::radar::debug_radar_gitzmos;
+use crate::ship::radar::ContactEvent;
 
 pub mod collision;
 use crate::ship::collision::Collision;
@@ -106,12 +107,14 @@ impl Plugin for ShipPlugins {
         app.add_plugins(ShapePlugin)
             //.insert_resource(Time::<Fixed>::from_hz(64.0))
             .insert_resource(Time::<Fixed>::from_hz(2.0))
+            .add_event::<ContactEvent>()
             .add_systems(
                 FixedUpdate,
                 (
                     apply_velocity,
                     apply_rotation,
-                    apply_radar_rotation,
+                    // TODO: apply radar rotation, then process radar_event
+                    apply_radar,
                 ),
             )
             .add_systems(
@@ -171,13 +174,13 @@ impl ShipBuilder {
             },
             rotation: TargetRotation {
                 limit: 16,
-                target: AbsRot::from_quat(Quat::from_rotation_z(f32::to_radians(0.))),
+                target: AbsRot(0),
             },
             radar: Radar {
-                limit: 5.,
-                arc: f32::to_radians(180.),
-                // Start off same direction as the parent ship
-                target: Quat::from_rotation_z(f32::to_radians(0.))
+                current: AbsRot(0),
+                target: AbsRot(0),
+                current_arc: 64,
+                target_arc: 64,
             },
             script,
         }
@@ -206,7 +209,9 @@ impl ShipBuilder {
 
     pub fn rotation(mut self, rotation: AbsRot) -> ShipBuilder {
         self.rotation.target = rotation;
-        self.radar.target = rotation.to_quat();
+        // Default target radar same direction as the ship
+        self.radar.current = rotation;
+        self.radar.target = rotation;
         self
     }
 
@@ -215,13 +220,15 @@ impl ShipBuilder {
         self
     }
 
-    pub fn radar_arc(mut self, arc: f32) -> ShipBuilder {
-        self.radar.arc = f32::to_radians(arc);
+    pub fn radar(mut self, rotation: AbsRot) -> ShipBuilder {
+        self.radar.current = rotation;
+        self.radar.target = rotation;
         self
     }
 
-    pub fn radar_limit(mut self, limit: f32) -> ShipBuilder {
-        self.radar.limit = limit;
+    pub fn radar_arc(mut self, arc: u8) -> ShipBuilder {
+        self.radar.current_arc = arc;
+        self.radar.target_arc = arc;
         self
     }
 
@@ -302,7 +309,8 @@ pub fn add_ships(
             // Insert the graphics for the radar dish
             .with_children(|parent| {
                 let mut transform = Transform::from_translation(Vec2::new(0., -2.).extend(1.));
-                transform.rotate(radar_target);
+                // TODO: this is probs wrong and needs to be fixed
+                transform.rotate(radar_target.to_quat());
 
                 parent.spawn((
                     ShapeBuilder::with(&radar_path)

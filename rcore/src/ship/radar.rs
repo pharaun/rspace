@@ -1,14 +1,7 @@
 use bevy::prelude::*;
 
-// Radar:
-//  TODO: Other types such as fixed radar (missiles?) and rotating radar
-//  - Direction + arc-width (boosting detection distance)
-#[derive(Component)]
-pub struct Radar {
-    pub limit: f32, // Per second?
-    pub arc: f32, // Radian the width of the arc
-    pub target: Quat, // Direction the radar should be pointing in
-}
+use crate::math::AbsRot;
+use crate::ship::movement::Position;
 
 // TODO:
 // - radar rotation system
@@ -26,11 +19,48 @@ pub struct Radar {
 // with ECM and any other warfare stuff later
 // - This approach is basically "converting" each entities into a polaris coordination from your
 // ship/radar
-pub(crate) fn apply_radar_rotation(
-    _time: Res<Time<Fixed>>,
-    mut query: Query<(&Radar, &mut Transform)>,
+
+// Radar contact event,
+// 0 - self, 1 - target
+#[derive(Event, Copy, Clone, Debug)]
+pub struct ContactEvent (pub Entity, pub Entity);
+
+// Radar:
+//  TODO: Other types such as fixed radar (missiles?) and rotating radar
+//  - Direction + arc-width (boosting detection distance)
+//  - Add rendering iterpolation
+#[derive(Component)]
+pub struct Radar {
+    pub current: AbsRot,
+    pub target: AbsRot,
+
+    // Units arc - [0 = off, 1 = 1/256th of an arc, max 128]
+    pub current_arc: u8,
+    pub target_arc: u8,
+}
+
+// TODO: split this and setup system ordering but for now.
+pub(crate) fn apply_radar(
+    mut events: EventWriter<ContactEvent>,
+    ships: Query<Entity>,
+    mut query: Query<(Entity, &mut Radar, &mut Transform, &Position)>,
+    _target_query: Query<(Entity, &Position)>,
 ) {
-    for (_radar, _tran) in query.iter_mut() {
+    for (self_entity, mut radar, mut transform, _position) in query.iter_mut() {
+        // Update radar rotation & arc width
+        radar.current = radar.target;
+        radar.current_arc = radar.target_arc;
+
+        // Deal with transform
+        // TODO: Grab parent rotation and cancel it. This radar type is an AbsRadar for now
+        transform.rotation = radar.current.to_quat();
+
+        // Scan through all target on field, and calculate their distance and angle,
+        // if within the arc store it in a list till we know the closest contact
+//        for ship in ships.iter_ancestors(self_entity) {
+//            println!("Ship: {:?}", ship);
+//            //events.write(ContactEvent(self_entity, self_entity));
+//        }
     }
 }
 
