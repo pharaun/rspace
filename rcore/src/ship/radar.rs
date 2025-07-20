@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::math::RelRot;
 use crate::math::AbsRot;
 use crate::ship::movement::Position;
 
@@ -53,7 +54,7 @@ pub(crate) fn apply_radar(
 
         // Deal with transform
         // TODO: Grab parent rotation and cancel it. This radar type is an AbsRadar for now
-        transform.rotation = radar.current.to_quat();
+        //transform.rotation = radar.current.to_quat();
 
         // Scan through all target on field, and calculate their distance and angle,
         // if within the arc store it in a list till we know the closest contact
@@ -69,9 +70,53 @@ pub(crate) fn apply_radar(
 pub struct RadarDebug;
 
 pub(crate) fn debug_radar_gitzmos(
-    _gizmos: Gizmos,
+    mut gizmos: Gizmos,
     query: Query<(&Transform, &Radar), With<RadarDebug>>
 ) {
-    for (_tran, _radar) in query.iter() {
+    for (tran, radar) in query.iter() {
+        let base = tran.translation.truncate();
+        let heading = radar.current;
+        let target = radar.target;
+
+        let cw_arc = heading + RelRot((radar.current_arc / 2) as i8);
+        let ccw_arc = heading + RelRot(-((radar.current_arc / 2) as i8));
+
+        // Current heading
+        gizmos.line_2d(
+            base + heading.to_quat().mul_vec3(Vec3::Y * 110.).truncate(),
+            base + heading.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            bevy::color::palettes::css::RED,
+        );
+
+        // Target heading
+        gizmos.line_2d(
+            base + target.to_quat().mul_vec3(Vec3::Y * 110.).truncate(),
+            base + target.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
+            bevy::color::palettes::css::GREEN,
+        );
+
+        // Radar arc - only current for now
+        gizmos.line_2d(
+            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
+            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            bevy::color::palettes::css::YELLOW,
+        );
+        gizmos.short_arc_2d_between(
+            base,
+            base + heading.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            bevy::color::palettes::css::YELLOW,
+        );
+        gizmos.line_2d(
+            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
+            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            bevy::color::palettes::css::YELLOW,
+        );
+        gizmos.short_arc_2d_between(
+            base,
+            base + heading.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            bevy::color::palettes::css::YELLOW,
+        );
     }
 }

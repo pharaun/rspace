@@ -146,6 +146,7 @@ pub struct StarterShip {
     rotation: TargetRotation,
     radar: Radar,
     script: Script,
+    debug: bool,
 }
 
 impl StarterShip {
@@ -161,6 +162,7 @@ pub struct ShipBuilder {
     rotation: TargetRotation,
     radar: Radar,
     script: Script,
+    debug: bool,
 }
 
 impl ShipBuilder {
@@ -183,6 +185,7 @@ impl ShipBuilder {
                 target_arc: 64,
             },
             script,
+            debug: false,
         }
     }
 
@@ -232,6 +235,11 @@ impl ShipBuilder {
         self
     }
 
+    pub fn debug(mut self, debug: bool) -> ShipBuilder {
+        self.debug = debug;
+        self
+    }
+
     pub fn script(mut self, script: Script) -> ShipBuilder {
         self.script = script;
         self
@@ -245,6 +253,7 @@ impl ShipBuilder {
             rotation: self.rotation,
             radar: self.radar,
             script: self.script,
+            debug: self.debug,
         }
     }
 }
@@ -273,13 +282,15 @@ pub fn add_ships(
         let mut transform = Transform::from_translation(vec_scale(ship.position, ARENA_SCALE).extend(0.));
         transform.rotate(ship_target.to_quat());
 
-        commands.spawn((
+        let mut spawned_ship = commands.spawn((
             ShapeBuilder::with(&ship_path)
                 .fill(Fill::color(bevy::color::palettes::css::GREEN))
                 .stroke(Stroke::new(bevy::color::palettes::css::BLACK, 2.0))
                 .build(),
             transform
-        ))
+        ));
+
+        spawned_ship
             .insert(Ship)
             .insert(ship.velocity)
             .insert(ship.rotation)
@@ -299,11 +310,6 @@ pub fn add_ships(
             .insert(ActiveEvents::COLLISION_EVENTS)
             .insert(Sensor)
 
-            // Debug bits
-            .insert(MovDebug)
-            .insert(RotDebug)
-            .insert(RadarDebug)
-
             .insert(Collision(0))
 
             // Insert the graphics for the radar dish
@@ -319,5 +325,12 @@ pub fn add_ships(
                     transform
                 ));
             });
+
+        if ship.debug {
+            spawned_ship
+                .insert(MovDebug)
+                .insert(RotDebug)
+                .insert(RadarDebug);
+        }
     }
 }

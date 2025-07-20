@@ -14,6 +14,7 @@ use crate::ship::{
     movement::Position,
     rotation::Rotation,
     radar::ContactEvent,
+    radar::Radar,
 };
 
 use crate::math::AbsRot;
@@ -142,7 +143,8 @@ fn process_on_update(
     mut query: Query<(Entity, &mut Script)>,
     mut ship_query: Query<(
         &mut Velocity, &Position,
-        &mut TargetRotation, &Rotation
+        &mut TargetRotation, &Rotation,
+        &mut Radar,
     )>,
 ) {
     // handle normal on_update ticks
@@ -173,13 +175,14 @@ fn process_on_update(
             println!("Ret - {:?}", res);
 
             // Always apply
-            let mut rotation = ship_query.get_mut(entity).unwrap().2;
-            rotation.target += res.0;
-
             let mut velocity = ship_query.get_mut(entity).unwrap().0;
             velocity.acceleration = res.1;
 
-            // TODO: Radar apply
+            let mut rotation = ship_query.get_mut(entity).unwrap().2;
+            rotation.target += res.0;
+
+            let mut radar = ship_query.get_mut(entity).unwrap().4;
+            radar.target += res.2;
         }
     }
 }
