@@ -4,23 +4,25 @@ use bevy_prototype_lyon::prelude::*;
 use crate::ship::movement::Position;
 use crate::ship::movement::PreviousPosition;
 
-// TODO: Temp size for now
-pub const ARENA_WIDTH: f32 = 1024.0;
-pub const ARENA_HEIGHT: f32 = 640.0;
+// This is the display area
+const DISPLAY: Vec2 = Vec2::new(1024., 640.);
+
+// This is the actual ship-arena
+const ARENA: IVec2 = IVec2::new(10240, 6400);
 
 #[derive(Component)]
 struct CameraMarker;
 
+// TODO: add an Arena Marker for ships and stuff for objects we want to have warping
+// enabled for, versus objects we don't.
 #[derive(Component)]
 struct ArenaMarker;
 
-// TODO: Add more support for other things like gizmos to support the wrap
 pub struct ArenaPlugins;
 impl Plugin for ArenaPlugins {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, camera_setup)
             .add_systems(Startup, add_arena_bounds)
-            .add_systems(PostUpdate, wrap_transform)
             .add_systems(PostUpdate, wrap_position);
     }
 }
@@ -32,22 +34,30 @@ fn camera_setup(mut commands: Commands) {
     ));
 }
 
-// Take care of any existing Transform to make sure it wraps around into the arena again
+// The gizmo renders are based off the wrapped ship position which is 1:1 at the moment.
+//
 // TODO: make sure this only affects transforms for things within the arena, maybe an arena tag is
 // needed
 // TODO: May want to change this to instead wrap the game-areana and change this to be a render
 // concern
-fn wrap_transform(mut query: Query<&mut Transform, Changed<Transform>>) {
-    for mut tran in query.iter_mut() {
-        let res = wrap(tran.translation.truncate());
-        tran.translation.y += res.y;
-        tran.translation.x += res.x;
-    }
-}
-
 fn wrap_position(mut query: Query<(&mut Position, &mut PreviousPosition), Changed<Position>>) {
     for (mut pos, mut ppos) in query.iter_mut() {
-        let res = wrap(pos.0);
+        let res: IVec2 = {
+            let mut ret = IVec2::new(0, 0);
+
+            if pos.0.y < -(ARENA.y / 2) {
+                ret.y += ARENA.y;
+            } else if pos.0.y > (ARENA.y / 2) {
+                ret.y -= ARENA.y;
+            }
+
+            if pos.0.x < -(ARENA.x / 2) {
+                ret.x += ARENA.x;
+            } else if pos.0.x > (ARENA.x / 2) {
+                ret.x -= ARENA.x;
+            }
+            ret
+        };
         pos.0.y += res.y;
         ppos.0.y += res.y;
 
@@ -56,30 +66,12 @@ fn wrap_position(mut query: Query<(&mut Position, &mut PreviousPosition), Change
     }
 }
 
-fn wrap(vec: Vec2) -> Vec2 {
-    let mut ret = Vec2::new(0., 0.);
-
-    if vec.y < -(ARENA_HEIGHT / 2.0) {
-        ret.y += ARENA_HEIGHT;
-    } else if vec.y > (ARENA_HEIGHT / 2.0) {
-        ret.y -= ARENA_HEIGHT;
-    }
-
-    if vec.x < -(ARENA_WIDTH / 2.0) {
-        ret.x += ARENA_WIDTH;
-    } else if vec.x > (ARENA_WIDTH / 2.0) {
-        ret.x -= ARENA_WIDTH;
-    }
-
-    ret
-}
-
 fn add_arena_bounds(mut commands: Commands) {
     let path = ShapePath::new()
-        .move_to(Vec2::new(-(ARENA_WIDTH / 2.0), -(ARENA_HEIGHT / 2.0)))
-        .line_to(Vec2::new(ARENA_WIDTH / 2.0, -(ARENA_HEIGHT / 2.0)))
-        .line_to(Vec2::new(ARENA_WIDTH / 2.0, ARENA_HEIGHT / 2.0))
-        .line_to(Vec2::new(-(ARENA_WIDTH / 2.0), ARENA_HEIGHT / 2.0))
+        .move_to(Vec2::new(-(DISPLAY.x / 2.0), -(DISPLAY.y / 2.0)))
+        .line_to(Vec2::new(DISPLAY.x / 2.0, -(DISPLAY.y / 2.0)))
+        .line_to(Vec2::new(DISPLAY.x / 2.0, DISPLAY.y / 2.0))
+        .line_to(Vec2::new(-(DISPLAY.x / 2.0), DISPLAY.y / 2.0))
         .close();
 
     commands.spawn((

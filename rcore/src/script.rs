@@ -58,7 +58,7 @@ use crate::math::RelRot;
 #[derive(Component)]
 pub struct Script {
     state: Arc<Mutex<HashMap<&'static str, Value>>>,
-    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, Vec2, Vec2, AbsRot) -> (RelRot, f32) + Send + Sync>,
+    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32) + Send + Sync>,
     on_collision: Box<dyn Fn(&mut HashMap<&'static str, Value>) + Send + Sync>,
 }
 
@@ -66,7 +66,7 @@ impl Script {
     pub fn new<I, U, C>(on_init: I, on_update: U, on_collision: C) -> Script
     where
         I: Fn() -> HashMap<&'static str, Value>,
-        U: Fn(&mut HashMap<&'static str, Value>, Vec2, Vec2, AbsRot) -> (RelRot, f32) + Send + Sync + 'static,
+        U: Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32) + Send + Sync + 'static,
         C: Fn(&mut HashMap<&'static str, Value>) -> () + Send + Sync + 'static,
     {
         Script {

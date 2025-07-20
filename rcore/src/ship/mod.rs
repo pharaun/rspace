@@ -136,7 +136,7 @@ impl Plugin for ShipPlugins {
 // each ship)
 // - Dig into ECS archtype to help with some of these setup stuff
 pub struct StarterShip {
-    position: Vec2,
+    position: IVec2,
     velocity: Velocity,
     rotation: TargetRotation,
     radar: Radar,
@@ -151,7 +151,7 @@ impl StarterShip {
 
 // Builder to make building a starter ship nicer
 pub struct ShipBuilder {
-    position: Vec2,
+    position: IVec2,
     velocity: Velocity,
     rotation: TargetRotation,
     radar: Radar,
@@ -161,11 +161,11 @@ pub struct ShipBuilder {
 impl ShipBuilder {
     pub fn new(script: Script) -> ShipBuilder {
         ShipBuilder {
-            position: Vec2::new(0., 0.),
+            position: IVec2::new(0, 0),
             velocity: Velocity {
-                velocity: Vec2::new(0., 0.),
-                acceleration: 0.0,
-                velocity_limit: 10.0,
+                velocity: IVec2::new(0, 0),
+                acceleration: 0,
+                velocity_limit: 100,
             },
             rotation: TargetRotation {
                 limit: 16,
@@ -182,30 +182,29 @@ impl ShipBuilder {
     }
 
     // Settings
-    pub fn position(mut self, position: Vec2) -> ShipBuilder {
-        self.position = position;
+    pub fn position(mut self, x: i32, y: i32) -> ShipBuilder {
+        self.position = IVec2::new(x, y);
         self
     }
 
-    pub fn velocity(mut self, velocity: Vec2) -> ShipBuilder {
-        self.velocity.velocity = velocity;
+    pub fn velocity(mut self, x: i32, y: i32) -> ShipBuilder {
+        self.velocity.velocity = IVec2::new(x, y);
         self
     }
 
-    pub fn acceleration(mut self, acceleration: f32) -> ShipBuilder {
+    pub fn acceleration(mut self, acceleration: i32) -> ShipBuilder {
         self.velocity.acceleration = acceleration;
         self
     }
 
-    pub fn velocity_limit(mut self, limit: f32) -> ShipBuilder {
+    pub fn velocity_limit(mut self, limit: u32) -> ShipBuilder {
         self.velocity.velocity_limit = limit;
         self
     }
 
-    pub fn rotation(mut self, target: f32) -> ShipBuilder {
-        let rotation = Quat::from_rotation_z(f32::to_radians(target));
-        self.rotation.target = AbsRot::from_quat(rotation);
-        self.radar.target = rotation;
+    pub fn rotation(mut self, rotation: AbsRot) -> ShipBuilder {
+        self.rotation.target = rotation;
+        self.radar.target = rotation.to_quat();
         self
     }
 
@@ -262,7 +261,7 @@ pub fn add_ships(
 
         let radar_target = ship.radar.target;
         let ship_target = ship.rotation.target;
-        let mut transform = Transform::from_translation(ship.position.extend(0.));
+        let mut transform = Transform::from_translation(Vec2::new(ship.position.x as f32, ship.position.y as f32).extend(0.));
         transform.rotate(ship_target.to_quat());
 
         commands.spawn((
