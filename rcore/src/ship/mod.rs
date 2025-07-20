@@ -8,6 +8,8 @@ use bevy_rapier2d::prelude::Sensor;
 
 use crate::math::AbsRot;
 use crate::script::Script;
+use crate::math::vec_scale;
+use crate::arena::ARENA_SCALE;
 
 pub mod movement;
 use crate::ship::movement::interpolate_transforms;
@@ -261,7 +263,7 @@ pub fn add_ships(
 
         let radar_target = ship.radar.target;
         let ship_target = ship.rotation.target;
-        let mut transform = Transform::from_translation(Vec2::new(ship.position.x as f32, ship.position.y as f32).extend(0.));
+        let mut transform = Transform::from_translation(vec_scale(ship.position, ARENA_SCALE).extend(0.));
         transform.rotate(ship_target.to_quat());
 
         commands.spawn((

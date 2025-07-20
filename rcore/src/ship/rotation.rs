@@ -23,7 +23,7 @@ pub(crate) fn interpolate_rotation(
     for (mut transform, rotation, previous_rotation) in &mut query {
         // Note: `slerp` will always take the shortest path, but when the two rotations are more than
         // 180 degrees apart, this can cause visual artifacts as the rotation "flips" to the other side.
-        transform.rotation = previous_rotation.0.to_quat().slerp(rotation.0.to_quat(), overstep);
+        transform.rotation = previous_rotation.0.transform_slerp(rotation.0, overstep);
     }
 }
 

@@ -75,10 +75,10 @@ fn on_update(state: &mut HashMap<&'static str, Value>, pos: IVec2, vel: IVec2, r
     let arot: i8 = state.get("rot").unwrap().cast_int().unwrap() as i8;
 
     if rot == AbsRot(0) || rot == AbsRot(128) {
-        if vel.y < 100 && rot == AbsRot(0){
+        if vel.y < 95 && rot == AbsRot(0){
             println!("Accelerate");
             (RelRot(0), acc)
-        } else if vel.y > -100 && rot == AbsRot(128) {
+        } else if vel.y > -95 && rot == AbsRot(128) {
             println!("Decelerate");
             (RelRot(0), dec)
         } else {

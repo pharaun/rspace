@@ -1,5 +1,8 @@
 use bevy::prelude::*;
+use crate::arena::ARENA_SCALE;
 use crate::ship::Rotation;
+use crate::math::vec_scale;
+use crate::math::un_vec_scale;
 
 // Simulation position,
 // Transform is separate and a visual layer, we need to redo the code to better
@@ -24,28 +27,13 @@ pub(crate) fn interpolate_transforms(
 
     for (mut transform, position, previous_position) in &mut query {
         // Scale
-        let scaled_position = vec_scale(position.0, 10.);
-        let scaled_previous_position = vec_scale(previous_position.0, 10.);
+        let scaled_position = vec_scale(position.0, ARENA_SCALE);
+        let scaled_previous_position = vec_scale(previous_position.0, ARENA_SCALE);
 
         // Linearly interpolate the translation from the old position to the current one.
         transform.translation = scaled_previous_position.lerp(scaled_position, overstep).extend(0.);
     }
 }
-
-fn vec_scale(vec: IVec2, factor: f32) -> Vec2 {
-    Vec2::new(
-        vec.x as f32 / factor,
-        vec.y as f32 / factor,
-    )
-}
-
-fn un_vec_scale(vec: Vec2, factor: f32) -> IVec2 {
-    IVec2::new(
-        (vec.x * factor) as i32,
-        (vec.y * factor) as i32,
-    )
-}
-
 
 // TODO: for now have a single accleration vector from the main engine only, but eventually
 // I want to have RCS so that there can be a small amount of lateral and backward movement
@@ -69,41 +57,46 @@ pub(crate) fn apply_velocity(
     for (mut vec, rot, mut position, mut previous_position) in query.iter_mut() {
         previous_position.0 = position.0;
 
-        // TODO: figure out how to lerp? There is also an awkward sideward acceleration
-        // when we rotate 180, figure out why that happens
-        let mut acceleration = rot.0.to_quat().mul_vec3(Vec3::Y * (vec.acceleration as f32)).truncate();
-
-        println!("Accel: {:?}", acceleration);
-
-        // Apply Lorentz factor only if it will increase the velocity
-        // Inspiration: https://stackoverflow.com/a/2891162
-        let old_velocity = vec_scale(vec.velocity, 1.0);
-        let new_velocity = old_velocity + acceleration * time.delta_secs();
-
-        // TODO: this is not realistic, but keeps ship controllable (ie easy deceleration)
-        if new_velocity.length_squared() > old_velocity.length_squared() {
-            // Y = 1 / Sqrt(1 - v^2/c^2), Clamp (1 - v^2/c^2) to float min to avoid NaN and inf
-            // Simplified via multiplying by the factor rather than diving
-            let lorentz = (
-                (1.0 - (
-                    old_velocity.length_squared() / (vec.velocity_limit as f32).powi(2)
-                )).max(0.0)
-            ).sqrt();
-
-            // TODO: it does go over 10 but that's cuz of delta-time and changing acceleration
-            // curves, plus floating point imprecision... See if there's a better way to do it or
-            // if we need to bite the bullet and go for a integrator for these
-            acceleration *= lorentz;
-        }
-
+        // Calculate lorentz factor to apply to acceleration
         // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
         // do so. Could optionally allow for a heading change while preserving the current velocity
-        // TODO: fix this up to use integer vectors + accelerations
-        vec.velocity += un_vec_scale(acceleration * time.delta_secs(), 1.0);
+        let acceleration: Vec2 = rot.0.to_quat().mul_vec3(Vec3::Y * (vec.acceleration as f32)).truncate();
+        let factor = calculate_lorentz_factor(
+            &vec_scale(vec.velocity, 1.0),
+            &acceleration,
+            vec.velocity_limit,
+            &time
+        );
+
+        vec.velocity += un_vec_scale(acceleration * factor * time.delta_secs(), 1.0);
         position.0 += un_vec_scale(vec_scale(vec.velocity, 1.0) * time.delta_secs(), 1.0);
     }
 }
 
+fn calculate_lorentz_factor<T>(
+    velocity: &Vec2,
+    acceleration: &Vec2,
+    velocity_limit: u32,
+    time: &Time<T>
+) -> f32
+where
+    T: std::default::Default
+{
+    // Apply Lorentz factor only if it will increase the velocity,
+    // this is not realistic but permits easy deceleration for the ship
+    // Inspiration: https://stackoverflow.com/a/2891162
+    let old_velocity_length = velocity.length_squared();
+    let new_velocity_length = (velocity + acceleration * time.delta_secs()).length_squared();
+
+    if new_velocity_length > old_velocity_length {
+        // Y = 1 / Sqrt(1 - v^2/c^2)
+        // Clamp (1 - v^2/c^2) to float min to avoid NaN and inf
+        // Simplified via multiplying by the factor rather than dividing
+        (1.0 - (old_velocity_length / (velocity_limit as f32).powi(2))).max(0.0).sqrt()
+    } else {
+        1.0
+    }
+}
 
 #[derive(Component)]
 pub struct MovDebug;
@@ -127,8 +120,8 @@ pub(crate) fn debug_movement_gitzmos(
 
         // Velocity direction
         gizmos.line_2d(
-            base + Vec2::new(velocity.x as f32, velocity.y as f32).normalize() * 30.,
-            base + Vec2::new(velocity.x as f32, velocity.y as f32).normalize() * 50.,
+            base + vec_scale(velocity, 1.).normalize() * 30.,
+            base + vec_scale(velocity, 1.).normalize() * 50.,
             bevy::color::palettes::css::GREEN,
         );
 

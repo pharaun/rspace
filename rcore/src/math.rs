@@ -4,6 +4,22 @@ use std::ops::Add;
 
 use bevy::prelude::EulerRot;
 use bevy::prelude::Quat;
+use bevy::prelude::Vec2;
+use bevy::prelude::IVec2;
+
+pub fn vec_scale(vec: IVec2, factor: f32) -> Vec2 {
+    Vec2::new(
+        vec.x as f32 / factor,
+        vec.y as f32 / factor,
+    )
+}
+
+pub fn un_vec_scale(vec: Vec2, factor: f32) -> IVec2 {
+    IVec2::new(
+        (vec.x * factor) as i32,
+        (vec.y * factor) as i32,
+    )
+}
 
 // TODO: figure out better math stuff for integer angle math and stuff:
 // https://stackoverflow.com/questions/77480605/nextion-calculate-inverse-tan-arctan-without-trig-functions-or-floating-point
@@ -44,6 +60,10 @@ impl AbsRot {
     // TODO: Hack flipped the sign, need to figure out what we want semantics wise first
     pub fn angle_between(&self, target: AbsRot) -> RelRot {
         RelRot(-(self.0 as i16 - target.0 as i16) as i8)
+    }
+
+    pub fn transform_slerp(&self, end: AbsRot, f: f32) -> Quat {
+        self.to_quat().slerp(end.to_quat(), f)
     }
 }
 

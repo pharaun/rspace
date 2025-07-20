@@ -8,6 +8,7 @@ use crate::ship::movement::PreviousPosition;
 const DISPLAY: Vec2 = Vec2::new(1024., 640.);
 
 // This is the actual ship-arena
+pub const ARENA_SCALE: f32 = 10.0;
 const ARENA: IVec2 = IVec2::new(10240, 6400);
 
 #[derive(Component)]
