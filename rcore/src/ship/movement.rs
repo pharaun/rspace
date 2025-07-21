@@ -7,7 +7,7 @@ use crate::math::un_vec_scale;
 // Simulation position,
 // Transform is separate and a visual layer, we need to redo the code to better
 // separate the rendering layer from the simulation layer
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct Position(pub IVec2);
 
 #[derive(Component)]

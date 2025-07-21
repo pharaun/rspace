@@ -3,6 +3,7 @@ use bevy_rapier2d::prelude::*;
 
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::fmt;
 
 use std::boxed::Box;
 use std::collections::HashMap;
@@ -63,6 +64,12 @@ pub struct Script {
     on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot) + Send + Sync>,
     on_contact: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2) + Send + Sync>,
     on_collision: Box<dyn Fn(&mut HashMap<&'static str, Value>) + Send + Sync>,
+}
+
+impl fmt::Debug for Script {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<Script>")
+    }
 }
 
 impl Script {
@@ -126,6 +133,8 @@ fn process_on_contact(
     // Invoke the script for contact
     for contact_event in contact_events.read() {
         let ContactEvent(e1, e2) = contact_event;
+        // TODO: right now with the ContactEvent being copies it leads to aliased query here,
+        // This should be fixed once we have proper contact event that does not refer to self
         if let Ok([(_, _, e1_script), (_, e2_pos, _)]) = query.get_many_mut([*e1, *e2]) {
             // E1 knows where e2 is
             let state = e1_script.state.clone();
@@ -144,8 +153,9 @@ fn process_on_update(
     mut ship_query: Query<(
         &mut Velocity, &Position,
         &mut TargetRotation, &Rotation,
-        &mut Radar,
+        &Children
     )>,
+    mut radar_query: Query<&mut Radar>,
 ) {
     // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
@@ -181,8 +191,14 @@ fn process_on_update(
             let mut rotation = ship_query.get_mut(entity).unwrap().2;
             rotation.target += res.0;
 
-            let mut radar = ship_query.get_mut(entity).unwrap().4;
-            radar.target += res.2;
+            // Radar is on the children entity of the ship
+            let children = ship_query.get(entity).unwrap().4;
+            for child_entity in children {
+                if let Ok(mut radar) = radar_query.get_mut(*child_entity) {
+                    radar.target += res.2;
+                }
+            }
+
         }
     }
 }

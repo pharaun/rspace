@@ -43,25 +43,24 @@ pub struct Radar {
 // TODO: split this and setup system ordering but for now.
 pub(crate) fn apply_radar(
     mut events: EventWriter<ContactEvent>,
-    ships: Query<Entity>,
-    mut query: Query<(Entity, &mut Radar, &mut Transform, &Position)>,
-    _target_query: Query<(Entity, &Position)>,
+    mut query: Query<(&mut Radar, &mut Transform, &ChildOf)>,
+    ship_query: Query<(Entity, &Position)>,
 ) {
-    for (self_entity, mut radar, mut transform, _position) in query.iter_mut() {
+    for (mut radar, mut transform, child_of) in query.iter_mut() {
         // Update radar rotation & arc width
         radar.current = radar.target;
         radar.current_arc = radar.target_arc;
 
         // Deal with transform
-        // TODO: Grab parent rotation and cancel it. This radar type is an AbsRadar for now
-        //transform.rotation = radar.current.to_quat();
+        // TODO: either move radar component to radar child
+        // and deal with it in the script runtime *or* do a 'get child' step here
+        // to get the radar child and transform it
+        transform.rotation = radar.current.to_quat();
 
         // Scan through all target on field, and calculate their distance and angle,
         // if within the arc store it in a list till we know the closest contact
-//        for ship in ships.iter_ancestors(self_entity) {
-//            println!("Ship: {:?}", ship);
-//            //events.write(ContactEvent(self_entity, self_entity));
-//        }
+        let (ship, _position) = ship_query.get(child_of.parent()).unwrap();
+        events.write(ContactEvent(ship, ship));
     }
 }
 
@@ -71,10 +70,12 @@ pub struct RadarDebug;
 
 pub(crate) fn debug_radar_gitzmos(
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &Radar), With<RadarDebug>>
+    query: Query<(&Radar, &ChildOf), With<RadarDebug>>,
+    parent_query: Query<&Transform>,
 ) {
-    for (tran, radar) in query.iter() {
-        let base = tran.translation.truncate();
+    for (radar, child_of) in query.iter() {
+        // Need the ship translation to position the radar gizmo right
+        let base = parent_query.get(child_of.parent()).unwrap().translation.truncate();
         let heading = radar.current;
         let target = radar.target;
 

@@ -294,7 +294,6 @@ pub fn add_ships(
             .insert(Ship)
             .insert(ship.velocity)
             .insert(ship.rotation)
-            .insert(ship.radar)
             .insert(ship.script)
 
             // Simulation components
@@ -318,19 +317,23 @@ pub fn add_ships(
                 // TODO: this is probs wrong and needs to be fixed
                 transform.rotate(radar_target.to_quat());
 
-                parent.spawn((
+                let mut spawned_radar = parent.spawn((
                     ShapeBuilder::with(&radar_path)
                         .stroke(Stroke::new(bevy::color::palettes::css::MAROON, 1.5))
                         .build(),
                     transform
                 ));
+                spawned_radar.insert(ship.radar);
+
+                if ship.debug {
+                    spawned_radar.insert(RadarDebug);
+                }
             });
 
         if ship.debug {
             spawned_ship
                 .insert(MovDebug)
-                .insert(RotDebug)
-                .insert(RadarDebug);
+                .insert(RotDebug);
         }
     }
 }
