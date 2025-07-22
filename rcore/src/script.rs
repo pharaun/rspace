@@ -198,7 +198,6 @@ fn process_on_update(
                     radar.target += res.2;
                 }
             }
-
         }
     }
 }

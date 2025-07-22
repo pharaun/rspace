@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::ship::Radar;
 use crate::math::AbsRot;
 
 #[derive(Component)]
@@ -13,17 +14,26 @@ pub struct PreviousRotation(pub AbsRot);
 // Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
 // - Since we do have velocity information so we should be able to do better interpolation
 pub(crate) fn interpolate_rotation(
-    mut query: Query<(&mut Transform, &Rotation, &PreviousRotation)>,
+    mut query: Query<(&mut Transform, &Rotation, &PreviousRotation, &Children), Without<Radar>>,
+    mut radar_query : Query<(&Radar, &mut Transform)>,
     fixed_time: Res<Time<Fixed>>
 ) {
     // How much of a "partial timestep" has accumulated since the last fixed timestep run.
     // Between `0.0` and `1.0`.
     let overstep = fixed_time.overstep_fraction();
 
-    for (mut transform, rotation, previous_rotation) in &mut query {
+    for (mut transform, rotation, previous_rotation, children) in &mut query {
         // Note: `slerp` will always take the shortest path, but when the two rotations are more than
         // 180 degrees apart, this can cause visual artifacts as the rotation "flips" to the other side.
         transform.rotation = previous_rotation.0.transform_slerp(rotation.0, overstep);
+
+        // Grab the child radar and undo the ship rotation
+        // TODO: Find a better way to deal with this
+        for child_entity in children {
+            if let Ok((radar, mut rtran)) = radar_query.get_mut(*child_entity) {
+                rtran.rotation = transform.rotation.inverse() * radar.offset;
+            }
+        }
     }
 }
 

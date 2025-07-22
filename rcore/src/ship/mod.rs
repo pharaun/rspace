@@ -181,6 +181,7 @@ impl ShipBuilder {
             radar: Radar {
                 current: AbsRot(0),
                 target: AbsRot(0),
+                offset: AbsRot(0).to_quat(),
                 current_arc: 64,
                 target_arc: 64,
             },
@@ -226,6 +227,7 @@ impl ShipBuilder {
     pub fn radar(mut self, rotation: AbsRot) -> ShipBuilder {
         self.radar.current = rotation;
         self.radar.target = rotation;
+        self.radar.offset = rotation.to_quat();
         self
     }
 

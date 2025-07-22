@@ -35,6 +35,9 @@ pub struct Radar {
     pub current: AbsRot,
     pub target: AbsRot,
 
+    // This should be private to this and the rotation system
+    pub offset: Quat,
+
     // Units arc - [0 = off, 1 = 1/256th of an arc, max 128]
     pub current_arc: u8,
     pub target_arc: u8,
@@ -43,19 +46,17 @@ pub struct Radar {
 // TODO: split this and setup system ordering but for now.
 pub(crate) fn apply_radar(
     mut events: EventWriter<ContactEvent>,
-    mut query: Query<(&mut Radar, &mut Transform, &ChildOf)>,
+    mut query: Query<(&mut Radar, &ChildOf)>,
     ship_query: Query<(Entity, &Position)>,
 ) {
-    for (mut radar, mut transform, child_of) in query.iter_mut() {
+    for (mut radar, child_of) in query.iter_mut() {
         // Update radar rotation & arc width
         radar.current = radar.target;
         radar.current_arc = radar.target_arc;
 
         // Deal with transform
-        // TODO: either move radar component to radar child
-        // and deal with it in the script runtime *or* do a 'get child' step here
-        // to get the radar child and transform it
-        transform.rotation = radar.current.to_quat();
+        // Offset transform (so that ship rotation system can compsenate)
+        radar.offset = radar.current.to_quat();
 
         // Scan through all target on field, and calculate their distance and angle,
         // if within the arc store it in a list till we know the closest contact
