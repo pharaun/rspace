@@ -46,8 +46,12 @@ impl AbsRot {
     }
 
     pub fn from_quat(quat: Quat) -> Self {
+        AbsRot::from_angle(quat.to_euler(EulerRot::ZYX).0)
+    }
+
+    pub fn from_angle(angle: f32) -> Self {
         let tmp = {
-            let tmp = quat.to_euler(EulerRot::ZYX).0 / FRAC_PI_128;
+            let tmp = angle / FRAC_PI_128;
             if tmp < 0.0 {
                 tmp + 256.
             } else {
@@ -55,6 +59,19 @@ impl AbsRot {
             }
         };
         AbsRot(tmp.round() as u8)
+    }
+
+    pub fn from_vec2_angle(base: IVec2, target: IVec2) -> Option<Self> {
+        if (target-base) == IVec2::ZERO {
+            None
+        } else {
+            Some(AbsRot::from_angle((target-base).as_vec2().to_angle()))
+        }
+    }
+
+    pub fn between(&self, first: AbsRot, second: AbsRot) -> bool {
+        // TODO: implement the math
+        true
     }
 
     // TODO: Hack flipped the sign, need to figure out what we want semantics wise first
@@ -141,8 +158,8 @@ fn test_from_quat() {
 // TODO: I think we need to identify/do hand-ness conversion/checks here because yeah
 #[test]
 fn test_angle_between() {
-    assert_eq!(AbsRot(0).angle_between(AbsRot(1)), RelRot(-1));
-    assert_eq!(AbsRot(0).angle_between(AbsRot(255)), RelRot(1));
+    assert_eq!(AbsRot(0).angle_between(AbsRot(1)), RelRot(1));
+    assert_eq!(AbsRot(0).angle_between(AbsRot(255)), RelRot(-1));
 }
 
 #[test]
@@ -159,4 +176,15 @@ fn test_add_rel_to_abs() {
     assert_eq!(AbsRot(0) + RelRot(-1), AbsRot(255));
 }
 
+#[test]
+fn test_from_vec2_angle() {
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, 0)), None);
 
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(1, 0)), Some(AbsRot(0)));
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, 1)), Some(AbsRot(64)));
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(-1, 0)), Some(AbsRot(128)));
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, -1)), Some(AbsRot(192)));
+
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(1, 1)), Some(AbsRot(32)));
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(-1, -1)), Some(AbsRot(160)));
+}

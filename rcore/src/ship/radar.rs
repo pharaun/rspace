@@ -60,8 +60,48 @@ pub(crate) fn apply_radar(
 
         // Scan through all target on field, and calculate their distance and angle,
         // if within the arc store it in a list till we know the closest contact
-        let (ship, _position) = ship_query.get(child_of.parent()).unwrap();
-        events.write(ContactEvent(ship, ship));
+        let mut best_target: Option<(Entity, IVec2)> = None;
+
+        let (base_ship, base_position) = ship_query.get(child_of.parent()).unwrap();
+        for (target_ship, target_position) in ship_query.iter() {
+            if base_ship == target_ship {
+                continue;
+            }
+
+            // TODO: dynamic radar distance, for now fixed
+            let distance: i32 = 5000_i32.pow(2);
+            if base_position.0.distance_squared(target_position.0) > distance {
+                continue;
+            }
+
+            // Is distance better than current winner?
+            if let Some((_, best_position)) = best_target {
+                let target_distance = base_position.0.distance_squared(target_position.0);
+                let best_distance = base_position.0.distance_squared(best_position);
+
+                if best_distance >= target_distance {
+                    continue;
+                }
+            }
+
+            // Validate Angle
+            match AbsRot::from_vec2_angle(base_position.0, target_position.0) {
+                Some(rot) => {
+                    // There is an angle, validate that its within radar arcA
+                    // TODO: calculcate the arc + heading
+                    if rot.between(AbsRot(0), AbsRot(128)) {
+                        // Yes it is, store it as new winner of best_target
+                        best_target = Some((target_ship, target_position.0));
+                    }
+                },
+                None => (),
+            }
+        }
+
+        // If there is a best_target, then emit a contact
+        if let Some((target_ship, _)) = best_target {
+            events.write(ContactEvent(base_ship, target_ship));
+        }
     }
 }
 

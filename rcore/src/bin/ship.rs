@@ -119,7 +119,7 @@ fn on_update(state: &mut HashMap<&'static str, Value>, pos: IVec2, vel: IVec2, r
 fn on_contact(state: &mut HashMap<&'static str, Value>, target_pos: IVec2) {
     state.insert("target.x", Value::from(target_pos.x).unwrap());
     state.insert("target.y", Value::from(target_pos.y).unwrap());
-    println!("on_contact");
+    println!("on_contact - target.x: {:?}, target.y: {:?}", target_pos.x, target_pos.y);
 }
 
 fn on_collision(state: &mut HashMap<&'static str, Value>) {
