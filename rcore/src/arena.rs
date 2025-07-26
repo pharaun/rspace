@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
+use crate::math::AbsRot;
 use crate::ship::movement::Position;
 use crate::ship::movement::PreviousPosition;
 
@@ -103,24 +104,48 @@ fn add_arena_bounds(mut commands: Commands) {
     // Axis Labels
     commands.spawn((
         Text2d::new("+X"),
-        Transform::from_xyz(DISPLAY.x / 2.0 + 15., 0., -0.8),
+        Transform::from_xyz(DISPLAY.x / 2.0 + 15., 0., -0.9),
         ArenaMarker,
     ));
     commands.spawn((
         Text2d::new("-X"),
-        Transform::from_xyz(-(DISPLAY.x / 2.0 + 15.), 0., -0.8),
+        Transform::from_xyz(-(DISPLAY.x / 2.0 + 15.), 0., -0.9),
         ArenaMarker,
     ));
     commands.spawn((
         Text2d::new("+Y"),
-        Transform::from_xyz(0., DISPLAY.y / 2.0 + 15., -0.8),
+        Transform::from_xyz(0., DISPLAY.y / 2.0 + 15., -0.9),
         ArenaMarker,
     ));
     commands.spawn((
         Text2d::new("-Y"),
-        Transform::from_xyz(0., -(DISPLAY.y / 2.0 + 15.), -0.8),
+        Transform::from_xyz(0., -(DISPLAY.y / 2.0 + 15.), -0.9),
         ArenaMarker,
     ));
 
     // Rotation Angle Compass
+    let compass = ShapePath::new()
+        .move_to(Vec2::new(-20., 0.))
+        .line_to(Vec2::new(20., 0.))
+        .move_to(Vec2::new(0.0, -20.))
+        .line_to(Vec2::new(0.0, 20.));
+    let base = Vec3::new(425., 225., -0.8);
+
+    commands.spawn((
+        ShapeBuilder::with(&compass)
+            .stroke(Stroke::new(Color::srgb(0.80, 0.80, 0.80), 0.5))
+            .build(),
+        Transform::from_translation(base),
+        ArenaMarker,
+    )).with_children(|parent| {
+        for angle in [0, 64, 128, 192] {
+            let hdr = AbsRot(angle).to_quat().mul_vec3(Vec3::Y * 40.);
+
+            parent.spawn((
+                Text2d::new(format!("{}", angle)),
+                Transform::from_translation(hdr),
+                ArenaMarker,
+            ));
+        }
+    });
 }
