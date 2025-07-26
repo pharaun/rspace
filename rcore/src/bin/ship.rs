@@ -77,8 +77,8 @@ fn main() {
 fn on_init() -> HashMap<&'static str, Value> {
     HashMap::from([
         // Const
-        ("acc", Value::from(20).unwrap()),
-        ("dec", Value::from(10).unwrap()),
+        ("acc", Value::from(0).unwrap()),
+        ("dec", Value::from(0).unwrap()),
         ("rot", Value::from(-128).unwrap()),
         // Variables
         ("collision", Value::from(false).unwrap()),

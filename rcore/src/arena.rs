@@ -68,6 +68,7 @@ fn wrap_position(mut query: Query<(&mut Position, &mut PreviousPosition), Change
 }
 
 fn add_arena_bounds(mut commands: Commands) {
+    // Arena Bounds
     let path = ShapePath::new()
         .move_to(Vec2::new(-(DISPLAY.x / 2.0), -(DISPLAY.y / 2.0)))
         .line_to(Vec2::new(DISPLAY.x / 2.0, -(DISPLAY.y / 2.0)))
@@ -83,4 +84,43 @@ fn add_arena_bounds(mut commands: Commands) {
         Transform::from_xyz(0., 0., -1.),
         ArenaMarker,
     ));
+
+    // Arena Zero axis marks
+    let axis = ShapePath::new()
+        .move_to(Vec2::new(-(DISPLAY.x / 2.0), 0.0))
+        .line_to(Vec2::new(DISPLAY.x / 2.0, 0.0))
+        .move_to(Vec2::new(0.0, -(DISPLAY.y / 2.0)))
+        .line_to(Vec2::new(0.0, DISPLAY.y / 2.0));
+
+    commands.spawn((
+        ShapeBuilder::with(&axis)
+            .stroke(Stroke::new(Color::srgb(0.40, 0.40, 0.40), 0.5))
+            .build(),
+        Transform::from_xyz(0., 0., -0.9),
+        ArenaMarker,
+    ));
+
+    // Axis Labels
+    commands.spawn((
+        Text2d::new("+X"),
+        Transform::from_xyz(DISPLAY.x / 2.0 + 15., 0., -0.8),
+        ArenaMarker,
+    ));
+    commands.spawn((
+        Text2d::new("-X"),
+        Transform::from_xyz(-(DISPLAY.x / 2.0 + 15.), 0., -0.8),
+        ArenaMarker,
+    ));
+    commands.spawn((
+        Text2d::new("+Y"),
+        Transform::from_xyz(0., DISPLAY.y / 2.0 + 15., -0.8),
+        ArenaMarker,
+    ));
+    commands.spawn((
+        Text2d::new("-Y"),
+        Transform::from_xyz(0., -(DISPLAY.y / 2.0 + 15.), -0.8),
+        ArenaMarker,
+    ));
+
+    // Rotation Angle Compass
 }

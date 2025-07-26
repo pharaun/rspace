@@ -62,15 +62,21 @@ pub(crate) fn apply_radar(
         // if within the arc store it in a list till we know the closest contact
         let mut best_target: Option<(Entity, IVec2)> = None;
 
+        // TODO: abstract this logic to a helper class (gizmo debug wants this too and we will have
+        // other radar types)
         let (base_ship, base_position) = ship_query.get(child_of.parent()).unwrap();
         for (target_ship, target_position) in ship_query.iter() {
             if base_ship == target_ship {
+                println!("SKIP - Same Ship");
                 continue;
             }
 
             // TODO: dynamic radar distance, for now fixed
             let distance: i32 = 5000_i32.pow(2);
-            if base_position.0.distance_squared(target_position.0) > distance {
+            let calc_distance: i32 = base_position.0.distance_squared(target_position.0);
+            println!("dist: {:?}, calc: {:?}", distance, calc_distance);
+            if calc_distance > distance {
+                println!("SKIP - Too Far");
                 continue;
             }
 
@@ -80,6 +86,7 @@ pub(crate) fn apply_radar(
                 let best_distance = base_position.0.distance_squared(best_position);
 
                 if best_distance >= target_distance {
+                    println!("SKIP - Not Closer Than Best Match");
                     continue;
                 }
             }
@@ -89,17 +96,20 @@ pub(crate) fn apply_radar(
                 Some(rot) => {
                     // There is an angle, validate that its within radar arcA
                     // TODO: calculcate the arc + heading
-                    if rot.between(AbsRot(0), AbsRot(128)) {
+                    if radar.current.between(radar.current_arc, rot) {
                         // Yes it is, store it as new winner of best_target
                         best_target = Some((target_ship, target_position.0));
                     }
                 },
-                None => (),
+                None => {
+                    println!("SKIP - No Angle");
+                },
             }
         }
 
         // If there is a best_target, then emit a contact
         if let Some((target_ship, _)) = best_target {
+            println!("CONTACT");
             events.write(ContactEvent(base_ship, target_ship));
         }
     }
@@ -112,11 +122,11 @@ pub struct RadarDebug;
 pub(crate) fn debug_radar_gitzmos(
     mut gizmos: Gizmos,
     query: Query<(&Radar, &ChildOf), With<RadarDebug>>,
-    parent_query: Query<&Transform>,
+    parent_query: Query<(&Transform, &Position)>,
 ) {
     for (radar, child_of) in query.iter() {
         // Need the ship translation to position the radar gizmo right
-        let base = parent_query.get(child_of.parent()).unwrap().translation.truncate();
+        let base = parent_query.get(child_of.parent()).unwrap().0.translation.truncate();
         let heading = radar.current;
         let target = radar.target;
 
@@ -160,5 +170,37 @@ pub(crate) fn debug_radar_gitzmos(
             base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
+
+        // Draw line between this ship (owner of this radar) and all target
+        // color the target if they register as an contact (on radar)
+        for (target_base, _) in parent_query.iter() {
+            // Same ship
+            if base.abs_diff_eq(
+                target_base.translation.truncate(),
+                0.1,
+            ) {
+                continue;
+            }
+
+            // If within distance (yellow) if within radar arc (green), if not (red)
+            // TODO: dynamic radar distance, for now fixed
+            let distance: f32 = 3500_f32.powf(2.0);
+            let color = if base.distance_squared(target_base.translation.truncate()) < distance {
+                match AbsRot::from_vec2_angle(base.as_ivec2(), target_base.translation.truncate().as_ivec2()) {
+                    Some(rot) => {
+                        if heading.between(radar.current_arc, rot) {
+                            bevy::color::palettes::css::GREEN
+                        } else {
+                            bevy::color::palettes::css::YELLOW
+                        }
+                    },
+                    None => bevy::color::palettes::css::PURPLE,
+                }
+            } else {
+                bevy::color::palettes::css::RED
+            };
+
+            gizmos.line_2d(base, target_base.translation.truncate(), color);
+        }
     }
 }

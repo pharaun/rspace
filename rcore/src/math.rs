@@ -37,7 +37,7 @@ const FRAC_PI_128: f32 = PI / 128.0;
 // 128 = 180º South
 // 192 = 270º West
 // Radian: 0 = 0, 1 = π/128, 64 = π/2, 128 = π/1, ...
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
 pub struct AbsRot(pub u8);
 
 impl AbsRot {
@@ -61,17 +61,38 @@ impl AbsRot {
         AbsRot(tmp.round() as u8)
     }
 
+    // TODO: probs want to redo some of these math to allow for in between AbsRot angles
+    // to allow for a 1-arc width radar
     pub fn from_vec2_angle(base: IVec2, target: IVec2) -> Option<Self> {
         if (target-base) == IVec2::ZERO {
             None
         } else {
-            Some(AbsRot::from_angle((target-base).as_vec2().to_angle()))
+            // IVec2(X, Y) (+Y = 0, +X = 64, -Y = 128, -X = 192)
+            let ret = AbsRot::from_angle((target-base).as_vec2().to_angle());
+            println!("base: {:?}, tgt: {:?}, angle: {:?}", base, target, ret);
+            Some(ret)
         }
     }
 
-    pub fn between(&self, first: AbsRot, second: AbsRot) -> bool {
-        // TODO: implement the math
-        true
+    // TODO: does not handle arc-length shorter than 2 arc-length wide.
+    // - Need to decide how to make 1-wide arc work
+    pub fn between(&self, arc: u8, target: AbsRot) -> bool {
+        let cw_arc = *self + RelRot((arc / 2) as i8);
+        let ccw_arc = *self + RelRot(-((arc / 2) as i8));
+
+        // If CCW is greater than CW it crossed the 0 boundary
+        //  ccw < target || target < cw
+        // if ccw is less than cw its within the axis and thus
+        //  ccw < target < cw
+        let res = (ccw_arc > cw_arc &&
+          (ccw_arc <= target || target <= cw_arc)) ||
+            (ccw_arc <= target && target <= cw_arc);
+
+        println!(
+            "ccw: {:?}, hdr: {:?}, cw: {:?}, arc: {:?}, tgt: {:?}, between: {:?}",
+            ccw_arc, self, cw_arc, arc, target, res,
+        );
+        res
     }
 
     // TODO: Hack flipped the sign, need to figure out what we want semantics wise first
@@ -180,11 +201,39 @@ fn test_add_rel_to_abs() {
 fn test_from_vec2_angle() {
     assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, 0)), None);
 
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(1, 0)), Some(AbsRot(0)));
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, 1)), Some(AbsRot(64)));
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(-1, 0)), Some(AbsRot(128)));
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, -1)), Some(AbsRot(192)));
+    // IVec2(X, Y) (+Y = 0, +X = 64, -Y = 128, -X = 192)
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, 1)), Some(AbsRot(0)));
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(1, 0)), Some(AbsRot(64)));
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, -1)), Some(AbsRot(128)));
+    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(-1, 0)), Some(AbsRot(192)));
 
     assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(1, 1)), Some(AbsRot(32)));
     assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(-1, -1)), Some(AbsRot(160)));
+}
+
+#[test]
+fn test_between() {
+    // Test an arc width that jumps over the 256/0 discontinunity
+    assert_eq!(true, AbsRot(0).between(2, AbsRot(0)));
+    assert_eq!(true, AbsRot(0).between(2, AbsRot(1)));
+    assert_eq!(true, AbsRot(0).between(2, AbsRot(255)));
+
+    assert_eq!(false, AbsRot(0).between(2, AbsRot(2)));
+    assert_eq!(false, AbsRot(0).between(2, AbsRot(254)));
+
+    // Test an arc width that does not jump over the discontinunity
+    assert_eq!(true, AbsRot(64).between(2, AbsRot(64)));
+    assert_eq!(true, AbsRot(64).between(2, AbsRot(65)));
+    assert_eq!(true, AbsRot(64).between(2, AbsRot(63)));
+
+    assert_eq!(false, AbsRot(64).between(2, AbsRot(66)));
+    assert_eq!(false, AbsRot(64).between(2, AbsRot(62)));
+
+    // Test an max width arc (128)
+    assert_eq!(true, AbsRot(0).between(128, AbsRot(0)));
+    assert_eq!(true, AbsRot(0).between(128, AbsRot(64)));
+    assert_eq!(true, AbsRot(0).between(128, AbsRot(192)));
+
+    assert_eq!(false, AbsRot(0).between(128, AbsRot(65)));
+    assert_eq!(false, AbsRot(0).between(128, AbsRot(191)));
 }
