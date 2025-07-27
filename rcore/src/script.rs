@@ -175,14 +175,14 @@ fn process_on_update(
 
             let state = script.state.clone();
             let mut mut_state = state.lock().unwrap();
+
+            // [ to_rot, to_vel , to_rdr_rot ]
             let res = (script.on_update)(
                 &mut mut_state,
                 pos,
                 vel.velocity,
                 rot,
             );
-            // [ to_rot, to_vel , to_rdr_rot ]
-            println!("Ret - {:?}", res);
 
             // Always apply
             let mut velocity = ship_query.get_mut(entity).unwrap().0;

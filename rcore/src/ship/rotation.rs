@@ -60,13 +60,6 @@ pub(crate) fn apply_rotation(
         let limit = target_rot.limit as f32 * time.delta_secs();
         let angle = rotation.0.angle_between(target_rot.target).clamp(limit.round() as u8);
         rotation.0 += angle;
-
-        println!("DBG: prev rot: {:?} next rot: {:?} angle: {:?} limit: {:?}",
-            previous_rotation.0,
-            rotation.0,
-            angle.0,
-            limit
-        );
     }
 }
 

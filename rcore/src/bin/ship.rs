@@ -54,6 +54,7 @@ fn main() {
                     ))
                     .position(3500, 0)
                     .velocity(0, 0)
+                    .radar_arc(2)
                     .build(),
 
                 ShipBuilder::new(Script::new(
@@ -64,6 +65,7 @@ fn main() {
                     ))
                     .position(-3500, 0)
                     .velocity(0, 0)
+                    .radar_arc(2)
                     .build(),
 
                 ShipBuilder::new(Script::new(
@@ -74,6 +76,7 @@ fn main() {
                     ))
                     .position(-4500, 3500)
                     .velocity(0, 0)
+                    .radar_arc(2)
                     .build(),
             ];
 
