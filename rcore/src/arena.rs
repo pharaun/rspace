@@ -113,12 +113,12 @@ fn add_arena_bounds(mut commands: Commands) {
         ArenaMarker,
     ));
     commands.spawn((
-        Text2d::new("+Y"),
+        Text2d::new("-Y"),
         Transform::from_xyz(0., DISPLAY.y / 2.0 + 15., -0.9),
         ArenaMarker,
     ));
     commands.spawn((
-        Text2d::new("-Y"),
+        Text2d::new("+Y"),
         Transform::from_xyz(0., -(DISPLAY.y / 2.0 + 15.), -0.9),
         ArenaMarker,
     ));
@@ -129,8 +129,8 @@ fn add_arena_bounds(mut commands: Commands) {
         .line_to(Vec2::new(20., 0.))
         .move_to(Vec2::new(0.0, -20.))
         .line_to(Vec2::new(0.0, 20.));
-    let base = Vec3::new(425., 225., -0.8);
 
+    let base = Vec3::new(425., 225., -0.8);
     commands.spawn((
         ShapeBuilder::with(&compass)
             .stroke(Stroke::new(Color::srgb(0.80, 0.80, 0.80), 0.5))

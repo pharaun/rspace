@@ -65,6 +65,16 @@ fn main() {
                     .position(-3500, 0)
                     .velocity(0, 0)
                     .build(),
+
+                ShipBuilder::new(Script::new(
+                        || HashMap::from([]),
+                        |_, _, _, _| (RelRot(0), 0, RelRot(0)),
+                        |_, _| (),
+                        |_| (),
+                    ))
+                    .position(-4500, 3500)
+                    .velocity(0, 0)
+                    .build(),
             ];
 
             add_ships(commands, ships);
@@ -77,8 +87,8 @@ fn main() {
 fn on_init() -> HashMap<&'static str, Value> {
     HashMap::from([
         // Const
-        ("acc", Value::from(0).unwrap()),
-        ("dec", Value::from(0).unwrap()),
+        ("acc", Value::from(10).unwrap()),
+        ("dec", Value::from(20).unwrap()),
         ("rot", Value::from(-128).unwrap()),
         // Variables
         ("collision", Value::from(false).unwrap()),

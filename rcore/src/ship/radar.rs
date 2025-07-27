@@ -4,6 +4,8 @@ use crate::math::RelRot;
 use crate::math::AbsRot;
 use crate::ship::movement::Position;
 
+use crate::ship::ARENA_SCALE;
+
 // TODO:
 // - radar rotation system
 // - radar arc2length via area rule system?
@@ -72,7 +74,7 @@ pub(crate) fn apply_radar(
             }
 
             // TODO: dynamic radar distance, for now fixed
-            let distance: i32 = 5000_i32.pow(2);
+            let distance: i32 = 4000_i32.pow(2);
             let calc_distance: i32 = base_position.0.distance_squared(target_position.0);
             println!("dist: {:?}, calc: {:?}", distance, calc_distance);
             if calc_distance > distance {
@@ -171,6 +173,15 @@ pub(crate) fn debug_radar_gitzmos(
             bevy::color::palettes::css::YELLOW,
         );
 
+        // Draw distance metrics
+        // TODO: dynamic radar distance, for now fixed
+        let distance: f32 = 4000.;
+        gizmos.circle_2d(
+            Isometry2d::from_translation(base),
+            distance / ARENA_SCALE,
+            bevy::color::palettes::css::GREEN,
+        );
+
         // Draw line between this ship (owner of this radar) and all target
         // color the target if they register as an contact (on radar)
         for (target_base, _) in parent_query.iter() {
@@ -183,9 +194,7 @@ pub(crate) fn debug_radar_gitzmos(
             }
 
             // If within distance (yellow) if within radar arc (green), if not (red)
-            // TODO: dynamic radar distance, for now fixed
-            let distance: f32 = 3500_f32.powf(2.0);
-            let color = if base.distance_squared(target_base.translation.truncate()) < distance {
+            let color = if base.distance_squared(target_base.translation.truncate()) < distance.powf(2.) {
                 match AbsRot::from_vec2_angle(base.as_ivec2(), target_base.translation.truncate().as_ivec2()) {
                     Some(rot) => {
                         if heading.between(radar.current_arc, rot) {
