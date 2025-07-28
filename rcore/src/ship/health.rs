@@ -28,7 +28,7 @@ pub struct HealthDebug;
 
 pub(crate) fn debug_health_gitzmos(
     mut gizmos: Gizmos,
-    query: Query<(&Health, &Transform)>,
+    query: Query<(&Health, &Transform), With<HealthDebug>>,
 ) {
     for (health, tran) in query.iter() {
         let base = tran.translation.truncate();
