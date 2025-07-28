@@ -14,6 +14,7 @@ use rcore::script::ScriptPlugins;
 use rcore::ship::ShipPlugins;
 use rcore::ship::add_ships;
 use rcore::ship::ShipBuilder;
+use rcore::ship::DebugBuilder;
 use rcore::math::RelRot;
 use rcore::math::AbsRot;
 
@@ -43,7 +44,9 @@ fn main() {
                     .rotation_limit(16)
                     .radar(AbsRot(0))
                     .radar_arc(64)
-                    .debug(true)
+//                    .debug(DebugBuilder::new()
+//                        .radar()
+//                        .build())
                     .build(),
 
                 ShipBuilder::new(Script::new(
@@ -55,6 +58,9 @@ fn main() {
                     .position(3500, 0)
                     .velocity(0, 0)
                     .radar_arc(2)
+                    .debug(DebugBuilder::new()
+                        .health()
+                        .build())
                     .build(),
 
                 ShipBuilder::new(Script::new(
@@ -66,6 +72,9 @@ fn main() {
                     .position(-3500, 0)
                     .velocity(0, 0)
                     .radar_arc(2)
+                    .debug(DebugBuilder::new()
+                        .health()
+                        .build())
                     .build(),
 
                 ShipBuilder::new(Script::new(

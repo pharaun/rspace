@@ -38,6 +38,14 @@ use crate::ship::collision::Collision;
 use crate::ship::collision::apply_collision;
 use crate::ship::collision::process_collision_event;
 
+pub mod health;
+use crate::ship::health::Health;
+use crate::ship::health::HealthDebug;
+use crate::ship::health::process_damage_event;
+use crate::ship::health::debug_health_gitzmos;
+use crate::ship::health::DamageEvent;
+
+
 // INFO:
 // - Ship class: Tiny, Small, Med, Large where they would occupy roughly
 //  * Missile/mines
@@ -108,6 +116,7 @@ impl Plugin for ShipPlugins {
             //.insert_resource(Time::<Fixed>::from_hz(64.0))
             .insert_resource(Time::<Fixed>::from_hz(2.0))
             .add_event::<ContactEvent>()
+            .add_event::<DamageEvent>()
             .add_systems(
                 FixedUpdate,
                 (
@@ -127,9 +136,11 @@ impl Plugin for ShipPlugins {
             .add_systems(Update, debug_rotation_gitzmos)
             .add_systems(Update, debug_movement_gitzmos)
             .add_systems(Update, debug_radar_gitzmos)
+            .add_systems(Update, debug_health_gitzmos)
 
             .add_systems(Update, process_collision_event)
-            .add_systems(Update, apply_collision.after(process_collision_event));
+            .add_systems(Update, apply_collision.after(process_collision_event))
+            .add_systems(Update, process_damage_event);
     }
 }
 
@@ -144,9 +155,10 @@ pub struct StarterShip {
     position: IVec2,
     velocity: Velocity,
     rotation: TargetRotation,
+    health: Health,
     radar: Radar,
     script: Script,
-    debug: bool,
+    debug: DebugShip,
 }
 
 impl StarterShip {
@@ -160,9 +172,10 @@ pub struct ShipBuilder {
     position: IVec2,
     velocity: Velocity,
     rotation: TargetRotation,
+    health: Health,
     radar: Radar,
     script: Script,
-    debug: bool,
+    debug: DebugShip,
 }
 
 impl ShipBuilder {
@@ -178,6 +191,10 @@ impl ShipBuilder {
                 limit: 16,
                 target: AbsRot(0),
             },
+            health: Health {
+                health: 100,
+                max_health: 100,
+            },
             radar: Radar {
                 current: AbsRot(0),
                 target: AbsRot(0),
@@ -186,7 +203,7 @@ impl ShipBuilder {
                 target_arc: 64,
             },
             script,
-            debug: false,
+            debug: DebugShip::new(),
         }
     }
 
@@ -224,6 +241,11 @@ impl ShipBuilder {
         self
     }
 
+    pub fn health(mut self, health: u16) -> ShipBuilder {
+        self.health.health = health;
+        self
+    }
+
     pub fn radar(mut self, rotation: AbsRot) -> ShipBuilder {
         self.radar.current = rotation;
         self.radar.target = rotation;
@@ -237,7 +259,7 @@ impl ShipBuilder {
         self
     }
 
-    pub fn debug(mut self, debug: bool) -> ShipBuilder {
+    pub fn debug(mut self, debug: DebugShip) -> ShipBuilder {
         self.debug = debug;
         self
     }
@@ -253,6 +275,7 @@ impl ShipBuilder {
             position: self.position,
             velocity: self.velocity,
             rotation: self.rotation,
+            health: self.health,
             radar: self.radar,
             script: self.script,
             debug: self.debug,
@@ -260,6 +283,74 @@ impl ShipBuilder {
     }
 }
 
+pub struct DebugShip {
+    radar_debug: Option<RadarDebug>,
+    mov_debug: Option<MovDebug>,
+    rot_debug: Option<RotDebug>,
+    health_debug: Option<HealthDebug>,
+}
+
+impl DebugShip {
+    pub fn new() -> DebugShip {
+        DebugShip {
+            radar_debug: None,
+            mov_debug: None,
+            rot_debug: None,
+            health_debug: None,
+        }
+    }
+
+    pub fn builder() -> DebugBuilder {
+        DebugBuilder::new()
+    }
+}
+
+pub struct DebugBuilder {
+    radar_debug: Option<RadarDebug>,
+    mov_debug: Option<MovDebug>,
+    rot_debug: Option<RotDebug>,
+    health_debug: Option<HealthDebug>,
+}
+
+impl DebugBuilder {
+    pub fn new() -> DebugBuilder {
+        DebugBuilder {
+            radar_debug: None,
+            mov_debug: None,
+            rot_debug: None,
+            health_debug: None,
+        }
+    }
+
+    pub fn radar(mut self) -> DebugBuilder {
+        self.radar_debug = Some(RadarDebug);
+        self
+    }
+
+    pub fn movement(mut self) -> DebugBuilder {
+        self.mov_debug = Some(MovDebug);
+        self
+    }
+
+    pub fn rotation(mut self) -> DebugBuilder {
+        self.rot_debug = Some(RotDebug);
+        self
+    }
+
+    pub fn health(mut self) -> DebugBuilder {
+        self.health_debug = Some(HealthDebug);
+        self
+    }
+
+    pub fn build(self) -> DebugShip {
+        DebugShip {
+            radar_debug: self.radar_debug,
+            mov_debug: self.mov_debug,
+            rot_debug: self.rot_debug,
+            health_debug: self.health_debug,
+        }
+    }
+}
 
 pub fn add_ships(
     mut commands: Commands,
@@ -305,6 +396,9 @@ pub fn add_ships(
             .insert(rotation::Rotation(ship_target))
             .insert(rotation::PreviousRotation(ship_target))
 
+            // Health and Damage components
+            .insert(ship.health)
+
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
             .insert(Collider::cuboid(10.0, 20.0))
             .insert(ActiveCollisionTypes::empty() | ActiveCollisionTypes::STATIC_STATIC)
@@ -327,15 +421,20 @@ pub fn add_ships(
                 ));
                 spawned_radar.insert(ship.radar);
 
-                if ship.debug {
-                    spawned_radar.insert(RadarDebug);
+                if let Some(radar) = ship.debug.radar_debug {
+                    spawned_radar.insert(radar);
                 }
             });
 
-        if ship.debug {
-            spawned_ship
-                .insert(MovDebug)
-                .insert(RotDebug);
+        // Debug components
+        if let Some(mov) = ship.debug.mov_debug {
+            spawned_ship.insert(mov);
+        }
+        if let Some(rot) = ship.debug.rot_debug {
+            spawned_ship.insert(rot);
+        }
+        if let Some(health) = ship.debug.health_debug {
+            spawned_ship.insert(health);
         }
     }
 }
