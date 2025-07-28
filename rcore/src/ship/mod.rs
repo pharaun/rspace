@@ -192,8 +192,8 @@ impl ShipBuilder {
                 target: AbsRot(0),
             },
             health: Health {
-                health: 100,
-                max_health: 100,
+                current: 100,
+                maximum: 100,
             },
             radar: Radar {
                 current: AbsRot(0),
@@ -242,7 +242,8 @@ impl ShipBuilder {
     }
 
     pub fn health(mut self, health: u16) -> ShipBuilder {
-        self.health.health = health;
+        self.health.current = health;
+        self.health.maximum = health;
         self
     }
 
