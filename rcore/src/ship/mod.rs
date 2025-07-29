@@ -11,6 +11,9 @@ use crate::script::Script;
 use crate::math::vec_scale;
 use crate::arena::ARENA_SCALE;
 
+// TODO: look into plugins + bundles to make this better
+// because right now i'm having to add multiple things to this
+// file for each new system/component
 pub mod movement;
 use crate::ship::movement::interpolate_transforms;
 use crate::ship::movement::Velocity;
@@ -44,6 +47,14 @@ use crate::ship::health::HealthDebug;
 use crate::ship::health::process_damage_event;
 use crate::ship::health::debug_health_gitzmos;
 use crate::ship::health::DamageEvent;
+
+pub mod debug_weapon;
+use crate::ship::debug_weapon::DebugWeapon;
+use crate::ship::debug_weapon::apply_debug_weapon_cooldown;
+use crate::ship::debug_weapon::RenderDebugWeapon;
+use crate::ship::debug_weapon::render_debug_weapon;
+use crate::ship::debug_weapon::FireDebugWeaponEvent;
+use crate::ship::debug_weapon::process_fire_debug_weapon_event;
 
 
 // INFO:
@@ -117,6 +128,7 @@ impl Plugin for ShipPlugins {
             .insert_resource(Time::<Fixed>::from_hz(2.0))
             .add_event::<ContactEvent>()
             .add_event::<DamageEvent>()
+            .add_event::<FireDebugWeaponEvent>()
             .add_systems(
                 FixedUpdate,
                 (
@@ -124,6 +136,7 @@ impl Plugin for ShipPlugins {
                     apply_rotation,
                     // TODO: apply radar rotation, then process radar_event
                     apply_radar,
+                    apply_debug_weapon_cooldown,
                 ),
             )
             .add_systems(
@@ -131,6 +144,7 @@ impl Plugin for ShipPlugins {
                 (
                     interpolate_transforms.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
                     interpolate_rotation.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+                    render_debug_weapon.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
                 ),
             )
             .add_systems(Update, debug_rotation_gitzmos)
@@ -140,7 +154,8 @@ impl Plugin for ShipPlugins {
 
             .add_systems(Update, process_collision_event)
             .add_systems(Update, apply_collision.after(process_collision_event))
-            .add_systems(Update, process_damage_event);
+            .add_systems(Update, process_damage_event)
+            .add_systems(Update, process_fire_debug_weapon_event);
     }
 }
 
@@ -180,6 +195,8 @@ pub struct ShipBuilder {
 
 impl ShipBuilder {
     pub fn new(script: Script) -> ShipBuilder {
+        // TODO: setup so that most of these components have default() or something so that
+        // they can be more self-contained without having to build them up here in the builder
         ShipBuilder {
             position: IVec2::new(0, 0),
             velocity: Velocity {
@@ -284,6 +301,9 @@ impl ShipBuilder {
     }
 }
 
+// TODO: For components that are empty (ie tags) can use component ids + insert them from a null ptr
+// This will allow for a list of component ids to make it easier to add/set debug bits on a ship
+// optionally
 pub struct DebugShip {
     radar_debug: Option<RadarDebug>,
     mov_debug: Option<MovDebug>,
@@ -399,6 +419,7 @@ pub fn add_ships(
 
             // Health and Damage components
             .insert(ship.health)
+            .insert(DebugWeapon { cooldown: 10, current: 0, damage: 10 })
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
             .insert(Collider::cuboid(10.0, 20.0))

@@ -15,11 +15,20 @@ pub struct Health {
 pub struct DamageEvent (pub Entity, pub u16);
 
 pub fn process_damage_event(
+    mut commands: Commands,
     mut damage_events: EventReader<DamageEvent>,
     mut query: Query<&mut Health>,
 ) {
-    for damage_event in damage_events.read() {
-
+    for DamageEvent(ship, damage) in damage_events.read() {
+        if let Ok(mut health) = query.get_mut(*ship) {
+            if let Some(new_health) = health.current.checked_sub(*damage) {
+                health.current = new_health;
+            } else {
+                // This ship is now dead, despawn it
+                println!("Despawning - {:?}", ship);
+                commands.entity(*ship).despawn();
+            }
+        }
     }
 }
 

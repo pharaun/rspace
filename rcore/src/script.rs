@@ -146,6 +146,10 @@ fn process_on_contact(
     }
 }
 
+// TODO: add emitting the fire-debug-weapon-event code here, need
+// to figure out how to find the target entity and stuff, maybe update the
+// on contact code to query+give the entity id for now for the target so
+// that its easier to just 'fire' the weapon.
 fn process_on_update(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
