@@ -51,8 +51,8 @@ fn main() {
 
                 ShipBuilder::new(Script::new(
                         || HashMap::from([]),
-                        |_, _, _, _| (RelRot(0), 0, RelRot(0)),
-                        |_, _| (),
+                        |_, _, _, _| (RelRot(0), 0, RelRot(0), None),
+                        |_, _, _| (),
                         |_| (),
                     ))
                     .position(3500, 0)
@@ -65,8 +65,8 @@ fn main() {
 
                 ShipBuilder::new(Script::new(
                         || HashMap::from([]),
-                        |_, _, _, _| (RelRot(0), 0, RelRot(0)),
-                        |_, _| (),
+                        |_, _, _, _| (RelRot(0), 0, RelRot(0), None),
+                        |_, _, _| (),
                         |_| (),
                     ))
                     .position(-3500, 0)
@@ -79,8 +79,8 @@ fn main() {
 
                 ShipBuilder::new(Script::new(
                         || HashMap::from([]),
-                        |_, _, _, _| (RelRot(0), 0, RelRot(0)),
-                        |_, _| (),
+                        |_, _, _, _| (RelRot(0), 0, RelRot(0), None),
+                        |_, _, _| (),
                         |_| (),
                     ))
                     .position(-4500, 3500)
@@ -106,6 +106,7 @@ fn on_init() -> HashMap<&'static str, Value> {
         ("collision", Value::from(false).unwrap()),
         ("target.x", Value::from(0).unwrap()),
         ("target.y", Value::from(0).unwrap()),
+        ("target.e", Value::none()),
     ])
 }
 
@@ -114,33 +115,44 @@ fn on_init() -> HashMap<&'static str, Value> {
 // - going upward it snaps between 180 and 0
 // - going downward it slowly changes between 0 to 180 and never quite snaps to 180
 // - figure out why
-fn on_update(state: &mut HashMap<&'static str, Value>, pos: IVec2, vel: IVec2, rot: AbsRot) -> (RelRot, i32, RelRot) {
+fn on_update(state: &mut HashMap<&'static str, Value>, pos: IVec2, vel: IVec2, rot: AbsRot) -> (RelRot, i32, RelRot, Option<Entity>) {
     println!("on_update: Pos - {:?} - Vel - {:?} - Rot - {:?}", pos, vel, rot);
 
     let acc: i32 = state.get("acc").unwrap().cast_int().unwrap() as i32;
     let dec: i32 = state.get("dec").unwrap().cast_int().unwrap() as i32;
     let arot: i8 = state.get("rot").unwrap().cast_int().unwrap() as i8;
 
+    let target: Option<Entity> = {
+        let entity_value = state.get("target.e").unwrap();
+
+        if entity_value.is_none() {
+            None
+        } else {
+            Some(Entity::from_bits(entity_value.cast_int().unwrap() as u64))
+        }
+    };
+
     if rot == AbsRot(0) || rot == AbsRot(128) {
         if vel.y < 95 && rot == AbsRot(0){
             println!("Accelerate");
-            (RelRot(0), acc, RelRot(0))
+            (RelRot(0), acc, RelRot(0), target)
         } else if vel.y > -95 && rot == AbsRot(128) {
             println!("Decelerate");
-            (RelRot(0), dec, RelRot(0))
+            (RelRot(0), dec, RelRot(0), target)
         } else {
             println!("Rotate & Radar");
-            (RelRot(arot), 0, RelRot(64))
+            (RelRot(arot), 0, RelRot(64), target)
         }
     } else {
         println!("Idle");
-        (RelRot(0), 0, RelRot(0))
+        (RelRot(0), 0, RelRot(0), target)
     }
 }
 
-fn on_contact(state: &mut HashMap<&'static str, Value>, target_pos: IVec2) {
+fn on_contact(state: &mut HashMap<&'static str, Value>, target_pos: IVec2, target_entity: Entity) {
     state.insert("target.x", Value::from(target_pos.x).unwrap());
     state.insert("target.y", Value::from(target_pos.y).unwrap());
+    state.insert("target.e", Value::from(target_entity.to_bits() as i64).unwrap());
     println!("on_contact - target.x: {:?}, target.y: {:?}", target_pos.x, target_pos.y);
 }
 

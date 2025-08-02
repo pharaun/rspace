@@ -16,6 +16,7 @@ use crate::ship::{
     rotation::Rotation,
     radar::ContactEvent,
     radar::Radar,
+    debug_weapon::FireDebugWeaponEvent,
 };
 
 use crate::math::AbsRot;
@@ -61,8 +62,8 @@ use crate::math::RelRot;
 #[derive(Component)]
 pub struct Script {
     state: Arc<Mutex<HashMap<&'static str, Value>>>,
-    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot) + Send + Sync>,
-    on_contact: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2) + Send + Sync>,
+    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot, Option<Entity>) + Send + Sync>,
+    on_contact: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, Entity) + Send + Sync>,
     on_collision: Box<dyn Fn(&mut HashMap<&'static str, Value>) + Send + Sync>,
 }
 
@@ -76,8 +77,8 @@ impl Script {
     pub fn new<I, U, R, C>(on_init: I, on_update: U, on_contact: R, on_collision: C) -> Script
     where
         I: Fn() -> HashMap<&'static str, Value>,
-        U: Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot) + Send + Sync + 'static,
-        R: Fn(&mut HashMap<&'static str, Value>, IVec2) + Send + Sync + 'static,
+        U: Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot, Option<Entity>) + Send + Sync + 'static,
+        R: Fn(&mut HashMap<&'static str, Value>, IVec2, Entity) + Send + Sync + 'static,
         C: Fn(&mut HashMap<&'static str, Value>) -> () + Send + Sync + 'static,
     {
         Script {
@@ -135,11 +136,11 @@ fn process_on_contact(
         let ContactEvent(e1, e2) = contact_event;
         // TODO: right now with the ContactEvent being copies it leads to aliased query here,
         // This should be fixed once we have proper contact event that does not refer to self
-        if let Ok([(_, _, e1_script), (_, e2_pos, _)]) = query.get_many_mut([*e1, *e2]) {
+        if let Ok([(_, _, e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2]) {
             // E1 knows where e2 is
             let state = e1_script.state.clone();
             let mut mut_state = state.lock().unwrap();
-            (e1_script.on_contact)(&mut mut_state, e2_pos.0);
+            (e1_script.on_contact)(&mut mut_state, e2_pos.0, e2_entity);
         } else {
             println!("ERROR - SCRIPT - {:?}", contact_event);
         }
@@ -159,7 +160,9 @@ fn process_on_update(
         &mut TargetRotation, &Rotation,
         &Children
     )>,
+    target_query: Query<Entity>,
     mut radar_query: Query<&mut Radar>,
+    mut events: EventWriter<FireDebugWeaponEvent>,
 ) {
     // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
@@ -180,7 +183,7 @@ fn process_on_update(
             let state = script.state.clone();
             let mut mut_state = state.lock().unwrap();
 
-            // [ to_rot, to_vel , to_rdr_rot ]
+            // [ to_rot, to_vel, to_rdr_rot, target]
             let res = (script.on_update)(
                 &mut mut_state,
                 pos,
@@ -200,6 +203,13 @@ fn process_on_update(
             for child_entity in children {
                 if let Ok(mut radar) = radar_query.get_mut(*child_entity) {
                     radar.target += res.2;
+                }
+            }
+
+            // For now emit a fire event
+            if let Some(target) = res.3 {
+                if let Ok(target_entity) = target_query.get(target) {
+                    events.write(FireDebugWeaponEvent(entity, target_entity));
                 }
             }
         }

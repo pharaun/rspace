@@ -51,7 +51,6 @@ use crate::ship::health::DamageEvent;
 pub mod debug_weapon;
 use crate::ship::debug_weapon::DebugWeapon;
 use crate::ship::debug_weapon::apply_debug_weapon_cooldown;
-use crate::ship::debug_weapon::RenderDebugWeapon;
 use crate::ship::debug_weapon::render_debug_weapon;
 use crate::ship::debug_weapon::FireDebugWeaponEvent;
 use crate::ship::debug_weapon::process_fire_debug_weapon_event;
@@ -419,7 +418,7 @@ pub fn add_ships(
 
             // Health and Damage components
             .insert(ship.health)
-            .insert(DebugWeapon { cooldown: 10, current: 0, damage: 10 })
+            .insert(DebugWeapon { cooldown: 10, current: 0, damage: 34 })
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
             .insert(Collider::cuboid(10.0, 20.0))
