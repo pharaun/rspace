@@ -55,6 +55,10 @@ use crate::ship::debug_weapon::render_debug_weapon;
 use crate::ship::debug_weapon::FireDebugWeaponEvent;
 use crate::ship::debug_weapon::process_fire_debug_weapon_event;
 
+pub mod class;
+use crate::ship::class::ShipClass;
+use crate::ship::class::get_ship;
+use crate::ship::class::get_radar;
 
 // INFO:
 // - Ship class: Tiny, Small, Med, Large where they would occupy roughly
@@ -377,30 +381,18 @@ pub fn add_ships(
     ships: Vec<StarterShip>
 ) {
     for ship in ships {
-        let ship_path = ShapePath::new()
-            .move_to(Vec2::new(0.0, 20.0))
-            .line_to(Vec2::new(10.0, -20.0))
-            .line_to(Vec2::new(0.0, -10.0))
-            .line_to(Vec2::new(-10.0, -20.0))
-            .close();
-
-        let radar_path = ShapePath::new()
-            .move_to(Vec2::new(5.0, 0.0))
-            .arc(Vec2::new(0.0, 0.0), Vec2::new(5.0, 4.5), f32::to_radians(-180.0), f32::to_radians(0.0))
-            .move_to(Vec2::new(0.0, 2.0))
-            .line_to(Vec2::new(0.0, -4.5));
-
         let radar_target = ship.radar.target;
         let ship_target = ship.rotation.target;
         let mut transform = Transform::from_translation(vec_scale(ship.position, ARENA_SCALE).extend(0.));
         transform.rotate(ship_target.to_quat());
 
         let mut spawned_ship = commands.spawn((
-            ShapeBuilder::with(&ship_path)
-                .fill(Fill::color(bevy::color::palettes::css::GREEN))
-                .stroke(Stroke::new(bevy::color::palettes::css::BLACK, 2.0))
-                .build(),
-            transform
+            get_ship(
+                ShipClass::Medium,
+                Fill::color(bevy::color::palettes::css::GREEN),
+                Stroke::new(bevy::color::palettes::css::BLACK, 2.0),
+            ),
+            transform,
         ));
 
         spawned_ship
@@ -435,12 +427,10 @@ pub fn add_ships(
                 transform.rotate(radar_target.to_quat());
 
                 let mut spawned_radar = parent.spawn((
-                    ShapeBuilder::with(&radar_path)
-                        .stroke(Stroke::new(bevy::color::palettes::css::MAROON, 1.5))
-                        .build(),
-                    transform
+                    get_radar(Stroke::new(bevy::color::palettes::css::MAROON, 1.5)),
+                    transform,
+                    ship.radar,
                 ));
-                spawned_radar.insert(ship.radar);
 
                 if let Some(radar) = ship.debug.radar_debug {
                     spawned_radar.insert(radar);
