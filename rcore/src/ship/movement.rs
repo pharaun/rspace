@@ -3,16 +3,51 @@ use crate::arena::ARENA_SCALE;
 use crate::math::vec_scale;
 use crate::math::un_vec_scale;
 
-use crate::ship::motion::Rotation;
+use crate::ship::rotation::Rotation;
+
+pub struct MovementPlugin;
+impl Plugin for MovementPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(FixedPreUpdate, (
+                init_movement,
+            ))
+            .add_systems(FixedUpdate, (
+                apply_movement,
+            ))
+            .add_systems(RunFixedMainLoop, (
+                interpolate_movement.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+            ))
+            .add_systems(Update, (
+                debug_movement_gitzmos,
+            ));
+    }
+}
+
+// TODO: for now have a single accleration vector from the main engine only, but eventually
+// I want to have RCS so that there can be a small amount of lateral and backward movement
+// but you would still need the main engine for heavy acceleration.
+#[derive(Component)]
+#[require(Position)]
+pub struct Velocity {
+    pub acceleration: i32,
+    pub velocity: IVec2,
+
+    // TODO: improve how the limits works better
+    pub velocity_limit: u32,
+}
 
 // Simulation position,
 // Transform is separate and a visual layer, we need to redo the code to better
 // separate the rendering layer from the simulation layer
-#[derive(Component, Debug)]
+#[derive(Component, Default)]
+#[require(PreviousPosition)]
 pub struct Position(pub IVec2);
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct PreviousPosition(pub IVec2);
+
+#[derive(Component)]
+pub struct MovDebug;
 
 // Handles rendering
 // Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
@@ -20,7 +55,7 @@ pub struct PreviousPosition(pub IVec2);
 // - Since we do have velocity information so we should be able to do better interpolation
 pub(crate) fn interpolate_movement(
     mut query: Query<(&mut Transform, &Position, &PreviousPosition)>,
-    fixed_time: Res<Time<Fixed>>
+    fixed_time: Res<Time<Fixed>>,
 ) {
     // How much of a "partial timestep" has accumulated since the last fixed timestep run.
     // Between `0.0` and `1.0`.
@@ -36,24 +71,10 @@ pub(crate) fn interpolate_movement(
     }
 }
 
-// TODO: for now have a single accleration vector from the main engine only, but eventually
-// I want to have RCS so that there can be a small amount of lateral and backward movement
-// but you would still need the main engine for heavy acceleration.
-#[derive(Component)]
-pub struct Velocity {
-    pub acceleration: i32,
-    pub velocity: IVec2,
-
-    // TODO: improve how the limits works better
-    pub velocity_limit: u32,
-}
-
 // TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
-// TODO: remove dependence on Transform and instead do a fixed rotation component
-// TODO: separate the debug stuff out to its own component/system
 pub(crate) fn apply_movement(
-    time: Res<Time<Fixed>>,
-    mut query: Query<(&mut Velocity, &Rotation, &mut Position, &mut PreviousPosition)>
+    mut query: Query<(&mut Velocity, &Rotation, &mut Position, &mut PreviousPosition)>,
+    fixed_time: Res<Time<Fixed>>,
 ) {
     for (mut vec, rot, mut position, mut previous_position) in query.iter_mut() {
         previous_position.0 = position.0;
@@ -66,11 +87,11 @@ pub(crate) fn apply_movement(
             &vec_scale(vec.velocity, 1.0),
             &acceleration,
             vec.velocity_limit,
-            &time
+            &fixed_time
         );
 
-        vec.velocity += un_vec_scale(acceleration * factor * time.delta_secs(), 1.0);
-        position.0 += un_vec_scale(vec_scale(vec.velocity, 1.0) * time.delta_secs(), 1.0);
+        vec.velocity += un_vec_scale(acceleration * factor * fixed_time.delta_secs(), 1.0);
+        position.0 += un_vec_scale(vec_scale(vec.velocity, 1.0) * fixed_time.delta_secs(), 1.0);
     }
 }
 
@@ -78,7 +99,7 @@ fn calculate_lorentz_factor<T>(
     velocity: &Vec2,
     acceleration: &Vec2,
     velocity_limit: u32,
-    time: &Time<T>
+    time: &Time<T>,
 ) -> f32
 where
     T: std::default::Default
@@ -99,12 +120,19 @@ where
     }
 }
 
-#[derive(Component)]
-pub struct MovDebug;
+// So that the first frame is correct, pre-populate the PreviousPosition with the Position
+// upon that component being inserted
+pub(crate) fn init_movement(
+    mut query: Query<(&Position, &mut PreviousPosition), Added<Position>>,
+) {
+    for (position, mut previous_position) in query.iter_mut() {
+        previous_position.0 = position.0;
+    }
+}
 
 pub(crate) fn debug_movement_gitzmos(
+    query: Query<(&Transform, &Velocity), With<MovDebug>>,
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &Velocity), With<MovDebug>>
 ) {
     for (tran, vel) in query.iter() {
         let base = tran.translation.truncate();

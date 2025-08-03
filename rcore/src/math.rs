@@ -37,7 +37,7 @@ const FRAC_PI_128: f32 = PI / -128.0;
 // 128 = 180º South
 // 192 = 270º West
 // Radian: 0 = 0, 1 = π/128, 64 = π/2, 128 = π/1, ...
-#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Copy, Default)]
 pub struct AbsRot(pub u8);
 
 impl AbsRot {

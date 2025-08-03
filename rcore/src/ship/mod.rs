@@ -14,8 +14,8 @@ use crate::arena::ARENA_SCALE;
 // TODO: look into plugins + bundles to make this better
 // because right now i'm having to add multiple things to this
 // file for each new system/component
-pub mod motion;
-use crate::ship::motion::MotionPlugin;
+pub mod movement;
+pub mod rotation;
 
 pub mod radar;
 use crate::ship::radar::Radar;
@@ -115,33 +115,31 @@ pub struct ShipPlugins;
 impl Plugin for ShipPlugins {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
-            .add_plugins(MotionPlugin)
+            .add_plugins(movement::MovementPlugin)
+            .add_plugins(rotation::RotationPlugin)
             //.insert_resource(Time::<Fixed>::from_hz(64.0))
             .insert_resource(Time::<Fixed>::from_hz(2.0))
             .add_event::<ContactEvent>()
             .add_event::<DamageEvent>()
             .add_event::<FireDebugWeaponEvent>()
-            .add_systems(
-                FixedUpdate,
-                (
-                    // TODO: apply radar rotation, then process radar_event
-                    apply_radar,
-                    apply_debug_weapon_cooldown,
-                ),
-            )
-            .add_systems(
-                RunFixedMainLoop,
-                (
-                    render_debug_weapon.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
-                ),
-            )
-            .add_systems(Update, debug_radar_gitzmos)
-            .add_systems(Update, debug_health_gitzmos)
+            .add_systems(FixedUpdate, (
+                // TODO: apply radar rotation, then process radar_event
+                apply_radar,
+                apply_debug_weapon_cooldown,
+            ))
+            .add_systems(RunFixedMainLoop, (
+                render_debug_weapon.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+            ))
+            .add_systems(Update, (
+                debug_radar_gitzmos,
+                debug_health_gitzmos,
 
-            .add_systems(Update, process_collision_event)
-            .add_systems(Update, apply_collision.after(process_collision_event))
-            .add_systems(Update, process_damage_event)
-            .add_systems(Update, process_fire_debug_weapon_event);
+                process_collision_event,
+                apply_collision.after(process_collision_event),
+
+                process_damage_event,
+                process_fire_debug_weapon_event,
+            ));
     }
 }
 
@@ -154,8 +152,8 @@ impl Plugin for ShipPlugins {
 // - Dig into ECS archtype to help with some of these setup stuff
 pub struct StarterShip {
     position: IVec2,
-    velocity: motion::Velocity,
-    rotation: motion::TargetRotation,
+    velocity: movement::Velocity,
+    rotation: rotation::TargetRotation,
     health: Health,
     radar: Radar,
     script: Script,
@@ -171,8 +169,8 @@ impl StarterShip {
 // Builder to make building a starter ship nicer
 pub struct ShipBuilder {
     position: IVec2,
-    velocity: motion::Velocity,
-    rotation: motion::TargetRotation,
+    velocity: movement::Velocity,
+    rotation: rotation::TargetRotation,
     health: Health,
     radar: Radar,
     script: Script,
@@ -185,12 +183,12 @@ impl ShipBuilder {
         // they can be more self-contained without having to build them up here in the builder
         ShipBuilder {
             position: IVec2::new(0, 0),
-            velocity: motion::Velocity {
+            velocity: movement::Velocity {
                 velocity: IVec2::new(0, 0),
                 acceleration: 0,
                 velocity_limit: 100,
             },
-            rotation: motion::TargetRotation {
+            rotation: rotation::TargetRotation {
                 limit: 16,
                 target: AbsRot(0),
             },
@@ -292,8 +290,8 @@ impl ShipBuilder {
 // optionally
 pub struct DebugShip {
     radar_debug: Option<RadarDebug>,
-    mov_debug: Option<motion::MovDebug>,
-    rot_debug: Option<motion::RotDebug>,
+    mov_debug: Option<movement::MovDebug>,
+    rot_debug: Option<rotation::RotDebug>,
     health_debug: Option<HealthDebug>,
 }
 
@@ -314,8 +312,8 @@ impl DebugShip {
 
 pub struct DebugBuilder {
     radar_debug: Option<RadarDebug>,
-    mov_debug: Option<motion::MovDebug>,
-    rot_debug: Option<motion::RotDebug>,
+    mov_debug: Option<movement::MovDebug>,
+    rot_debug: Option<rotation::RotDebug>,
     health_debug: Option<HealthDebug>,
 }
 
@@ -335,12 +333,12 @@ impl DebugBuilder {
     }
 
     pub fn movement(mut self) -> DebugBuilder {
-        self.mov_debug = Some(motion::MovDebug);
+        self.mov_debug = Some(movement::MovDebug);
         self
     }
 
     pub fn rotation(mut self) -> DebugBuilder {
-        self.rot_debug = Some(motion::RotDebug);
+        self.rot_debug = Some(rotation::RotDebug);
         self
     }
 
@@ -380,15 +378,14 @@ pub fn add_ships(
 
         spawned_ship
             .insert(Ship)
-            .insert(ship.velocity)
-            .insert(ship.rotation)
             .insert(ship.script)
 
             // Motion components
-            .insert(motion::Position(ship.position))
-            .insert(motion::PreviousPosition(ship.position))
-            .insert(motion::Rotation(ship_target))
-            .insert(motion::PreviousRotation(ship_target))
+            .insert(movement::Position(ship.position))
+            .insert(ship.velocity)
+
+            .insert(rotation::Rotation(ship_target))
+            .insert(ship.rotation)
 
             // Health and Damage components
             .insert(ship.health)

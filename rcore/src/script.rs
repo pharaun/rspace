@@ -10,10 +10,10 @@ use std::collections::HashMap;
 use rust_dynamic::value::Value;
 
 use crate::ship::{
-    motion::Velocity,
-    motion::Position,
-    motion::TargetRotation,
-    motion::Rotation,
+    movement::Velocity,
+    movement::Position,
+    rotation::TargetRotation,
+    rotation::Rotation,
     radar::ContactEvent,
     radar::Radar,
     debug_weapon::FireDebugWeaponEvent,

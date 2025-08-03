@@ -3,11 +3,40 @@ use bevy::prelude::*;
 use crate::ship::Radar;
 use crate::math::AbsRot;
 
-#[derive(Component)]
-pub struct Rotation(pub AbsRot);
+pub struct RotationPlugin;
+impl Plugin for RotationPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(FixedPreUpdate, (
+                init_rotation,
+            ))
+            .add_systems(FixedUpdate, (
+                apply_rotation,
+            ))
+            .add_systems(RunFixedMainLoop, (
+                interpolate_rotation.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+            ))
+            .add_systems(Update, (
+                debug_rotation_gitzmos,
+            ));
+    }
+}
 
 #[derive(Component)]
+#[require(Rotation)]
+pub struct TargetRotation {
+    pub limit: u8, // Per Second?
+    pub target: AbsRot,
+}
+
+#[derive(Component, Default)]
+#[require(PreviousRotation)]
+pub struct Rotation(pub AbsRot);
+
+#[derive(Component, Default)]
 pub struct PreviousRotation(pub AbsRot);
+
+#[derive(Component)]
+pub struct RotDebug;
 
 // Handles rendering
 // Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
@@ -37,13 +66,6 @@ pub(crate) fn interpolate_rotation(
     }
 }
 
-
-#[derive(Component)]
-pub struct TargetRotation {
-    pub limit: u8, // Per Second?
-    pub target: AbsRot,
-}
-
 pub(crate) fn apply_rotation(
     time: Res<Time<Fixed>>,
     mut query: Query<(&TargetRotation, &mut Rotation, &mut PreviousRotation)>
@@ -63,9 +85,15 @@ pub(crate) fn apply_rotation(
     }
 }
 
-
-#[derive(Component)]
-pub struct RotDebug;
+// So that the first frame is correct, pre-populate the PreviousRotation with the Rotation
+// upon that component being inserted
+pub(crate) fn init_rotation(
+    mut query: Query<(&Rotation, &mut PreviousRotation), Added<Rotation>>,
+) {
+    for (rotation, mut previous_rotation) in query.iter_mut() {
+        previous_rotation.0 = rotation.0;
+    }
+}
 
 pub(crate) fn debug_rotation_gitzmos(
     mut gizmos: Gizmos,
