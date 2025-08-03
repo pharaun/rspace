@@ -14,20 +14,8 @@ use crate::arena::ARENA_SCALE;
 // TODO: look into plugins + bundles to make this better
 // because right now i'm having to add multiple things to this
 // file for each new system/component
-pub mod movement;
-use crate::ship::movement::interpolate_transforms;
-use crate::ship::movement::Velocity;
-use crate::ship::movement::apply_velocity;
-use crate::ship::movement::MovDebug;
-use crate::ship::movement::debug_movement_gitzmos;
-
-pub mod rotation;
-use crate::ship::rotation::interpolate_rotation;
-use crate::ship::rotation::Rotation;
-use crate::ship::rotation::apply_rotation;
-use crate::ship::rotation::RotDebug;
-use crate::ship::rotation::debug_rotation_gitzmos;
-use crate::ship::rotation::TargetRotation;
+pub mod motion;
+use crate::ship::motion::MotionPlugin;
 
 pub mod radar;
 use crate::ship::radar::Radar;
@@ -127,6 +115,7 @@ pub struct ShipPlugins;
 impl Plugin for ShipPlugins {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
+            .add_plugins(MotionPlugin)
             //.insert_resource(Time::<Fixed>::from_hz(64.0))
             .insert_resource(Time::<Fixed>::from_hz(2.0))
             .add_event::<ContactEvent>()
@@ -135,8 +124,6 @@ impl Plugin for ShipPlugins {
             .add_systems(
                 FixedUpdate,
                 (
-                    apply_velocity,
-                    apply_rotation,
                     // TODO: apply radar rotation, then process radar_event
                     apply_radar,
                     apply_debug_weapon_cooldown,
@@ -145,13 +132,9 @@ impl Plugin for ShipPlugins {
             .add_systems(
                 RunFixedMainLoop,
                 (
-                    interpolate_transforms.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
-                    interpolate_rotation.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
                     render_debug_weapon.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
                 ),
             )
-            .add_systems(Update, debug_rotation_gitzmos)
-            .add_systems(Update, debug_movement_gitzmos)
             .add_systems(Update, debug_radar_gitzmos)
             .add_systems(Update, debug_health_gitzmos)
 
@@ -171,8 +154,8 @@ impl Plugin for ShipPlugins {
 // - Dig into ECS archtype to help with some of these setup stuff
 pub struct StarterShip {
     position: IVec2,
-    velocity: Velocity,
-    rotation: TargetRotation,
+    velocity: motion::Velocity,
+    rotation: motion::TargetRotation,
     health: Health,
     radar: Radar,
     script: Script,
@@ -188,8 +171,8 @@ impl StarterShip {
 // Builder to make building a starter ship nicer
 pub struct ShipBuilder {
     position: IVec2,
-    velocity: Velocity,
-    rotation: TargetRotation,
+    velocity: motion::Velocity,
+    rotation: motion::TargetRotation,
     health: Health,
     radar: Radar,
     script: Script,
@@ -202,12 +185,12 @@ impl ShipBuilder {
         // they can be more self-contained without having to build them up here in the builder
         ShipBuilder {
             position: IVec2::new(0, 0),
-            velocity: Velocity {
+            velocity: motion::Velocity {
                 velocity: IVec2::new(0, 0),
                 acceleration: 0,
                 velocity_limit: 100,
             },
-            rotation: TargetRotation {
+            rotation: motion::TargetRotation {
                 limit: 16,
                 target: AbsRot(0),
             },
@@ -309,8 +292,8 @@ impl ShipBuilder {
 // optionally
 pub struct DebugShip {
     radar_debug: Option<RadarDebug>,
-    mov_debug: Option<MovDebug>,
-    rot_debug: Option<RotDebug>,
+    mov_debug: Option<motion::MovDebug>,
+    rot_debug: Option<motion::RotDebug>,
     health_debug: Option<HealthDebug>,
 }
 
@@ -331,8 +314,8 @@ impl DebugShip {
 
 pub struct DebugBuilder {
     radar_debug: Option<RadarDebug>,
-    mov_debug: Option<MovDebug>,
-    rot_debug: Option<RotDebug>,
+    mov_debug: Option<motion::MovDebug>,
+    rot_debug: Option<motion::RotDebug>,
     health_debug: Option<HealthDebug>,
 }
 
@@ -352,12 +335,12 @@ impl DebugBuilder {
     }
 
     pub fn movement(mut self) -> DebugBuilder {
-        self.mov_debug = Some(MovDebug);
+        self.mov_debug = Some(motion::MovDebug);
         self
     }
 
     pub fn rotation(mut self) -> DebugBuilder {
-        self.rot_debug = Some(RotDebug);
+        self.rot_debug = Some(motion::RotDebug);
         self
     }
 
@@ -401,12 +384,11 @@ pub fn add_ships(
             .insert(ship.rotation)
             .insert(ship.script)
 
-            // Simulation components
-            .insert(movement::Position(ship.position))
-            .insert(movement::PreviousPosition(ship.position))
-
-            .insert(rotation::Rotation(ship_target))
-            .insert(rotation::PreviousRotation(ship_target))
+            // Motion components
+            .insert(motion::Position(ship.position))
+            .insert(motion::PreviousPosition(ship.position))
+            .insert(motion::Rotation(ship_target))
+            .insert(motion::PreviousRotation(ship_target))
 
             // Health and Damage components
             .insert(ship.health)

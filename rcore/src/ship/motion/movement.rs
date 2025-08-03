@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use crate::arena::ARENA_SCALE;
-use crate::ship::Rotation;
 use crate::math::vec_scale;
 use crate::math::un_vec_scale;
+
+use crate::ship::motion::Rotation;
 
 // Simulation position,
 // Transform is separate and a visual layer, we need to redo the code to better
@@ -17,7 +18,7 @@ pub struct PreviousPosition(pub IVec2);
 // Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
 // Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
 // - Since we do have velocity information so we should be able to do better interpolation
-pub(crate) fn interpolate_transforms(
+pub(crate) fn interpolate_movement(
     mut query: Query<(&mut Transform, &Position, &PreviousPosition)>,
     fixed_time: Res<Time<Fixed>>
 ) {
@@ -50,7 +51,7 @@ pub struct Velocity {
 // TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
 // TODO: remove dependence on Transform and instead do a fixed rotation component
 // TODO: separate the debug stuff out to its own component/system
-pub(crate) fn apply_velocity(
+pub(crate) fn apply_movement(
     time: Res<Time<Fixed>>,
     mut query: Query<(&mut Velocity, &Rotation, &mut Position, &mut PreviousPosition)>
 ) {

@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
 use crate::math::AbsRot;
-use crate::ship::movement::Position;
-use crate::ship::movement::PreviousPosition;
+use crate::ship::motion::Position;
+use crate::ship::motion::PreviousPosition;
 
 // This is the display area
 const DISPLAY: Vec2 = Vec2::new(1024., 640.);

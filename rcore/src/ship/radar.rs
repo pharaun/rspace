@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::math::RelRot;
 use crate::math::AbsRot;
-use crate::ship::movement::Position;
+use crate::ship::motion::Position;
 
 use crate::ship::ARENA_SCALE;
 
