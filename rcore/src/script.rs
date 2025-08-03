@@ -9,11 +9,12 @@ use std::boxed::Box;
 use std::collections::HashMap;
 use rust_dynamic::value::Value;
 
+use crate::movement::Velocity;
+use crate::movement::Position;
+use crate::rotation::TargetRotation;
+use crate::rotation::Rotation;
+
 use crate::ship::{
-    movement::Velocity,
-    movement::Position,
-    rotation::TargetRotation,
-    rotation::Rotation,
     radar::ContactEvent,
     radar::Radar,
     debug_weapon::FireDebugWeaponEvent,

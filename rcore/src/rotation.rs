@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 
-use crate::ship::Radar;
 use crate::math::AbsRot;
+
+use crate::ship::Radar;
 
 pub struct RotationPlugin;
 impl Plugin for RotationPlugin {

@@ -10,15 +10,14 @@ use crate::math::AbsRot;
 use crate::script::Script;
 use crate::math::vec_scale;
 use crate::arena::ARENA_SCALE;
+use crate::movement;
+use crate::rotation;
 
 // TODO: look into plugins + bundles to make this better
 // because right now i'm having to add multiple things to this
 // file for each new system/component
-pub mod movement;
-pub mod rotation;
-
 pub mod radar;
-use crate::ship::radar::Radar;
+pub use crate::ship::radar::Radar;
 use crate::ship::radar::apply_radar;
 use crate::ship::radar::RadarDebug;
 use crate::ship::radar::debug_radar_gitzmos;
@@ -111,12 +110,10 @@ struct Ship;
 //  - Rendering bits for the ship
 //  - Simulation bits (ie universal sim bits)
 //  - Specific per ship features
-pub struct ShipPlugins;
-impl Plugin for ShipPlugins {
+pub struct ShipPlugin;
+impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
-            .add_plugins(movement::MovementPlugin)
-            .add_plugins(rotation::RotationPlugin)
             //.insert_resource(Time::<Fixed>::from_hz(64.0))
             .insert_resource(Time::<Fixed>::from_hz(2.0))
             .add_event::<ContactEvent>()

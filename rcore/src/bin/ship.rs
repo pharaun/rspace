@@ -9,14 +9,17 @@ use std::collections::HashMap;
 use rust_dynamic::value::Value;
 
 use rcore::arena::ArenaPlugins;
-use rcore::script::Script;
+use rcore::movement::MovementPlugin;
+use rcore::rotation::RotationPlugin;
 use rcore::script::ScriptPlugins;
-use rcore::ship::ShipPlugins;
-use rcore::ship::add_ships;
-use rcore::ship::ShipBuilder;
-use rcore::ship::DebugBuilder;
-use rcore::math::RelRot;
+use rcore::ship::ShipPlugin;
+
 use rcore::math::AbsRot;
+use rcore::math::RelRot;
+use rcore::script::Script;
+use rcore::ship::DebugBuilder;
+use rcore::ship::ShipBuilder;
+use rcore::ship::add_ships;
 
 fn main() {
     App::new()
@@ -30,7 +33,9 @@ fn main() {
         // Game bits
         .add_plugins(ArenaPlugins)
         .add_plugins(ScriptPlugins)
-        .add_plugins(ShipPlugins)
+        .add_plugins(MovementPlugin)
+        .add_plugins(RotationPlugin)
+        .add_plugins(ShipPlugin)
 
         // TODO: a way to init a new ship with some preset value to help script do custom per ship
         // things limit_r, target_r,

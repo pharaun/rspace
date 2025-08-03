@@ -3,7 +3,7 @@ use crate::arena::ARENA_SCALE;
 use crate::math::vec_scale;
 use crate::math::un_vec_scale;
 
-use crate::ship::rotation::Rotation;
+use crate::rotation::Rotation;
 
 pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
