@@ -23,6 +23,9 @@ use rcore::ship::add_ships;
 
 fn main() {
     App::new()
+        //.insert_resource(Time::<Fixed>::from_hz(64.0))
+        .insert_resource(Time::<Fixed>::from_hz(2.0))
+
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(10.0))
         //.add_plugins(RapierDebugRenderPlugin::default())

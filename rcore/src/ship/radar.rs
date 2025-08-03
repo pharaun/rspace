@@ -10,6 +10,20 @@ use crate::ship::ARENA_SCALE;
 const DISTANCE: i32 = 4000;
 const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
 
+pub struct RadarPlugin;
+impl Plugin for RadarPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_event::<ContactEvent>()
+            .add_systems(FixedUpdate, (
+                // TODO: apply radar rotation, then process radar_event
+                apply_radar,
+            ))
+            .add_systems(Update, (
+                debug_radar_gitzmos,
+            ));
+    }
+}
+
 // TODO:
 // - radar rotation system
 // - radar arc2length via area rule system?
@@ -26,11 +40,6 @@ const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
 // with ECM and any other warfare stuff later
 // - This approach is basically "converting" each entities into a polaris coordination from your
 // ship/radar
-
-// Radar contact event,
-// 0 - self, 1 - target
-#[derive(Event, Copy, Clone, Debug)]
-pub struct ContactEvent (pub Entity, pub Entity);
 
 // Radar:
 //  TODO: Other types such as fixed radar (missiles?) and rotating radar
@@ -49,6 +58,14 @@ pub struct Radar {
     pub target_arc: u8,
 }
 
+#[derive(Component)]
+pub struct RadarDebug;
+
+// Radar contact event,
+// 0 - self, 1 - target
+#[derive(Event, Copy, Clone, Debug)]
+pub struct ContactEvent (pub Entity, pub Entity);
+
 // Radar Contact Result
 #[derive(Debug)]
 enum RadarContact {
@@ -56,24 +73,6 @@ enum RadarContact {
     TooFar,
     SamePosition,
     OutsideArc,
-}
-
-fn within_radar_arc(
-    base: IVec2, target: IVec2,
-    radar_heading: AbsRot, radar_arc: u8, distance_squared: i32,
-) -> RadarContact {
-    if base.distance_squared(target) > distance_squared {
-        return RadarContact::TooFar;
-    }
-
-    match AbsRot::from_vec2_angle(base, target) {
-        Some(rot) => if radar_heading.between(radar_arc, rot) {
-            RadarContact::Contact
-        } else {
-            RadarContact::OutsideArc
-        },
-        None => RadarContact::SamePosition,
-    }
 }
 
 // TODO: split this and setup system ordering but for now.
@@ -131,9 +130,23 @@ pub(crate) fn apply_radar(
     }
 }
 
+fn within_radar_arc(
+    base: IVec2, target: IVec2,
+    radar_heading: AbsRot, radar_arc: u8, distance_squared: i32,
+) -> RadarContact {
+    if base.distance_squared(target) > distance_squared {
+        return RadarContact::TooFar;
+    }
 
-#[derive(Component)]
-pub struct RadarDebug;
+    match AbsRot::from_vec2_angle(base, target) {
+        Some(rot) => if radar_heading.between(radar_arc, rot) {
+            RadarContact::Contact
+        } else {
+            RadarContact::OutsideArc
+        },
+        None => RadarContact::SamePosition,
+    }
+}
 
 pub(crate) fn debug_radar_gitzmos(
     mut gizmos: Gizmos,

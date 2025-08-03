@@ -2,7 +2,23 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-use crate::ship::DamageEvent;
+use crate::ship::health::DamageEvent;
+
+pub struct WeaponPlugin;
+impl Plugin for WeaponPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_event::<FireDebugWeaponEvent>()
+            .add_systems(FixedUpdate, (
+                apply_debug_weapon_cooldown,
+            ))
+            .add_systems(RunFixedMainLoop, (
+                render_debug_weapon.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+            ))
+            .add_systems(Update, (
+                process_fire_debug_weapon_event,
+            ));
+    }
+}
 
 // Basic 360 no scope test weapon, it can zap anything when told to fire
 #[derive(Component, Clone)]
@@ -16,15 +32,6 @@ pub struct DebugWeapon {
     pub damage: u16,
 }
 
-
-pub(crate) fn apply_debug_weapon_cooldown(
-    mut query: Query<&mut DebugWeapon>
-) {
-    for mut weapon in &mut query {
-        weapon.current = weapon.current.saturating_sub(1);
-    }
-}
-
 // New entity + component for rendering the weapon then it fades away
 #[derive(Component)]
 pub struct RenderDebugWeapon {
@@ -33,6 +40,21 @@ pub struct RenderDebugWeapon {
 
     // Persist for this amount of time
     pub fade: Timer,
+}
+
+// Weapon Firing event,
+// TODO: probs want to look at some other option but for now we can use an event to fire
+// the weapon
+// 0 - self, 1 - target
+#[derive(Event, Copy, Clone, Debug)]
+pub struct FireDebugWeaponEvent (pub Entity, pub Entity);
+
+pub(crate) fn apply_debug_weapon_cooldown(
+    mut query: Query<&mut DebugWeapon>
+) {
+    for mut weapon in &mut query {
+        weapon.current = weapon.current.saturating_sub(1);
+    }
 }
 
 pub(crate) fn render_debug_weapon(
@@ -58,13 +80,6 @@ pub(crate) fn render_debug_weapon(
         }
     }
 }
-
-// Weapon Firing event,
-// TODO: probs want to look at some other option but for now we can use an event to fire
-// the weapon
-// 0 - self, 1 - target
-#[derive(Event, Copy, Clone, Debug)]
-pub struct FireDebugWeaponEvent (pub Entity, pub Entity);
 
 pub fn process_fire_debug_weapon_event(
     mut commands: Commands,

@@ -2,6 +2,15 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use bevy_prototype_lyon::prelude::Shape;
 
+pub struct CollisionPlugin;
+impl Plugin for CollisionPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Update, (
+                process_collision_event,
+                apply_collision.after(process_collision_event),
+            ));
+    }
+}
 // Ref-counted collision, if greater than zero, its colloding, otherwise
 #[derive(Component)]
 pub struct Collision(pub u32);

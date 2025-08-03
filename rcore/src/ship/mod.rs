@@ -13,39 +13,29 @@ use crate::arena::ARENA_SCALE;
 use crate::movement;
 use crate::rotation;
 
-// TODO: look into plugins + bundles to make this better
-// because right now i'm having to add multiple things to this
-// file for each new system/component
-pub mod radar;
-pub use crate::ship::radar::Radar;
-use crate::ship::radar::apply_radar;
-use crate::ship::radar::RadarDebug;
-use crate::ship::radar::debug_radar_gitzmos;
-use crate::ship::radar::ContactEvent;
-
-pub mod collision;
-use crate::ship::collision::Collision;
-use crate::ship::collision::apply_collision;
-use crate::ship::collision::process_collision_event;
-
-pub mod health;
-use crate::ship::health::Health;
-use crate::ship::health::HealthDebug;
-use crate::ship::health::process_damage_event;
-use crate::ship::health::debug_health_gitzmos;
-use crate::ship::health::DamageEvent;
-
-pub mod debug_weapon;
-use crate::ship::debug_weapon::DebugWeapon;
-use crate::ship::debug_weapon::apply_debug_weapon_cooldown;
-use crate::ship::debug_weapon::render_debug_weapon;
-use crate::ship::debug_weapon::FireDebugWeaponEvent;
-use crate::ship::debug_weapon::process_fire_debug_weapon_event;
-
 pub mod class;
 use crate::ship::class::ShipClass;
 use crate::ship::class::get_ship;
 use crate::ship::class::get_radar;
+
+pub mod radar;
+use crate::ship::radar::RadarPlugin;
+pub use crate::ship::radar::Radar;
+use crate::ship::radar::RadarDebug;
+
+pub mod collision;
+use crate::ship::collision::CollisionPlugin;
+use crate::ship::collision::Collision;
+
+pub mod health;
+use crate::ship::health::HealthPlugin;
+use crate::ship::health::Health;
+use crate::ship::health::HealthDebug;
+
+pub mod debug_weapon;
+use crate::ship::debug_weapon::WeaponPlugin;
+use crate::ship::debug_weapon::DebugWeapon;
+
 
 // INFO:
 // - Ship class: Tiny, Small, Med, Large where they would occupy roughly
@@ -114,29 +104,10 @@ pub struct ShipPlugin;
 impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ShapePlugin)
-            //.insert_resource(Time::<Fixed>::from_hz(64.0))
-            .insert_resource(Time::<Fixed>::from_hz(2.0))
-            .add_event::<ContactEvent>()
-            .add_event::<DamageEvent>()
-            .add_event::<FireDebugWeaponEvent>()
-            .add_systems(FixedUpdate, (
-                // TODO: apply radar rotation, then process radar_event
-                apply_radar,
-                apply_debug_weapon_cooldown,
-            ))
-            .add_systems(RunFixedMainLoop, (
-                render_debug_weapon.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
-            ))
-            .add_systems(Update, (
-                debug_radar_gitzmos,
-                debug_health_gitzmos,
-
-                process_collision_event,
-                apply_collision.after(process_collision_event),
-
-                process_damage_event,
-                process_fire_debug_weapon_event,
-            ));
+            .add_plugins(RadarPlugin)
+            .add_plugins(HealthPlugin)
+            .add_plugins(WeaponPlugin)
+            .add_plugins(CollisionPlugin);
     }
 }
 

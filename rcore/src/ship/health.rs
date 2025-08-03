@@ -1,14 +1,27 @@
 use bevy::prelude::*;
 
+pub struct HealthPlugin;
+impl Plugin for HealthPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_event::<DamageEvent>()
+            .add_systems(Update, (
+                process_damage_event,
+                debug_health_gitzmos,
+            ));
+    }
+}
+
 // Health and armor system for ships
 //
 // When a ship is hit with a weapon, this is when this system comes in play
-
 #[derive(Component, Debug)]
 pub struct Health {
     pub current: u16,
     pub maximum: u16,
 }
+
+#[derive(Component)]
+pub struct HealthDebug;
 
 // 0 - Entity being damaged, 1 - health to deduce
 #[derive(Event, Copy, Clone, Debug)]
@@ -31,9 +44,6 @@ pub fn process_damage_event(
         }
     }
 }
-
-#[derive(Component)]
-pub struct HealthDebug;
 
 pub(crate) fn debug_health_gitzmos(
     mut gizmos: Gizmos,
