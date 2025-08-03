@@ -18,6 +18,8 @@ use crate::ship::{
     radar::ContactEvent,
     radar::Radar,
     debug_weapon::FireDebugWeaponEvent,
+    debug_weapon::FireDebugWarheadEvent,
+    debug_weapon::FireDebugMissileEvent,
 };
 
 use crate::math::AbsRot;
@@ -164,6 +166,8 @@ fn process_on_update(
     target_query: Query<Entity>,
     mut radar_query: Query<&mut Radar>,
     mut events: EventWriter<FireDebugWeaponEvent>,
+    mut w_events: EventWriter<FireDebugWarheadEvent>,
+    mut m_events: EventWriter<FireDebugMissileEvent>,
 ) {
     // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
@@ -212,6 +216,12 @@ fn process_on_update(
                 if let Ok(target_entity) = target_query.get(target) {
                     events.write(FireDebugWeaponEvent(entity, target_entity));
                 }
+            }
+
+            // For now spam the warhead fire event
+            if let Some(_) = res.3 {
+                w_events.write(FireDebugWarheadEvent(entity));
+                m_events.write(FireDebugMissileEvent(entity));
             }
         }
     }

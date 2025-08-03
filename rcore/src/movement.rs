@@ -8,7 +8,7 @@ use crate::rotation::Rotation;
 pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedPreUpdate, (
+        app.add_systems(PreUpdate, (
                 init_movement,
             ))
             .add_systems(FixedUpdate, (
