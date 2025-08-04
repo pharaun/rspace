@@ -22,21 +22,21 @@ impl Plugin for RotationPlugin {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 #[require(Rotation)]
 pub struct TargetRotation {
     pub limit: u8, // Per Second?
     pub target: AbsRot,
 }
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, Copy)]
 #[require(PreviousRotation)]
 pub struct Rotation(pub AbsRot);
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, Copy)]
 pub struct PreviousRotation(pub AbsRot);
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub struct RotDebug;
 
 // Handles rendering

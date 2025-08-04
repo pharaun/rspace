@@ -45,7 +45,7 @@ impl Plugin for RadarPlugin {
 //  TODO: Other types such as fixed radar (missiles?) and rotating radar
 //  - Direction + arc-width (boosting detection distance)
 //  - Add rendering iterpolation
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub struct Radar {
     pub current: AbsRot,
     pub target: AbsRot,
@@ -58,7 +58,7 @@ pub struct Radar {
     pub target_arc: u8,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub struct RadarDebug;
 
 // Radar contact event,

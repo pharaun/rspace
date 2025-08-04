@@ -26,7 +26,7 @@ impl Plugin for MovementPlugin {
 // TODO: for now have a single accleration vector from the main engine only, but eventually
 // I want to have RCS so that there can be a small amount of lateral and backward movement
 // but you would still need the main engine for heavy acceleration.
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 #[require(Position)]
 pub struct Velocity {
     pub acceleration: i32,
@@ -39,14 +39,14 @@ pub struct Velocity {
 // Simulation position,
 // Transform is separate and a visual layer, we need to redo the code to better
 // separate the rendering layer from the simulation layer
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, Copy)]
 #[require(PreviousPosition)]
 pub struct Position(pub IVec2);
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, Copy)]
 pub struct PreviousPosition(pub IVec2);
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub struct MovDebug;
 
 // Handles rendering

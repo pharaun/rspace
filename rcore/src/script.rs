@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::fmt;
 
-use std::boxed::Box;
 use std::collections::HashMap;
 use rust_dynamic::value::Value;
 
@@ -62,12 +61,12 @@ use crate::math::RelRot;
 // event -> is at A, yes, goto b return
 
 // Use this to develop what we need for the future alternative language/VM but for now rhai will do
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Script {
     state: Arc<Mutex<HashMap<&'static str, Value>>>,
-    on_update: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot, Option<Entity>) + Send + Sync>,
-    on_contact: Box<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, Entity) + Send + Sync>,
-    on_collision: Box<dyn Fn(&mut HashMap<&'static str, Value>) + Send + Sync>,
+    on_update: Arc<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot, Option<Entity>) + Send + Sync>,
+    on_contact: Arc<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, Entity) + Send + Sync>,
+    on_collision: Arc<dyn Fn(&mut HashMap<&'static str, Value>) + Send + Sync>,
 }
 
 impl fmt::Debug for Script {
@@ -86,9 +85,9 @@ impl Script {
     {
         Script {
             state: Arc::new(Mutex::new(on_init())),
-            on_update: Box::new(on_update),
-            on_contact: Box::new(on_contact),
-            on_collision: Box::new(on_collision),
+            on_update: Arc::new(on_update),
+            on_contact: Arc::new(on_contact),
+            on_collision: Arc::new(on_collision),
         }
     }
 }

@@ -14,19 +14,20 @@ impl Plugin for HealthPlugin {
 // Health and armor system for ships
 //
 // When a ship is hit with a weapon, this is when this system comes in play
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone, Copy)]
 pub struct Health {
     pub current: u16,
     pub maximum: u16,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub struct HealthDebug;
 
 // 0 - Entity being damaged, 1 - health to deduce
 #[derive(Event, Copy, Clone, Debug)]
 pub struct DamageEvent (pub Entity, pub u16);
 
+// TODO: this is probs better as an observer with targeted triggers
 pub fn process_damage_event(
     mut commands: Commands,
     mut damage_events: EventReader<DamageEvent>,

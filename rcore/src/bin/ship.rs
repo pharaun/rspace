@@ -13,6 +13,7 @@ use rcore::movement::MovementPlugin;
 use rcore::rotation::RotationPlugin;
 use rcore::script::ScriptPlugins;
 use rcore::ship::ShipPlugin;
+use rcore::spawner::SpawnerPlugin;
 
 use rcore::math::AbsRot;
 use rcore::math::RelRot;
@@ -39,10 +40,11 @@ fn main() {
         .add_plugins(MovementPlugin)
         .add_plugins(RotationPlugin)
         .add_plugins(ShipPlugin)
+        .add_plugins(SpawnerPlugin)
 
         // TODO: a way to init a new ship with some preset value to help script do custom per ship
         // things limit_r, target_r,
-        .add_systems(Startup, |commands: Commands| {
+        .add_systems(Startup, |mut commands: Commands| {
             let ships = vec![
                 ShipBuilder::new(Script::new(on_init, on_update, on_contact, on_collision))
                     .position(0, 0)
@@ -97,7 +99,7 @@ fn main() {
                     .build(),
             ];
 
-            add_ships(commands, ships);
+            add_ships(&mut commands, ships);
         })
         .run();
 }

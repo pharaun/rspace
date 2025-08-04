@@ -6,6 +6,12 @@ use crate::ship::health::DamageEvent;
 use crate::movement::Position;
 use crate::ship::ARENA_SCALE;
 
+use crate::ship::ShipBuilder;
+use crate::ship::Script;
+use crate::rotation::Rotation;
+use crate::spawner::SpawnEvent;
+
+
 // TODO: dynamic warhead distance, for now fixed
 const DISTANCE: i32 = 500;
 const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
@@ -26,8 +32,8 @@ impl Plugin for WeaponPlugin {
             ))
             .add_systems(Update, (
                 process_fire_debug_weapon_event,
-                process_fire_debug_warhead_event,
                 process_fire_debug_missile_event,
+                process_fire_debug_warhead_event,
             ));
     }
 }
@@ -54,7 +60,7 @@ pub struct DebugMissile {
     pub current: u16,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct DebugWarhead {
     pub damage: u16,
 }
@@ -168,23 +174,23 @@ pub fn process_fire_debug_weapon_event(
     position: Query<&Transform>,
 ) {
     for FireDebugWeaponEvent(ship, target) in fire_debug_weapon_events.read() {
-        let mut weapon = query.get_mut(*ship).unwrap();
+        if let Ok(mut weapon) = query.get_mut(*ship) {
+            if weapon.current == 0 {
+                weapon.current = weapon.cooldown;
 
-        if weapon.current == 0 {
-            weapon.current = weapon.cooldown;
+                // Fetch the ship & target position
+                let [ship_tran, target_tran] = position.get_many([*ship, *target]).unwrap();
 
-            // Fetch the ship & target position
-            let [ship_tran, target_tran] = position.get_many([*ship, *target]).unwrap();
+                // Setup the weapon render
+                commands.spawn(RenderDebugWeapon {
+                    origin: ship_tran.translation.truncate(),
+                    target: target_tran.translation.truncate(),
+                    fade: Timer::new(Duration::from_secs_f32(5.), TimerMode::Once),
+                });
 
-            // Setup the weapon render
-            commands.spawn(RenderDebugWeapon {
-                origin: ship_tran.translation.truncate(),
-                target: target_tran.translation.truncate(),
-                fade: Timer::new(Duration::from_secs_f32(5.), TimerMode::Once),
-            });
-
-            // emit damage event to the target
-            events.write(DamageEvent(*target, weapon.damage));
+                // emit damage event to the target
+                events.write(DamageEvent(*target, weapon.damage));
+            }
         }
     }
 }
@@ -206,7 +212,7 @@ pub fn process_fire_debug_warhead_event(
             // Setup the weapon render
             commands.spawn(RenderDebugWarhead {
                 origin: ship_tran.translation.truncate(),
-                fade: Timer::new(Duration::from_secs_f32(5.), TimerMode::Once),
+                fade: Timer::new(Duration::from_secs_f32(1.), TimerMode::Once),
             });
 
             // Find target in radius and then emit damage to each target within radius
@@ -231,14 +237,35 @@ pub fn process_fire_debug_warhead_event(
 // TODO: for now hardcore various things, but we need to pass in the script to the missile
 // That or yeet the script from parent ship and copy it over
 pub fn process_fire_debug_missile_event(
-    mut commands: Commands,
     mut fire_debug_missile_events: EventReader<FireDebugMissileEvent>,
+    mut parent_missile: Query<&mut DebugMissile>,
+    parent_ship: Query<(&Position, &Rotation, &Script)>,
+    mut spawn_ship: EventWriter<SpawnEvent>,
 ) {
     for FireDebugMissileEvent(ship) in fire_debug_missile_events.read() {
         // 1. does this have a missile component if so, check if we can fire
-        // 2. if yes, spawn a ship next to the parent ship
-        // 3. for now yeet the script from the parent ship onto this
-        // 4. send it on its merry way
-        todo!();
+        if let Ok(mut weapon) = parent_missile.get_mut(*ship) {
+            if weapon.current == 0 {
+                weapon.current = weapon.cooldown;
+
+                // 2. if yes, spawn a ship next to the parent ship
+                // 3. for now yeet the script from the parent ship onto this
+                let (pos, rot, parent_script) = parent_ship.get(*ship).unwrap();
+
+                // Calculate the position of the future missile
+                let offset = pos.0 + rot.0.to_quat().mul_vec3(Vec3::Y * 400.).truncate().as_ivec2();
+
+                // 4. send it on its merry way
+                let missile = ShipBuilder::new(parent_script.clone())
+                    .position(offset.x, offset.y)
+                    .rotation(rot.0)
+                    .velocity(0, 0)
+                    .radar_arc(32)
+                    .warhead(100)
+                    .build();
+
+                spawn_ship.write(SpawnEvent(missile));
+            }
+        }
     }
 }

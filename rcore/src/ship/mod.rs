@@ -35,6 +35,8 @@ use crate::ship::health::HealthDebug;
 pub mod debug_weapon;
 use crate::ship::debug_weapon::WeaponPlugin;
 use crate::ship::debug_weapon::DebugWeapon;
+use crate::ship::debug_weapon::DebugMissile;
+use crate::ship::debug_weapon::DebugWarhead;
 
 
 // INFO:
@@ -118,12 +120,14 @@ impl Plugin for ShipPlugin {
 // - Possibly an way to customize the starting ship (via the AI script or some other config for
 // each ship)
 // - Dig into ECS archtype to help with some of these setup stuff
+#[derive(Clone)]
 pub struct StarterShip {
     position: IVec2,
     velocity: movement::Velocity,
     rotation: rotation::TargetRotation,
     health: Health,
     radar: Radar,
+    warhead: Option<DebugWarhead>,
     script: Script,
     debug: DebugShip,
 }
@@ -141,6 +145,7 @@ pub struct ShipBuilder {
     rotation: rotation::TargetRotation,
     health: Health,
     radar: Radar,
+    warhead: Option<DebugWarhead>,
     script: Script,
     debug: DebugShip,
 }
@@ -171,6 +176,7 @@ impl ShipBuilder {
                 current_arc: 64,
                 target_arc: 64,
             },
+            warhead: None,
             script,
             debug: DebugShip::new(),
         }
@@ -229,6 +235,13 @@ impl ShipBuilder {
         self
     }
 
+    pub fn warhead(mut self, damage: u16) -> ShipBuilder {
+        self.warhead = Some(DebugWarhead {
+            damage
+        });
+        self
+    }
+
     pub fn debug(mut self, debug: DebugShip) -> ShipBuilder {
         self.debug = debug;
         self
@@ -247,6 +260,7 @@ impl ShipBuilder {
             rotation: self.rotation,
             health: self.health,
             radar: self.radar,
+            warhead: self.warhead,
             script: self.script,
             debug: self.debug,
         }
@@ -256,6 +270,7 @@ impl ShipBuilder {
 // TODO: For components that are empty (ie tags) can use component ids + insert them from a null ptr
 // This will allow for a list of component ids to make it easier to add/set debug bits on a ship
 // optionally
+#[derive(Clone)]
 pub struct DebugShip {
     radar_debug: Option<RadarDebug>,
     mov_debug: Option<movement::MovDebug>,
@@ -326,7 +341,7 @@ impl DebugBuilder {
 }
 
 pub fn add_ships(
-    mut commands: Commands,
+    commands: &mut Commands,
     ships: Vec<StarterShip>
 ) {
     for ship in ships {
@@ -355,9 +370,8 @@ pub fn add_ships(
             .insert(rotation::Rotation(ship_target))
             .insert(ship.rotation)
 
-            // Health and Damage components
+            // Health
             .insert(ship.health)
-            .insert(DebugWeapon { cooldown: 10, current: 0, damage: 34 })
 
             // TODO: probs want collision groups (ie ship vs missile vs other ships)
             .insert(Collider::cuboid(10.0, 20.0))
@@ -383,6 +397,15 @@ pub fn add_ships(
                     spawned_radar.insert(radar);
                 }
             });
+
+        // Weapons
+        if ship.warhead.is_none() {
+            spawned_ship
+                .insert(DebugWeapon { cooldown: 10, current: 0, damage: 34 })
+                .insert(DebugMissile { cooldown: 10, current: 0 });
+        } else {
+            spawned_ship.insert(ship.warhead.unwrap());
+        }
 
         // Debug components
         if let Some(mov) = ship.debug.mov_debug {
