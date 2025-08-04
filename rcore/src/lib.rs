@@ -1,7 +1,12 @@
 pub mod arena;
-pub mod script;
-pub mod ship;
+pub mod class;
+pub mod collision;
+pub mod debug_weapon;
+pub mod health;
 pub mod math;
 pub mod movement;
+pub mod radar;
 pub mod rotation;
+pub mod script;
+pub mod ship;
 pub mod spawner;

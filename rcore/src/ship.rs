@@ -13,30 +13,25 @@ use crate::arena::ARENA_SCALE;
 use crate::movement;
 use crate::rotation;
 
-pub mod class;
-use crate::ship::class::ShipClass;
-use crate::ship::class::get_ship;
-use crate::ship::class::get_radar;
+use crate::class::ShipClass;
+use crate::class::get_ship;
+use crate::class::get_radar;
 
-pub mod radar;
-use crate::ship::radar::RadarPlugin;
-pub use crate::ship::radar::Radar;
-use crate::ship::radar::RadarDebug;
+use crate::radar::RadarPlugin;
+use crate::radar::Radar;
+use crate::radar::RadarDebug;
 
-pub mod collision;
-use crate::ship::collision::CollisionPlugin;
-use crate::ship::collision::Collision;
+use crate::collision::CollisionPlugin;
+use crate::collision::Collision;
 
-pub mod health;
-use crate::ship::health::HealthPlugin;
-use crate::ship::health::Health;
-use crate::ship::health::HealthDebug;
+use crate::health::HealthPlugin;
+use crate::health::Health;
+use crate::health::HealthDebug;
 
-pub mod debug_weapon;
-use crate::ship::debug_weapon::WeaponPlugin;
-use crate::ship::debug_weapon::DebugWeapon;
-use crate::ship::debug_weapon::DebugMissile;
-use crate::ship::debug_weapon::DebugWarhead;
+use crate::debug_weapon::WeaponPlugin;
+use crate::debug_weapon::DebugWeapon;
+use crate::debug_weapon::DebugMissile;
+use crate::debug_weapon::DebugWarhead;
 
 
 // INFO:

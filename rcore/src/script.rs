@@ -13,13 +13,11 @@ use crate::movement::Position;
 use crate::rotation::TargetRotation;
 use crate::rotation::Rotation;
 
-use crate::ship::{
-    radar::ContactEvent,
-    radar::Radar,
-    debug_weapon::FireDebugWeaponEvent,
-    debug_weapon::FireDebugWarheadEvent,
-    debug_weapon::FireDebugMissileEvent,
-};
+use crate::radar::ContactEvent;
+use crate::radar::Radar;
+use crate::debug_weapon::FireDebugWeaponEvent;
+use crate::debug_weapon::FireDebugWarheadEvent;
+use crate::debug_weapon::FireDebugMissileEvent;
 
 use crate::math::AbsRot;
 use crate::math::RelRot;

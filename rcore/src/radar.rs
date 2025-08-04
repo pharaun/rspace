@@ -2,9 +2,9 @@ use bevy::prelude::*;
 
 use crate::math::RelRot;
 use crate::math::AbsRot;
-use crate::ship::movement::Position;
+use crate::movement::Position;
 
-use crate::ship::ARENA_SCALE;
+use crate::arena::ARENA_SCALE;
 
 // TODO: dynamic radar distance, for now fixed
 const DISTANCE: i32 = 4000;

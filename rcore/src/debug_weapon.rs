@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-use crate::ship::health::DamageEvent;
+use crate::health::DamageEvent;
 use crate::movement::Position;
-use crate::ship::ARENA_SCALE;
+use crate::arena::ARENA_SCALE;
 
 use crate::ship::ShipBuilder;
-use crate::ship::Script;
+use crate::script::Script;
 use crate::rotation::Rotation;
 use crate::spawner::SpawnEvent;
 
