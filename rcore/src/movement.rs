@@ -8,10 +8,7 @@ use crate::rotation::Rotation;
 pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreUpdate, (
-                init_movement,
-            ))
-            .add_systems(FixedUpdate, (
+        app.add_systems(FixedUpdate, (
                 apply_movement,
             ))
             .add_systems(RunFixedMainLoop, (
@@ -20,6 +17,32 @@ impl Plugin for MovementPlugin {
             .add_systems(Update, (
                 debug_movement_gitzmos,
             ));
+    }
+}
+
+#[derive(Bundle, Clone)]
+pub struct MovementBundle {
+    pub velocity: Velocity,
+    pub position: Position,
+    pub previous: PreviousPosition,
+}
+
+impl MovementBundle {
+    pub fn new(position: IVec2, velocity: IVec2, velocity_limit: u32, acceleration: i32) -> MovementBundle {
+        MovementBundle {
+            velocity: Velocity {
+                acceleration,
+                velocity,
+                velocity_limit,
+            },
+            position: Position(position),
+            previous: PreviousPosition(position),
+        }
+    }
+
+    pub fn position(&mut self, x: i32, y: i32) {
+        self.position.0 = IVec2::new(x, y);
+        self.previous.0 = IVec2::new(x, y);
     }
 }
 
@@ -117,16 +140,6 @@ where
         (1.0 - (old_velocity_length / (velocity_limit as f32).powi(2))).max(0.0).sqrt()
     } else {
         1.0
-    }
-}
-
-// So that the first frame is correct, pre-populate the PreviousPosition with the Position
-// upon that component being inserted
-pub(crate) fn init_movement(
-    mut query: Query<(&Position, &mut PreviousPosition), Added<Position>>,
-) {
-    for (position, mut previous_position) in query.iter_mut() {
-        previous_position.0 = position.0;
     }
 }
 

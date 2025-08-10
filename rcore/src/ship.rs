@@ -10,8 +10,10 @@ use crate::math::AbsRot;
 use crate::script::Script;
 use crate::math::vec_scale;
 use crate::arena::ARENA_SCALE;
-use crate::movement;
-use crate::rotation;
+use crate::movement::MovementBundle;
+use crate::movement::MovDebug;
+use crate::rotation::RotationBundle;
+use crate::rotation::RotDebug;
 
 use crate::class::ShipClass;
 use crate::class::get_ship;
@@ -117,9 +119,8 @@ impl Plugin for ShipPlugin {
 // - Dig into ECS archtype to help with some of these setup stuff
 #[derive(Clone)]
 pub struct StarterShip {
-    position: IVec2,
-    velocity: movement::Velocity,
-    rotation: rotation::TargetRotation,
+    movement: MovementBundle,
+    rotation: RotationBundle,
     health: Health,
     radar: Radar,
     warhead: Option<DebugWarhead>,
@@ -135,9 +136,8 @@ impl StarterShip {
 
 // Builder to make building a starter ship nicer
 pub struct ShipBuilder {
-    position: IVec2,
-    velocity: movement::Velocity,
-    rotation: rotation::TargetRotation,
+    movement: MovementBundle,
+    rotation: RotationBundle,
     health: Health,
     radar: Radar,
     warhead: Option<DebugWarhead>,
@@ -150,16 +150,17 @@ impl ShipBuilder {
         // TODO: setup so that most of these components have default() or something so that
         // they can be more self-contained without having to build them up here in the builder
         ShipBuilder {
-            position: IVec2::new(0, 0),
-            velocity: movement::Velocity {
-                velocity: IVec2::new(0, 0),
-                acceleration: 0,
-                velocity_limit: 100,
-            },
-            rotation: rotation::TargetRotation {
-                limit: 16,
-                target: AbsRot(0),
-            },
+            movement: MovementBundle::new(
+                IVec2::new(0, 0),
+                IVec2::new(0, 0),
+                100,
+                0,
+            ),
+            rotation: RotationBundle::new(
+                AbsRot(0),
+                AbsRot(0),
+                16,
+            ),
             health: Health {
                 current: 100,
                 maximum: 100,
@@ -179,27 +180,28 @@ impl ShipBuilder {
 
     // Settings
     pub fn position(mut self, x: i32, y: i32) -> ShipBuilder {
-        self.position = IVec2::new(x, y);
+        self.movement.position(x, y);
         self
     }
 
     pub fn velocity(mut self, x: i32, y: i32) -> ShipBuilder {
-        self.velocity.velocity = IVec2::new(x, y);
+        self.movement.velocity.velocity = IVec2::new(x, y);
         self
     }
 
     pub fn acceleration(mut self, acceleration: i32) -> ShipBuilder {
-        self.velocity.acceleration = acceleration;
+        self.movement.velocity.acceleration = acceleration;
         self
     }
 
     pub fn velocity_limit(mut self, limit: u32) -> ShipBuilder {
-        self.velocity.velocity_limit = limit;
+        self.movement.velocity.velocity_limit = limit;
         self
     }
 
     pub fn rotation(mut self, rotation: AbsRot) -> ShipBuilder {
-        self.rotation.target = rotation;
+        self.rotation.rotation(rotation);
+
         // Default target radar same direction as the ship
         self.radar.current = rotation;
         self.radar.target = rotation;
@@ -207,7 +209,7 @@ impl ShipBuilder {
     }
 
     pub fn rotation_limit(mut self, limit: u8) -> ShipBuilder {
-        self.rotation.limit = limit;
+        self.rotation.target.limit = limit;
         self
     }
 
@@ -250,8 +252,7 @@ impl ShipBuilder {
     // TODO: can we do it as a ref so that we can make multiple ships quickly
     pub fn build(self) -> StarterShip {
         StarterShip {
-            position: self.position,
-            velocity: self.velocity,
+            movement: self.movement,
             rotation: self.rotation,
             health: self.health,
             radar: self.radar,
@@ -268,8 +269,8 @@ impl ShipBuilder {
 #[derive(Clone)]
 pub struct DebugShip {
     radar_debug: Option<RadarDebug>,
-    mov_debug: Option<movement::MovDebug>,
-    rot_debug: Option<rotation::RotDebug>,
+    mov_debug: Option<MovDebug>,
+    rot_debug: Option<RotDebug>,
     health_debug: Option<HealthDebug>,
 }
 
@@ -290,8 +291,8 @@ impl DebugShip {
 
 pub struct DebugBuilder {
     radar_debug: Option<RadarDebug>,
-    mov_debug: Option<movement::MovDebug>,
-    rot_debug: Option<rotation::RotDebug>,
+    mov_debug: Option<MovDebug>,
+    rot_debug: Option<RotDebug>,
     health_debug: Option<HealthDebug>,
 }
 
@@ -311,12 +312,12 @@ impl DebugBuilder {
     }
 
     pub fn movement(mut self) -> DebugBuilder {
-        self.mov_debug = Some(movement::MovDebug);
+        self.mov_debug = Some(MovDebug);
         self
     }
 
     pub fn rotation(mut self) -> DebugBuilder {
-        self.rot_debug = Some(rotation::RotDebug);
+        self.rot_debug = Some(RotDebug);
         self
     }
 
@@ -341,8 +342,8 @@ pub fn add_ships(
 ) {
     for ship in ships {
         let radar_target = ship.radar.target;
-        let ship_target = ship.rotation.target;
-        let mut transform = Transform::from_translation(vec_scale(ship.position, ARENA_SCALE).extend(0.));
+        let ship_target = ship.rotation.target.target;
+        let mut transform = Transform::from_translation(vec_scale(ship.movement.position.0, ARENA_SCALE).extend(0.));
         transform.rotate(ship_target.to_quat());
 
         let mut spawned_ship = commands.spawn((
@@ -359,10 +360,7 @@ pub fn add_ships(
             .insert(ship.script)
 
             // Motion components
-            .insert(movement::Position(ship.position))
-            .insert(ship.velocity)
-
-            .insert(rotation::Rotation(ship_target))
+            .insert(ship.movement)
             .insert(ship.rotation)
 
             // Health

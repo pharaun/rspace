@@ -7,10 +7,7 @@ use crate::radar::Radar;
 pub struct RotationPlugin;
 impl Plugin for RotationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedPreUpdate, (
-                init_rotation,
-            ))
-            .add_systems(FixedUpdate, (
+        app.add_systems(FixedUpdate, (
                 apply_rotation,
             ))
             .add_systems(RunFixedMainLoop, (
@@ -19,6 +16,32 @@ impl Plugin for RotationPlugin {
             .add_systems(Update, (
                 debug_rotation_gitzmos,
             ));
+    }
+}
+
+#[derive(Bundle, Clone)]
+pub struct RotationBundle {
+    pub target: TargetRotation,
+    pub rotation: Rotation,
+    pub previous: PreviousRotation,
+}
+
+impl RotationBundle {
+    pub fn new(rotation: AbsRot, target: AbsRot, limit: u8) -> RotationBundle {
+        RotationBundle {
+            target: TargetRotation {
+                limit,
+                target,
+            },
+            rotation: Rotation(rotation),
+            previous: PreviousRotation(rotation),
+        }
+    }
+
+    pub fn rotation(&mut self, rotation: AbsRot) {
+        self.target.target = rotation;
+        self.rotation.0 = rotation;
+        self.previous.0 = rotation;
     }
 }
 
@@ -83,16 +106,6 @@ pub(crate) fn apply_rotation(
         let limit = target_rot.limit as f32 * time.delta_secs();
         let angle = rotation.0.angle_between(target_rot.target).clamp(limit.round() as u8);
         rotation.0 += angle;
-    }
-}
-
-// So that the first frame is correct, pre-populate the PreviousRotation with the Rotation
-// upon that component being inserted
-pub(crate) fn init_rotation(
-    mut query: Query<(&Rotation, &mut PreviousRotation), Added<Rotation>>,
-) {
-    for (rotation, mut previous_rotation) in query.iter_mut() {
-        previous_rotation.0 = rotation.0;
     }
 }
 
