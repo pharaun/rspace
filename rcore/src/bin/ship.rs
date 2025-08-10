@@ -37,7 +37,9 @@ fn main() {
         //.add_plugins(RapierDebugRenderPlugin::default())
 
         // FPS
-        .add_plugins(FpsPlugins)
+        .add_plugins(ScreenDiagnosticsPlugin::default())
+        .add_plugins(ScreenFrameDiagnosticsPlugin)
+        .add_plugins(ScreenEntityDiagnosticsPlugin);
 
         // Graphics (lyon)
         .add_plugins(ShapePlugin)
@@ -177,15 +179,4 @@ fn on_contact(state: &mut HashMap<&'static str, Value>, target_pos: IVec2, targe
 fn on_collision(state: &mut HashMap<&'static str, Value>) {
     state.insert("collision", Value::from(true).unwrap());
     println!("on_collision");
-}
-
-pub struct FpsPlugins;
-impl Plugin for FpsPlugins {
-    fn build(&self, app: &mut App) {
-        // we want Bevy to measure these values for us:
-        app
-            .add_plugins(ScreenDiagnosticsPlugin::default())
-            .add_plugins(ScreenFrameDiagnosticsPlugin)
-            .add_plugins(ScreenEntityDiagnosticsPlugin);
-    }
 }
