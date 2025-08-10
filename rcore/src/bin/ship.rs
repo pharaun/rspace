@@ -5,14 +5,19 @@ use bevy_screen_diagnostics::ScreenDiagnosticsPlugin;
 use bevy_screen_diagnostics::ScreenEntityDiagnosticsPlugin;
 use bevy_screen_diagnostics::ScreenFrameDiagnosticsPlugin;
 
+use bevy_prototype_lyon::prelude::ShapePlugin;
+
 use std::collections::HashMap;
 use rust_dynamic::value::Value;
 
 use rcore::arena::ArenaPlugins;
+use rcore::collision::CollisionPlugin;
+use rcore::debug_weapon::WeaponPlugin;
+use rcore::health::HealthPlugin;
 use rcore::movement::MovementPlugin;
+use rcore::radar::RadarPlugin;
 use rcore::rotation::RotationPlugin;
 use rcore::script::ScriptPlugins;
-use rcore::ship::ShipPlugin;
 use rcore::spawner::SpawnerPlugin;
 
 use rcore::math::AbsRot;
@@ -34,13 +39,19 @@ fn main() {
         // FPS
         .add_plugins(FpsPlugins)
 
+        // Graphics (lyon)
+        .add_plugins(ShapePlugin)
+
         // Game bits
         .add_plugins(ArenaPlugins)
-        .add_plugins(ScriptPlugins)
+        .add_plugins(CollisionPlugin)
+        .add_plugins(HealthPlugin)
         .add_plugins(MovementPlugin)
+        .add_plugins(RadarPlugin)
         .add_plugins(RotationPlugin)
-        .add_plugins(ShipPlugin)
+        .add_plugins(ScriptPlugins)
         .add_plugins(SpawnerPlugin)
+        .add_plugins(WeaponPlugin)
 
         // TODO: a way to init a new ship with some preset value to help script do custom per ship
         // things limit_r, target_r,

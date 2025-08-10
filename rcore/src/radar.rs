@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::math::RelRot;
 use crate::math::AbsRot;
 use crate::movement::Position;
+use crate::rotation::NoRotationPropagation;
 
 use crate::arena::ARENA_SCALE;
 
@@ -24,6 +25,36 @@ impl Plugin for RadarPlugin {
             .add_systems(Update, (
                 debug_radar_gitzmos,
             ));
+    }
+}
+
+#[derive(Bundle, Clone)]
+pub struct RadarBundle {
+    pub radar: Radar,
+    pub noprop: NoRotationPropagation,
+}
+
+impl RadarBundle {
+    pub fn new(current: AbsRot, target: AbsRot, current_arc: u8, target_arc: u8) -> RadarBundle {
+        RadarBundle {
+            radar: Radar {
+                current,
+                target,
+                current_arc,
+                target_arc,
+            },
+            noprop: NoRotationPropagation,
+        }
+    }
+
+    pub fn rotation(&mut self, rotation: AbsRot) {
+        self.radar.current = rotation;
+        self.radar.target = rotation;
+    }
+
+    pub fn arc(&mut self, arc: u8) {
+        self.radar.current_arc = arc;
+        self.radar.target_arc = arc;
     }
 }
 

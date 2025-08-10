@@ -10,28 +10,25 @@ use crate::math::AbsRot;
 use crate::script::Script;
 use crate::math::vec_scale;
 use crate::arena::ARENA_SCALE;
+
 use crate::movement::MovementBundle;
 use crate::movement::MovDebug;
+
 use crate::rotation::RotationBundle;
 use crate::rotation::RotDebug;
-use crate::rotation::NoRotationPropagation;
 
 use crate::class::ShipClass;
 use crate::class::get_ship;
 use crate::class::get_radar;
 
-use crate::radar::RadarPlugin;
-use crate::radar::Radar;
 use crate::radar::RadarDebug;
+use crate::radar::RadarBundle;
 
-use crate::collision::CollisionPlugin;
 use crate::collision::Collision;
 
-use crate::health::HealthPlugin;
 use crate::health::Health;
 use crate::health::HealthDebug;
 
-use crate::debug_weapon::WeaponPlugin;
 use crate::debug_weapon::DebugWeapon;
 use crate::debug_weapon::DebugMissile;
 use crate::debug_weapon::DebugWarhead;
@@ -100,16 +97,6 @@ struct Ship;
 //  - Rendering bits for the ship
 //  - Simulation bits (ie universal sim bits)
 //  - Specific per ship features
-pub struct ShipPlugin;
-impl Plugin for ShipPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(ShapePlugin)
-            .add_plugins(RadarPlugin)
-            .add_plugins(HealthPlugin)
-            .add_plugins(WeaponPlugin)
-            .add_plugins(CollisionPlugin);
-    }
-}
 
 // TODO:
 // - Way to load a scene (which sets up where each ships are and any other obstance or resources in
@@ -122,8 +109,8 @@ impl Plugin for ShipPlugin {
 pub struct StarterShip {
     movement: MovementBundle,
     rotation: RotationBundle,
+    radar: RadarBundle,
     health: Health,
-    radar: Radar,
     warhead: Option<DebugWarhead>,
     script: Script,
     debug: DebugShip,
@@ -139,8 +126,8 @@ impl StarterShip {
 pub struct ShipBuilder {
     movement: MovementBundle,
     rotation: RotationBundle,
+    radar: RadarBundle,
     health: Health,
-    radar: Radar,
     warhead: Option<DebugWarhead>,
     script: Script,
     debug: DebugShip,
@@ -162,15 +149,15 @@ impl ShipBuilder {
                 AbsRot(0),
                 16,
             ),
+            radar: RadarBundle::new(
+                AbsRot(0),
+                AbsRot(0),
+                64,
+                64,
+            ),
             health: Health {
                 current: 100,
                 maximum: 100,
-            },
-            radar: Radar {
-                current: AbsRot(0),
-                target: AbsRot(0),
-                current_arc: 64,
-                target_arc: 64,
             },
             warhead: None,
             script,
@@ -201,10 +188,8 @@ impl ShipBuilder {
 
     pub fn rotation(mut self, rotation: AbsRot) -> ShipBuilder {
         self.rotation.rotation(rotation);
-
-        // Default target radar same direction as the ship
-        self.radar.current = rotation;
-        self.radar.target = rotation;
+        // Target radar in same direction as the ship
+        self.radar.rotation(rotation);
         self
     }
 
@@ -220,14 +205,12 @@ impl ShipBuilder {
     }
 
     pub fn radar(mut self, rotation: AbsRot) -> ShipBuilder {
-        self.radar.current = rotation;
-        self.radar.target = rotation;
+        self.radar.rotation(rotation);
         self
     }
 
     pub fn radar_arc(mut self, arc: u8) -> ShipBuilder {
-        self.radar.current_arc = arc;
-        self.radar.target_arc = arc;
+        self.radar.arc(arc);
         self
     }
 
@@ -253,8 +236,8 @@ impl ShipBuilder {
         StarterShip {
             movement: self.movement,
             rotation: self.rotation,
-            health: self.health,
             radar: self.radar,
+            health: self.health,
             warhead: self.warhead,
             script: self.script,
             debug: self.debug,
@@ -340,7 +323,7 @@ pub fn add_ships(
     ships: Vec<StarterShip>
 ) {
     for ship in ships {
-        let radar_target = ship.radar.target;
+        let radar_target = ship.radar.radar.target;
         let ship_target = ship.rotation.target.target;
         let mut transform = Transform::from_translation(vec_scale(ship.movement.position.0, ARENA_SCALE).extend(0.));
         transform.rotate(ship_target.to_quat());
@@ -383,7 +366,6 @@ pub fn add_ships(
                     get_radar(Stroke::new(bevy::color::palettes::css::MAROON, 1.5)),
                     transform,
                     ship.radar,
-                    NoRotationPropagation,
                 ));
 
                 if let Some(radar) = ship.debug.radar_debug {
