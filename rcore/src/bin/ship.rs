@@ -25,7 +25,7 @@ use rcore::math::RelRot;
 use rcore::script::Script;
 use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
-use rcore::ship::add_ships;
+use rcore::ship::add_ship;
 
 fn main() {
     App::new()
@@ -39,7 +39,7 @@ fn main() {
         // FPS
         .add_plugins(ScreenDiagnosticsPlugin::default())
         .add_plugins(ScreenFrameDiagnosticsPlugin)
-        .add_plugins(ScreenEntityDiagnosticsPlugin);
+        .add_plugins(ScreenEntityDiagnosticsPlugin)
 
         // Graphics (lyon)
         .add_plugins(ShapePlugin)
@@ -109,7 +109,9 @@ fn main() {
                     .build(),
             ];
 
-            add_ships(&mut commands, ships);
+            for ship in ships {
+                add_ship(&mut commands, ship);
+            }
         })
         .run();
 }

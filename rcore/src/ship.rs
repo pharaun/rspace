@@ -318,79 +318,77 @@ impl DebugBuilder {
     }
 }
 
-pub fn add_ships(
+pub fn add_ship(
     commands: &mut Commands,
-    ships: Vec<StarterShip>
+    ship: StarterShip
 ) {
-    for ship in ships {
-        let radar_target = ship.radar.radar.target;
-        let ship_target = ship.rotation.target.target;
-        let mut transform = Transform::from_translation(vec_scale(ship.movement.position.0, ARENA_SCALE).extend(0.));
-        transform.rotate(ship_target.to_quat());
+    let radar_target = ship.radar.radar.target;
+    let ship_target = ship.rotation.target.target;
+    let mut transform = Transform::from_translation(vec_scale(ship.movement.position.0, ARENA_SCALE).extend(0.));
+    transform.rotate(ship_target.to_quat());
 
-        let mut spawned_ship = commands.spawn((
-            get_ship(
-                ShipClass::Medium,
-                Fill::color(bevy::color::palettes::css::GREEN),
-                Stroke::new(bevy::color::palettes::css::BLACK, 2.0),
-            ),
-            transform,
-        ));
+    let mut spawned_ship = commands.spawn((
+        get_ship(
+            ShipClass::Medium,
+            Fill::color(bevy::color::palettes::css::GREEN),
+            Stroke::new(bevy::color::palettes::css::BLACK, 2.0),
+        ),
+        transform,
+    ));
 
+    spawned_ship
+        .insert(Ship)
+        .insert(ship.script)
+
+        // Motion components
+        .insert(ship.movement)
+        .insert(ship.rotation)
+
+        // Health
+        .insert(ship.health)
+
+        // TODO: probs want collision groups (ie ship vs missile vs other ships)
+        .insert(Collider::cuboid(10.0, 20.0))
+        .insert(ActiveCollisionTypes::empty() | ActiveCollisionTypes::STATIC_STATIC)
+        .insert(ActiveEvents::COLLISION_EVENTS)
+        .insert(Sensor)
+
+        .insert(Collision(0))
+
+        // Insert the graphics for the radar dish
+        .with_children(|parent| {
+            let mut transform = Transform::from_translation(Vec2::new(0., -2.).extend(1.));
+            // TODO: this is probs wrong and needs to be fixed
+            transform.rotate(radar_target.to_quat());
+
+            let mut spawned_radar = parent.spawn((
+                get_radar(Stroke::new(bevy::color::palettes::css::MAROON, 1.5)),
+                transform,
+                ship.radar,
+            ));
+
+            if let Some(radar) = ship.debug.radar_debug {
+                spawned_radar.insert(radar);
+            }
+        });
+
+    // Weapons
+    if ship.warhead.is_none() {
         spawned_ship
-            .insert(Ship)
-            .insert(ship.script)
+            .insert(DebugWeapon { cooldown: 10, current: 0, damage: 34 })
+            .insert(DebugMissile { cooldown: 10, current: 0 });
+    } else {
+        spawned_ship.insert(ship.warhead.unwrap());
+    }
 
-            // Motion components
-            .insert(ship.movement)
-            .insert(ship.rotation)
-
-            // Health
-            .insert(ship.health)
-
-            // TODO: probs want collision groups (ie ship vs missile vs other ships)
-            .insert(Collider::cuboid(10.0, 20.0))
-            .insert(ActiveCollisionTypes::empty() | ActiveCollisionTypes::STATIC_STATIC)
-            .insert(ActiveEvents::COLLISION_EVENTS)
-            .insert(Sensor)
-
-            .insert(Collision(0))
-
-            // Insert the graphics for the radar dish
-            .with_children(|parent| {
-                let mut transform = Transform::from_translation(Vec2::new(0., -2.).extend(1.));
-                // TODO: this is probs wrong and needs to be fixed
-                transform.rotate(radar_target.to_quat());
-
-                let mut spawned_radar = parent.spawn((
-                    get_radar(Stroke::new(bevy::color::palettes::css::MAROON, 1.5)),
-                    transform,
-                    ship.radar,
-                ));
-
-                if let Some(radar) = ship.debug.radar_debug {
-                    spawned_radar.insert(radar);
-                }
-            });
-
-        // Weapons
-        if ship.warhead.is_none() {
-            spawned_ship
-                .insert(DebugWeapon { cooldown: 10, current: 0, damage: 34 })
-                .insert(DebugMissile { cooldown: 10, current: 0 });
-        } else {
-            spawned_ship.insert(ship.warhead.unwrap());
-        }
-
-        // Debug components
-        if let Some(mov) = ship.debug.mov_debug {
-            spawned_ship.insert(mov);
-        }
-        if let Some(rot) = ship.debug.rot_debug {
-            spawned_ship.insert(rot);
-        }
-        if let Some(health) = ship.debug.health_debug {
-            spawned_ship.insert(health);
-        }
+    // Debug components
+    if let Some(mov) = ship.debug.mov_debug {
+        spawned_ship.insert(mov);
+    }
+    if let Some(rot) = ship.debug.rot_debug {
+        spawned_ship.insert(rot);
+    }
+    if let Some(health) = ship.debug.health_debug {
+        spawned_ship.insert(health);
     }
 }

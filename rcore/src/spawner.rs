@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::ship::StarterShip;
-use crate::ship::add_ships;
+use crate::ship::add_ship;
 
 // This system is for taking care of spawning in new ships and entities as needed for the game
 // - spawn in a missile when a ship fires one
@@ -34,6 +34,6 @@ pub fn process_spawn_event(
     mut spawn_event: EventReader<SpawnEvent>,
 ) {
     for SpawnEvent(ship) in spawn_event.read() {
-        add_ships(&mut commands, vec![ship.clone()]);
+        add_ship(&mut commands, ship.clone());
     }
 }
