@@ -54,9 +54,6 @@ fn main() {
                     .rotation_limit(16)
                     .radar(AbsRot(0))
                     .radar_arc(64)
-//                    .debug(DebugBuilder::new()
-//                        .radar()
-//                        .build())
                     .build(),
 
                 ShipBuilder::new(Script::new(

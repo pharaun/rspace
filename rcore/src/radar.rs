@@ -18,6 +18,9 @@ impl Plugin for RadarPlugin {
                 // TODO: apply radar rotation, then process radar_event
                 apply_radar,
             ))
+            .add_systems(RunFixedMainLoop, (
+                interpolate_radar.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+            ))
             .add_systems(Update, (
                 debug_radar_gitzmos,
             ));
@@ -50,9 +53,6 @@ pub struct Radar {
     pub current: AbsRot,
     pub target: AbsRot,
 
-    // This should be private to this and the rotation system
-    pub offset: Quat,
-
     // Units arc - [0 = off, 1 = 1/256th of an arc, max 128]
     pub current_arc: u8,
     pub target_arc: u8,
@@ -75,6 +75,25 @@ enum RadarContact {
     OutsideArc,
 }
 
+// Handles rendering
+// Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
+// Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
+// - Since we do have velocity information so we should be able to do better interpolation
+pub(crate) fn interpolate_radar(
+    mut query: Query<(&mut Transform, &Radar)>,
+    fixed_time: Res<Time<Fixed>>
+) {
+    // How much of a "partial timestep" has accumulated since the last fixed timestep run.
+    // Between `0.0` and `1.0`.
+    let overstep = fixed_time.overstep_fraction();
+
+    for (mut transform, radar) in &mut query {
+        // Note: `slerp` will always take the shortest path, but when the two rotations are more than
+        // 180 degrees apart, this can cause visual artifacts as the rotation "flips" to the other side.
+        transform.rotation = radar.current.transform_slerp(radar.target, overstep);
+    }
+}
+
 // TODO: split this and setup system ordering but for now.
 pub(crate) fn apply_radar(
     mut events: EventWriter<ContactEvent>,
@@ -85,10 +104,6 @@ pub(crate) fn apply_radar(
         // Update radar rotation & arc width
         radar.current = radar.target;
         radar.current_arc = radar.target_arc;
-
-        // Deal with transform
-        // Offset transform (so that ship rotation system can compsenate)
-        radar.offset = radar.current.to_quat();
 
         // Scan through all target on field, and calculate their distance and angle,
         // if within the arc store it in a list till we know the closest contact

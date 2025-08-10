@@ -2,8 +2,6 @@ use bevy::prelude::*;
 
 use crate::math::AbsRot;
 
-use crate::radar::Radar;
-
 pub struct RotationPlugin;
 impl Plugin for RotationPlugin {
     fn build(&self, app: &mut App) {
@@ -15,6 +13,9 @@ impl Plugin for RotationPlugin {
             ))
             .add_systems(Update, (
                 debug_rotation_gitzmos,
+            ))
+            .add_systems(PostUpdate, (
+                disable_rotation_propagation.after(TransformSystem::TransformPropagate),
             ));
     }
 }
@@ -59,6 +60,9 @@ pub struct Rotation(pub AbsRot);
 #[derive(Component, Default, Clone, Copy)]
 pub struct PreviousRotation(pub AbsRot);
 
+#[derive(Component, Clone)]
+pub struct NoRotationPropagation;
+
 #[derive(Component, Clone, Copy)]
 pub struct RotDebug;
 
@@ -67,26 +71,17 @@ pub struct RotDebug;
 // Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
 // - Since we do have velocity information so we should be able to do better interpolation
 pub(crate) fn interpolate_rotation(
-    mut query: Query<(&mut Transform, &Rotation, &PreviousRotation, &Children), Without<Radar>>,
-    mut radar_query : Query<(&Radar, &mut Transform)>,
+    mut query: Query<(&mut Transform, &Rotation, &PreviousRotation)>,
     fixed_time: Res<Time<Fixed>>
 ) {
     // How much of a "partial timestep" has accumulated since the last fixed timestep run.
     // Between `0.0` and `1.0`.
     let overstep = fixed_time.overstep_fraction();
 
-    for (mut transform, rotation, previous_rotation, children) in &mut query {
+    for (mut transform, rotation, previous_rotation) in &mut query {
         // Note: `slerp` will always take the shortest path, but when the two rotations are more than
         // 180 degrees apart, this can cause visual artifacts as the rotation "flips" to the other side.
         transform.rotation = previous_rotation.0.transform_slerp(rotation.0, overstep);
-
-        // Grab the child radar and undo the ship rotation
-        // TODO: Find a better way to deal with this
-        for child_entity in children {
-            if let Ok((radar, mut rtran)) = radar_query.get_mut(*child_entity) {
-                rtran.rotation = transform.rotation.inverse() * radar.offset;
-            }
-        }
     }
 }
 
@@ -106,6 +101,23 @@ pub(crate) fn apply_rotation(
         let limit = target_rot.limit as f32 * time.delta_secs();
         let angle = rotation.0.angle_between(target_rot.target).clamp(limit.round() as u8);
         rotation.0 += angle;
+    }
+}
+
+pub(crate) fn disable_rotation_propagation(
+    query: Query<(&Children, &Transform)>,
+    mut child_query: Query<(&Transform, &mut GlobalTransform), With<NoRotationPropagation>>,
+) {
+    for (childrens, parent_tran) in query.iter() {
+        for child_entity in childrens.iter() {
+            if let Ok((child_tran, mut child_global_tran)) = child_query.get_mut(child_entity) {
+                *child_global_tran = child_global_tran
+                    .compute_transform()
+                    .with_rotation(child_tran.rotation)
+                    .with_translation(parent_tran.translation + child_tran.translation)
+                    .into();
+            }
+        }
     }
 }
 

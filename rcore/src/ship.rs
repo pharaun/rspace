@@ -14,6 +14,7 @@ use crate::movement::MovementBundle;
 use crate::movement::MovDebug;
 use crate::rotation::RotationBundle;
 use crate::rotation::RotDebug;
+use crate::rotation::NoRotationPropagation;
 
 use crate::class::ShipClass;
 use crate::class::get_ship;
@@ -168,7 +169,6 @@ impl ShipBuilder {
             radar: Radar {
                 current: AbsRot(0),
                 target: AbsRot(0),
-                offset: AbsRot(0).to_quat(),
                 current_arc: 64,
                 target_arc: 64,
             },
@@ -222,7 +222,6 @@ impl ShipBuilder {
     pub fn radar(mut self, rotation: AbsRot) -> ShipBuilder {
         self.radar.current = rotation;
         self.radar.target = rotation;
-        self.radar.offset = rotation.to_quat();
         self
     }
 
@@ -384,6 +383,7 @@ pub fn add_ships(
                     get_radar(Stroke::new(bevy::color::palettes::css::MAROON, 1.5)),
                     transform,
                     ship.radar,
+                    NoRotationPropagation,
                 ));
 
                 if let Some(radar) = ship.debug.radar_debug {
