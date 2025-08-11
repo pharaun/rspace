@@ -26,12 +26,11 @@ use crate::radar::RadarBundle;
 
 use crate::collision::Collision;
 
-use crate::health::Health;
-use crate::health::HealthDebug;
-
-use crate::debug_weapon::DebugWeapon;
-use crate::debug_weapon::DebugMissile;
-use crate::debug_weapon::DebugWarhead;
+use crate::weapon::Health;
+use crate::weapon::HealthDebug;
+use crate::weapon::DebugWeapon;
+use crate::weapon::DebugMissile;
+use crate::weapon::DebugWarhead;
 
 
 // INFO:

@@ -15,9 +15,9 @@ use crate::rotation::Rotation;
 
 use crate::radar::ContactEvent;
 use crate::radar::Radar;
-use crate::debug_weapon::FireDebugWeaponEvent;
-use crate::debug_weapon::FireDebugWarheadEvent;
-use crate::debug_weapon::FireDebugMissileEvent;
+use crate::weapon::FireDebugWeaponEvent;
+use crate::weapon::FireDebugWarheadEvent;
+use crate::weapon::FireDebugMissileEvent;
 
 use crate::math::AbsRot;
 use crate::math::RelRot;

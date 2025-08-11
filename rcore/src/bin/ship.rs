@@ -14,8 +14,7 @@ use rcore::FixedGameSystem;
 use rcore::arena_bounds_setup;
 
 use rcore::collision::CollisionPlugin;
-use rcore::debug_weapon::WeaponPlugin;
-use rcore::health::HealthPlugin;
+use rcore::weapon::WeaponPlugin;
 use rcore::movement::MovementPlugin;
 use rcore::radar::RadarPlugin;
 use rcore::rotation::RotationPlugin;
@@ -49,7 +48,6 @@ fn main() {
 
         // Game bits
         .add_plugins(CollisionPlugin)
-        .add_plugins(HealthPlugin)
         .add_plugins(MovementPlugin)
         .add_plugins(RadarPlugin)
         .add_plugins(RotationPlugin)

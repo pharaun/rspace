@@ -3,8 +3,7 @@ use bevy_prototype_lyon::prelude::*;
 
 pub mod class;
 pub mod collision;
-pub mod debug_weapon;
-pub mod health;
+pub mod weapon;
 pub mod math;
 pub mod movement;
 pub mod radar;
