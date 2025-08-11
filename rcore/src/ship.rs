@@ -9,7 +9,7 @@ use bevy_rapier2d::prelude::Sensor;
 use crate::math::AbsRot;
 use crate::script::Script;
 use crate::math::vec_scale;
-use crate::arena::ARENA_SCALE;
+use crate::ARENA_SCALE;
 
 use crate::movement::MovementBundle;
 use crate::movement::MovDebug;

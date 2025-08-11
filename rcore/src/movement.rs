@@ -1,15 +1,18 @@
 use bevy::prelude::*;
-use crate::arena::ARENA_SCALE;
 use crate::math::vec_scale;
 use crate::math::un_vec_scale;
 
 use crate::rotation::Rotation;
+
+use crate::ARENA_SCALE;
+use crate::ARENA;
 
 pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, (
                 apply_movement,
+                wrap_position.after(apply_movement),
             ))
             .add_systems(RunFixedMainLoop, (
                 interpolate_movement.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
@@ -140,6 +143,38 @@ where
         (1.0 - (old_velocity_length / (velocity_limit as f32).powi(2))).max(0.0).sqrt()
     } else {
         1.0
+    }
+}
+
+// The gizmo renders are based off the wrapped ship position which is 1:1 at the moment.
+//
+// TODO: make sure this only affects transforms for things within the arena, maybe an arena tag is
+// needed
+// TODO: May want to change this to instead wrap the game-areana and change this to be a render
+// concern
+fn wrap_position(mut query: Query<(&mut Position, &mut PreviousPosition), Changed<Position>>) {
+    for (mut pos, mut ppos) in query.iter_mut() {
+        let res: IVec2 = {
+            let mut ret = IVec2::new(0, 0);
+
+            if pos.0.y < -(ARENA.y / 2) {
+                ret.y += ARENA.y;
+            } else if pos.0.y > (ARENA.y / 2) {
+                ret.y -= ARENA.y;
+            }
+
+            if pos.0.x < -(ARENA.x / 2) {
+                ret.x += ARENA.x;
+            } else if pos.0.x > (ARENA.x / 2) {
+                ret.x -= ARENA.x;
+            }
+            ret
+        };
+        pos.0.y += res.y;
+        ppos.0.y += res.y;
+
+        pos.0.x += res.x;
+        ppos.0.x += res.x;
     }
 }
 

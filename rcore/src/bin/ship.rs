@@ -10,7 +10,8 @@ use bevy_prototype_lyon::prelude::ShapePlugin;
 use std::collections::HashMap;
 use rust_dynamic::value::Value;
 
-use rcore::arena::ArenaPlugins;
+use rcore::arena_bounds_setup;
+
 use rcore::collision::CollisionPlugin;
 use rcore::debug_weapon::WeaponPlugin;
 use rcore::health::HealthPlugin;
@@ -32,6 +33,7 @@ fn main() {
         //.insert_resource(Time::<Fixed>::from_hz(64.0))
         .insert_resource(Time::<Fixed>::from_hz(2.0))
 
+        // Physics
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(10.0))
         //.add_plugins(RapierDebugRenderPlugin::default())
@@ -45,7 +47,6 @@ fn main() {
         .add_plugins(ShapePlugin)
 
         // Game bits
-        .add_plugins(ArenaPlugins)
         .add_plugins(CollisionPlugin)
         .add_plugins(HealthPlugin)
         .add_plugins(MovementPlugin)
@@ -55,67 +56,14 @@ fn main() {
         .add_plugins(SpawnerPlugin)
         .add_plugins(WeaponPlugin)
 
-        // TODO: a way to init a new ship with some preset value to help script do custom per ship
-        // things limit_r, target_r,
-        .add_systems(Startup, |mut commands: Commands| {
-            let ships = vec![
-                ShipBuilder::new(Script::new(on_init, on_update, on_contact, on_collision))
-                    .position(0, 0)
-                    .velocity(0, 0)
-                    .velocity_limit(100)
-                    .rotation(AbsRot(0))
-                    .rotation_limit(16)
-                    .radar(AbsRot(0))
-                    .radar_arc(64)
-                    .build(),
-
-                ShipBuilder::new(Script::new(
-                        || HashMap::from([]),
-                        |_, _, _, _| (RelRot(0), 0, RelRot(0), None),
-                        |_, _, _| (),
-                        |_| (),
-                    ))
-                    .position(3500, 0)
-                    .velocity(0, 0)
-                    .radar_arc(2)
-                    .debug(DebugBuilder::new()
-                        .health()
-                        .build())
-                    .build(),
-
-                ShipBuilder::new(Script::new(
-                        || HashMap::from([]),
-                        |_, _, _, _| (RelRot(0), 0, RelRot(0), None),
-                        |_, _, _| (),
-                        |_| (),
-                    ))
-                    .position(-3500, 0)
-                    .velocity(0, 0)
-                    .radar_arc(2)
-                    .debug(DebugBuilder::new()
-                        .health()
-                        .build())
-                    .build(),
-
-                ShipBuilder::new(Script::new(
-                        || HashMap::from([]),
-                        |_, _, _, _| (RelRot(0), 0, RelRot(0), None),
-                        |_, _, _| (),
-                        |_| (),
-                    ))
-                    .position(-4500, 3500)
-                    .velocity(0, 0)
-                    .radar_arc(2)
-                    .build(),
-            ];
-
-            for ship in ships {
-                add_ship(&mut commands, ship);
-            }
-        })
+        // Startup setup
+        .add_systems(Startup, (
+            camera_setup,
+            arena_bounds_setup,
+            ship_setup,
+        ))
         .run();
 }
-
 
 // Function for the ship
 fn on_init() -> HashMap<&'static str, Value> {
@@ -181,4 +129,73 @@ fn on_contact(state: &mut HashMap<&'static str, Value>, target_pos: IVec2, targe
 fn on_collision(state: &mut HashMap<&'static str, Value>) {
     state.insert("collision", Value::from(true).unwrap());
     println!("on_collision");
+}
+
+#[derive(Component)]
+struct CameraMarker;
+
+fn camera_setup(mut commands: Commands) {
+    commands.spawn((
+        Camera2d::default(),
+        CameraMarker,
+    ));
+}
+
+// TODO: a way to init a new ship with some preset value to help script do custom per ship
+// things limit_r, target_r,
+fn ship_setup(mut commands: Commands) {
+    let ships = vec![
+        ShipBuilder::new(Script::new(on_init, on_update, on_contact, on_collision))
+            .position(0, 0)
+            .velocity(0, 0)
+            .velocity_limit(100)
+            .rotation(AbsRot(0))
+            .rotation_limit(16)
+            .radar(AbsRot(0))
+            .radar_arc(64)
+            .build(),
+
+        ShipBuilder::new(Script::new(
+                || HashMap::from([]),
+                |_, _, _, _| (RelRot(0), 0, RelRot(0), None),
+                |_, _, _| (),
+                |_| (),
+            ))
+            .position(3500, 0)
+            .velocity(0, 0)
+            .radar_arc(2)
+            .debug(DebugBuilder::new()
+                .health()
+                .build())
+            .build(),
+
+        ShipBuilder::new(Script::new(
+                || HashMap::from([]),
+                |_, _, _, _| (RelRot(0), 0, RelRot(0), None),
+                |_, _, _| (),
+                |_| (),
+            ))
+            .position(-3500, 0)
+            .velocity(0, 0)
+            .radar_arc(2)
+            .debug(DebugBuilder::new()
+                .health()
+                .build())
+            .build(),
+
+        ShipBuilder::new(Script::new(
+                || HashMap::from([]),
+                |_, _, _, _| (RelRot(0), 0, RelRot(0), None),
+                |_, _, _| (),
+                |_| (),
+            ))
+            .position(-4500, 3500)
+            .velocity(0, 0)
+            .radar_arc(2)
+            .build(),
+    ];
+
+    for ship in ships {
+        add_ship(&mut commands, ship);
+    }
 }

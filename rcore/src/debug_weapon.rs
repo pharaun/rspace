@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use crate::health::DamageEvent;
 use crate::movement::Position;
-use crate::arena::ARENA_SCALE;
+use crate::ARENA_SCALE;
 
 use crate::ship::ShipBuilder;
 use crate::script::Script;

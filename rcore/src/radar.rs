@@ -5,7 +5,7 @@ use crate::math::AbsRot;
 use crate::movement::Position;
 use crate::rotation::NoRotationPropagation;
 
-use crate::arena::ARENA_SCALE;
+use crate::ARENA_SCALE;
 
 // TODO: dynamic radar distance, for now fixed
 const DISTANCE: i32 = 4000;
