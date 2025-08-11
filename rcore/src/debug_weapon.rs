@@ -30,6 +30,8 @@ impl Plugin for WeaponPlugin {
             ))
             .add_systems(FixedUpdate, (
                 apply_debug_missile_cooldown.in_set(FixedGameSystem::GameLogic),
+                // Missile will spawn the next frame
+                // TODO: do we want a post-shiplogic set -> missile -> spawn -> weapon sequencing
                 process_fire_debug_missile_event.in_set(FixedGameSystem::Weapon).after(apply_debug_missile_cooldown),
             ))
             .add_systems(FixedUpdate, (
@@ -173,7 +175,6 @@ pub(crate) fn render_debug_warhead(
 pub fn process_fire_debug_weapon_event(
     mut commands: Commands,
     mut fire_debug_weapon_events: EventReader<FireDebugWeaponEvent>,
-    mut events: EventWriter<DamageEvent>,
     mut query: Query<&mut DebugWeapon>,
     position: Query<&Transform>,
 ) {
@@ -193,7 +194,7 @@ pub fn process_fire_debug_weapon_event(
                 });
 
                 // emit damage event to the target
-                events.write(DamageEvent(*target, weapon.damage));
+                commands.trigger_targets(DamageEvent(weapon.damage), target.clone());
             }
         }
     }
@@ -202,7 +203,6 @@ pub fn process_fire_debug_weapon_event(
 pub fn process_fire_debug_warhead_event(
     mut commands: Commands,
     mut fire_debug_warhead_events: EventReader<FireDebugWarheadEvent>,
-    mut events: EventWriter<DamageEvent>,
     have_warhead: Query<&DebugWarhead>,
     render_position: Query<&Transform>,
     position: Query<(Entity, &Position)>,
@@ -227,7 +227,7 @@ pub fn process_fire_debug_warhead_event(
                 }
 
                 if base_position.0.distance_squared(target_position.0) < DISTANCE_SQUARED {
-                    events.write(DamageEvent(target_ship, warhead.damage));
+                    commands.trigger_targets(DamageEvent(warhead.damage), target_ship);
                 }
             }
 

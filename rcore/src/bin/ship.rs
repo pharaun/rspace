@@ -10,6 +10,7 @@ use bevy_prototype_lyon::prelude::ShapePlugin;
 use std::collections::HashMap;
 use rust_dynamic::value::Value;
 
+use rcore::FixedGameSystem;
 use rcore::arena_bounds_setup;
 
 use rcore::collision::CollisionPlugin;
@@ -55,6 +56,15 @@ fn main() {
         .add_plugins(ScriptPlugins)
         .add_plugins(SpawnerPlugin)
         .add_plugins(WeaponPlugin)
+
+        // Configure the system set ordering
+        .configure_sets(FixedUpdate, (
+            FixedGameSystem::GameLogic,
+            FixedGameSystem::Collision,
+            FixedGameSystem::ShipLogic,
+            FixedGameSystem::Spawn,
+            FixedGameSystem::Weapon,
+        ).chain())
 
         // Startup setup
         .add_systems(Startup, (

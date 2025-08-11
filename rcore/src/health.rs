@@ -5,8 +5,8 @@ pub struct HealthPlugin;
 impl Plugin for HealthPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<DamageEvent>()
+            .add_observer(process_damage_event)
             .add_systems(Update, (
-                process_damage_event,
                 debug_health_gitzmos,
             ));
     }
@@ -24,25 +24,23 @@ pub struct Health {
 #[derive(Component, Clone, Copy)]
 pub struct HealthDebug;
 
-// 0 - Entity being damaged, 1 - health to deduce
+// 1 - health to deduce
 #[derive(Event, Copy, Clone, Debug)]
-pub struct DamageEvent (pub Entity, pub u16);
+pub struct DamageEvent (pub u16);
 
-// TODO: this is probs better as an observer with targeted triggers
 pub fn process_damage_event(
+    trigger: Trigger<DamageEvent>,
     mut commands: Commands,
-    mut damage_events: EventReader<DamageEvent>,
     mut query: Query<&mut Health>,
 ) {
-    for DamageEvent(ship, damage) in damage_events.read() {
-        if let Ok(mut health) = query.get_mut(*ship) {
-            if let Some(new_health) = health.current.checked_sub(*damage) {
-                health.current = new_health;
-            } else {
-                // This ship is now dead, despawn it
-                println!("Despawning - {:?}", ship);
-                commands.entity(*ship).despawn();
-            }
+    let ship = trigger.target();
+    if let Ok(mut health) = query.get_mut(ship) {
+        if let Some(new_health) = health.current.checked_sub(trigger.event().0) {
+            health.current = new_health;
+        } else {
+            // This ship is now dead, despawn it
+            println!("Despawning - {:?}", ship);
+            commands.entity(ship).despawn();
         }
     }
 }
