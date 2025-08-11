@@ -1,12 +1,13 @@
 use bevy::prelude::*;
 
+use crate::FixedGameSystem;
 use crate::math::AbsRot;
 
 pub struct RotationPlugin;
 impl Plugin for RotationPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, (
-                apply_rotation,
+                apply_rotation.in_set(FixedGameSystem::GameLogic),
             ))
             .add_systems(RunFixedMainLoop, (
                 interpolate_rotation.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),

@@ -5,6 +5,7 @@ use crate::math::AbsRot;
 use crate::movement::Position;
 use crate::rotation::NoRotationPropagation;
 
+use crate::FixedGameSystem;
 use crate::ARENA_SCALE;
 
 // TODO: dynamic radar distance, for now fixed
@@ -16,8 +17,7 @@ impl Plugin for RadarPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<ContactEvent>()
             .add_systems(FixedUpdate, (
-                // TODO: apply radar rotation, then process radar_event
-                apply_radar,
+                apply_radar.in_set(FixedGameSystem::GameLogic),
             ))
             .add_systems(RunFixedMainLoop, (
                 interpolate_radar.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),

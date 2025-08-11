@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
+use crate::FixedGameSystem;
+
 use crate::health::DamageEvent;
 use crate::movement::Position;
 use crate::ARENA_SCALE;
@@ -23,17 +25,19 @@ impl Plugin for WeaponPlugin {
             .add_event::<FireDebugWarheadEvent>()
             .add_event::<FireDebugMissileEvent>()
             .add_systems(FixedUpdate, (
-                apply_debug_weapon_cooldown,
-                apply_debug_missile_cooldown,
+                apply_debug_weapon_cooldown.in_set(FixedGameSystem::GameLogic),
+                process_fire_debug_weapon_event.in_set(FixedGameSystem::Weapon).after(apply_debug_weapon_cooldown),
+            ))
+            .add_systems(FixedUpdate, (
+                apply_debug_missile_cooldown.in_set(FixedGameSystem::GameLogic),
+                process_fire_debug_missile_event.in_set(FixedGameSystem::Weapon).after(apply_debug_missile_cooldown),
+            ))
+            .add_systems(FixedUpdate, (
+                process_fire_debug_warhead_event.in_set(FixedGameSystem::Weapon),
             ))
             .add_systems(RunFixedMainLoop, (
                 render_debug_weapon.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
                 render_debug_warhead.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
-            ))
-            .add_systems(Update, (
-                process_fire_debug_weapon_event,
-                process_fire_debug_missile_event,
-                process_fire_debug_warhead_event,
             ));
     }
 }

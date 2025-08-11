@@ -2,20 +2,24 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use bevy_prototype_lyon::prelude::Shape;
 
+use crate::FixedGameSystem;
+
 pub struct CollisionPlugin;
 impl Plugin for CollisionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (
-                process_collision_event,
-                apply_collision.after(process_collision_event),
-            ));
+        app.add_systems(FixedUpdate,
+                process_collision_event.in_set(FixedGameSystem::Collision),
+            )
+            .add_systems(RunFixedMainLoop,
+                render_collision.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+            );
     }
 }
 // Ref-counted collision, if greater than zero, its colloding, otherwise
 #[derive(Component)]
 pub struct Collision(pub u32);
 
-pub(crate) fn apply_collision(mut query: Query<(&Collision, &mut Shape)>) {
+pub(crate) fn render_collision(mut query: Query<(&Collision, &mut Shape)>) {
     for (collision, shape) in query.iter_mut() {
         if collision.0 == 0 {
             shape.fill.unwrap().color = bevy::prelude::Color::Srgba(bevy::color::palettes::css::GREEN);

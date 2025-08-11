@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use crate::math::vec_scale;
 use crate::math::un_vec_scale;
-
+use crate::FixedGameSystem;
 use crate::rotation::Rotation;
 
 use crate::ARENA_SCALE;
@@ -11,8 +11,8 @@ pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, (
-                apply_movement,
-                wrap_position.after(apply_movement),
+                apply_movement.in_set(FixedGameSystem::GameLogic),
+                wrap_position.in_set(FixedGameSystem::GameLogic).after(apply_movement),
             ))
             .add_systems(RunFixedMainLoop, (
                 interpolate_movement.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+// TODO: convert this to observers
 pub struct HealthPlugin;
 impl Plugin for HealthPlugin {
     fn build(&self, app: &mut App) {

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::FixedGameSystem;
 use crate::ship::StarterShip;
 use crate::ship::add_ship;
 
@@ -11,9 +12,10 @@ pub struct SpawnerPlugin;
 impl Plugin for SpawnerPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnEvent>()
-            .add_systems(Update, (
-                process_spawn_event,
-            ));
+            .add_systems(
+                FixedUpdate,
+                process_spawn_event.in_set(FixedGameSystem::Spawn),
+            );
     }
 }
 

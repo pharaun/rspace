@@ -27,10 +27,12 @@ const ARENA: IVec2 = IVec2::new(10240, 6400);
 #[derive(SystemSet, Debug, Hash, Eq, PartialEq,  Clone)]
 pub enum FixedGameSystem {
     // Motion, Rotation, Radar, Turret, etc...
-    Motion,
+    GameLogic,
 
     // Physics -> https://docs.rs/bevy_rapier2d/latest/bevy_rapier2d/plugin/enum.PhysicsSet.html
     // TODO: replace rapier with a custom collision system so it can reuse the Position/motion code
+    // This is for processing the checks for collision and triggering events for all of the
+    // downstream consumers (ie weapon - ramming, and ship logic on_collision)
     Collision,
 
     // The game AI
@@ -40,7 +42,7 @@ pub enum FixedGameSystem {
     // new ships, firing weapons, etc..
     Spawn,
 
-    // TODO: convert the weapon damage code to be observers
+    // This is all of the logic that has to do with weapon damage/hits/scan/health
     Weapon,
 }
 
