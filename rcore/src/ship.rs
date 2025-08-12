@@ -1,10 +1,7 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
-use bevy_rapier2d::prelude::ActiveCollisionTypes;
-use bevy_rapier2d::prelude::ActiveEvents;
-use bevy_rapier2d::prelude::Collider;
-use bevy_rapier2d::prelude::Sensor;
+use avian2d::prelude::*;
 
 use crate::math::AbsRot;
 use crate::script::Script;
@@ -23,8 +20,6 @@ use crate::class::get_radar;
 
 use crate::radar::RadarDebug;
 use crate::radar::RadarBundle;
-
-use crate::collision::Collision;
 
 use crate::weapon::Health;
 use crate::weapon::HealthDebug;
@@ -132,6 +127,9 @@ pub struct ShipBuilder {
     debug: DebugShip,
 }
 
+// Look into impl Bundler
+// https://discord.com/channels/691052431525675048/1403836135045726339/1403837230111522917
+// It'll permit us to have a "bundle builder" that builds a ship
 impl ShipBuilder {
     pub fn new(script: Script) -> ShipBuilder {
         // TODO: setup so that most of these components have default() or something so that
@@ -347,12 +345,8 @@ pub fn add_ship(
         .insert(ship.health)
 
         // TODO: probs want collision groups (ie ship vs missile vs other ships)
-        .insert(Collider::cuboid(10.0, 20.0))
-        .insert(ActiveCollisionTypes::empty() | ActiveCollisionTypes::STATIC_STATIC)
-        .insert(ActiveEvents::COLLISION_EVENTS)
-        .insert(Sensor)
-
-        .insert(Collision(0))
+        .insert(Collider::circle(15.0))
+        .insert(CollisionEventsEnabled)
 
         // Insert the graphics for the radar dish
         .with_children(|parent| {

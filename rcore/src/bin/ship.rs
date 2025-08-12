@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
+use avian2d::prelude::*;
 
 use bevy_screen_diagnostics::ScreenDiagnosticsPlugin;
 use bevy_screen_diagnostics::ScreenEntityDiagnosticsPlugin;
@@ -13,7 +13,6 @@ use rust_dynamic::value::Value;
 use rcore::FixedGameSystem;
 use rcore::arena_bounds_setup;
 
-use rcore::collision::CollisionPlugin;
 use rcore::weapon::WeaponPlugin;
 use rcore::movement::MovementPlugin;
 use rcore::radar::RadarPlugin;
@@ -30,13 +29,12 @@ use rcore::ship::add_ship;
 
 fn main() {
     App::new()
-        //.insert_resource(Time::<Fixed>::from_hz(64.0))
-        .insert_resource(Time::<Fixed>::from_hz(2.0))
+        .add_plugins(DefaultPlugins)
 
         // Physics
-        .add_plugins(DefaultPlugins)
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(10.0))
-        //.add_plugins(RapierDebugRenderPlugin::default())
+        // TODO: make sure it happens post iterpolation
+        .add_plugins(PhysicsPlugins::default())
+        //.add_plugins(PhysicsDebugPlugin::default())
 
         // FPS
         .add_plugins(ScreenDiagnosticsPlugin::default())
@@ -46,8 +44,10 @@ fn main() {
         // Graphics (lyon)
         .add_plugins(ShapePlugin)
 
+        // TODO: fix up systems so i can bump it to bevy default 64hz
+        .insert_resource(Time::<Fixed>::from_hz(2.0))
+
         // Game bits
-        .add_plugins(CollisionPlugin)
         .add_plugins(MovementPlugin)
         .add_plugins(RadarPlugin)
         .add_plugins(RotationPlugin)
@@ -58,7 +58,6 @@ fn main() {
         // Configure the system set ordering
         .configure_sets(FixedUpdate, (
             FixedGameSystem::GameLogic,
-            FixedGameSystem::Collision,
             FixedGameSystem::ShipLogic,
             FixedGameSystem::Spawn,
             FixedGameSystem::Weapon,
@@ -197,7 +196,7 @@ fn ship_setup(mut commands: Commands) {
                 |_, _, _| (),
                 |_| (),
             ))
-            .position(-4500, 3500)
+            .position(-4500, -2500)
             .velocity(0, 0)
             .radar_arc(2)
             .build(),

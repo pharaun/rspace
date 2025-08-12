@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 bevy_prototype_lyon = { git = "https://github.com/rparrett/bevy_prototype_lyon", branch = "fix-dynamic-examples" }
-bevy_rapier2d = { version = "0.30", features = [ "debug-render-2d" ] }
 
 # Dynamic state for the simple scripting
 rust_dynamic = "0.48.0"
@@ -13,10 +12,20 @@ rust_dynamic = "0.48.0"
 # FPS dialog
 bevy_screen_diagnostics = "0.8"
 
+[dependencies.avian2d]
+version = "0.3"
+default-features = false
+features = [
+	"2d",
+	"f32",
+	"parry-f32",
+	"parallel",
+	"debug-plugin",
+]
+
 [dependencies.bevy]
 version = "0.16"
 default-features = false
-
 features = [
   # Bevy functionality:
   "multi_threaded",     # Run with multithreading

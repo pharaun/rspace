@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
+use avian2d::prelude::*;
 
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -104,25 +104,20 @@ impl Plugin for ScriptPlugins {
 }
 
 fn process_on_collision(
-    mut collision_events: EventReader<CollisionEvent>,
+    mut collision_events: EventReader<CollisionStarted>,
     mut query: Query<(Entity, &mut Script)>,
 ) {
     // Handle collision events first
-    for collision_event in collision_events.read() {
-        match collision_event {
-            CollisionEvent::Started(e1, e2, _) => {
-                if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
-                    for script in [e1_script, e2_script] {
-                        // Invoke collision handler
-                        let state = script.state.clone();
-                        let mut mut_state = state.lock().unwrap();
-                        (script.on_collision)(&mut mut_state);
-                    }
-                } else {
-                    println!("ERROR - SCRIPT - {:?}", collision_event);
-                }
-            },
-            _ => (),
+    for CollisionStarted(e1, e2) in collision_events.read() {
+        if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
+            for script in [e1_script, e2_script] {
+                // Invoke collision handler
+                let state = script.state.clone();
+                let mut mut_state = state.lock().unwrap();
+                (script.on_collision)(&mut mut_state);
+            }
+        } else {
+            println!("ERROR - SCRIPT - CollisionStarted({:?}, {:?})", e1, e2);
         }
     }
 }

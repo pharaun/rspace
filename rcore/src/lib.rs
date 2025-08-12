@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
 pub mod class;
-pub mod collision;
 pub mod weapon;
 pub mod math;
 pub mod movement;
@@ -23,16 +22,14 @@ const ARENA: IVec2 = IVec2::new(10240, 6400);
 
 // Systemset to help group systems in a defined order of operation since we now have systems that
 // depends on previous systems, and this will help avoid the 1+ frame delay when using events
+//
+// TODO: figure out how to integrate collision, it probs should be post GameLogic but avian is
+// in the FixedPostUpdate stage. Need to ensure it happens post interpolation, so collision events
+// are going to be 1-frame delayed for now
 #[derive(SystemSet, Debug, Hash, Eq, PartialEq,  Clone)]
 pub enum FixedGameSystem {
     // Motion, Rotation, Radar, Turret, etc...
     GameLogic,
-
-    // Physics -> https://docs.rs/bevy_rapier2d/latest/bevy_rapier2d/plugin/enum.PhysicsSet.html
-    // TODO: replace rapier with a custom collision system so it can reuse the Position/motion code
-    // This is for processing the checks for collision and triggering events for all of the
-    // downstream consumers (ie weapon - ramming, and ship logic on_collision)
-    Collision,
 
     // The game AI
     ShipLogic,
@@ -95,12 +92,12 @@ pub fn arena_bounds_setup(mut commands: Commands) {
         ArenaMarker,
     ));
     commands.spawn((
-        Text2d::new("-Y"),
+        Text2d::new("+Y"),
         Transform::from_xyz(0., DISPLAY.y / 2.0 + 15., -0.9),
         ArenaMarker,
     ));
     commands.spawn((
-        Text2d::new("+Y"),
+        Text2d::new("-Y"),
         Transform::from_xyz(0., -(DISPLAY.y / 2.0 + 15.), -0.9),
         ArenaMarker,
     ));
