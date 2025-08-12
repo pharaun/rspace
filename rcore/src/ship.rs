@@ -6,6 +6,8 @@ use avian2d::prelude::*;
 use crate::math::AbsRot;
 use crate::script::Script;
 use crate::math::vec_scale;
+
+use crate::ARENA;
 use crate::ARENA_SCALE;
 
 use crate::movement::MovementBundle;
@@ -165,6 +167,10 @@ impl ShipBuilder {
     // Settings
     pub fn position(mut self, x: i32, y: i32) -> ShipBuilder {
         self.movement.position(x, y);
+        // Warn if its outside arena bounds since it will then warp the next frame
+        if (y < -(ARENA.y / 2)) || (y > (ARENA.y / 2)) || (x < -(ARENA.x / 2)) || (x > (ARENA.x / 2)) {
+            println!("WARNING: Set position outside of arena bounds - x: {:?}, y: {:?}", x, y);
+        }
         self
     }
 
