@@ -160,6 +160,9 @@ fn ship_setup(mut commands: Commands) {
             .rotation_limit(16)
             .radar(AbsRot(0))
             .radar_arc(64)
+            .debug(DebugBuilder::new()
+                .arc()
+                .build())
             .build(),
 
         ShipBuilder::new(Script::new(

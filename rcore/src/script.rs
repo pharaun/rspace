@@ -15,6 +15,7 @@ use crate::rotation::Rotation;
 
 use crate::radar::ContactEvent;
 use crate::radar::Radar;
+use crate::radar::Arc as CompArc;
 use crate::weapon::FireDebugWeaponEvent;
 use crate::weapon::FireDebugWarheadEvent;
 use crate::weapon::FireDebugMissileEvent;
@@ -156,7 +157,7 @@ fn process_on_update(
         &Children
     )>,
     target_query: Query<Entity>,
-    mut radar_query: Query<&mut Radar>,
+    mut radar_query: Query<&mut CompArc, With<Radar>>,
     mut events: EventWriter<FireDebugWeaponEvent>,
     mut w_events: EventWriter<FireDebugWarheadEvent>,
     mut m_events: EventWriter<FireDebugMissileEvent>,

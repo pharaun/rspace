@@ -67,6 +67,9 @@ pub struct DamageEvent (pub u16);
 // Basic 360 no scope test weapon, it can zap anything when told to fire
 #[derive(Component, Clone)]
 pub struct DebugWeapon {
+    // TODO: split off the cooldown + current code to its own CoolDown component and treat it like
+    // the radar/shield + Arc for that
+    //
     // Ticks for weapon cooldown - May want to consider timer, but that's based off physical timing
     // Need to figure out how to have a "global" tick-tock to have tick-tock timing for the
     // simulator so that later we can "speed up the simulator to the max that the cpu can do for
@@ -78,6 +81,9 @@ pub struct DebugWeapon {
 
 #[derive(Component, Clone)]
 pub struct DebugMissile {
+    // TODO: split off the cooldown + current code to its own CoolDown component and treat it like
+    // the radar/shield + Arc for that
+    //
     // Ticks for weapon cooldown - May want to consider timer, but that's based off physical timing
     // Need to figure out how to have a "global" tick-tock to have tick-tock timing for the
     // simulator so that later we can "speed up the simulator to the max that the cpu can do for

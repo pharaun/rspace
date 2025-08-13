@@ -21,6 +21,7 @@ use crate::class::get_ship;
 use crate::class::get_radar;
 
 use crate::radar::RadarDebug;
+use crate::radar::ArcDebug;
 use crate::radar::RadarBundle;
 
 use crate::weapon::Health;
@@ -254,6 +255,7 @@ impl ShipBuilder {
 #[derive(Clone)]
 pub struct DebugShip {
     radar_debug: Option<RadarDebug>,
+    arc_debug: Option<ArcDebug>,
     mov_debug: Option<MovDebug>,
     rot_debug: Option<RotDebug>,
     health_debug: Option<HealthDebug>,
@@ -263,6 +265,7 @@ impl DebugShip {
     pub fn new() -> DebugShip {
         DebugShip {
             radar_debug: None,
+            arc_debug: None,
             mov_debug: None,
             rot_debug: None,
             health_debug: None,
@@ -276,6 +279,7 @@ impl DebugShip {
 
 pub struct DebugBuilder {
     radar_debug: Option<RadarDebug>,
+    arc_debug: Option<ArcDebug>,
     mov_debug: Option<MovDebug>,
     rot_debug: Option<RotDebug>,
     health_debug: Option<HealthDebug>,
@@ -285,6 +289,7 @@ impl DebugBuilder {
     pub fn new() -> DebugBuilder {
         DebugBuilder {
             radar_debug: None,
+            arc_debug: None,
             mov_debug: None,
             rot_debug: None,
             health_debug: None,
@@ -293,6 +298,11 @@ impl DebugBuilder {
 
     pub fn radar(mut self) -> DebugBuilder {
         self.radar_debug = Some(RadarDebug);
+        self
+    }
+
+    pub fn arc(mut self) -> DebugBuilder {
+        self.arc_debug = Some(ArcDebug);
         self
     }
 
@@ -314,6 +324,7 @@ impl DebugBuilder {
     pub fn build(self) -> DebugShip {
         DebugShip {
             radar_debug: self.radar_debug,
+            arc_debug: self.arc_debug,
             mov_debug: self.mov_debug,
             rot_debug: self.rot_debug,
             health_debug: self.health_debug,
@@ -325,7 +336,7 @@ pub fn add_ship(
     commands: &mut Commands,
     ship: StarterShip
 ) {
-    let radar_target = ship.radar.radar.target;
+    let radar_target = ship.radar.arc.target;
     let ship_target = ship.rotation.target.target;
     let mut transform = Transform::from_translation(vec_scale(ship.movement.position.0, ARENA_SCALE).extend(0.));
     transform.rotate(ship_target.to_quat());
@@ -368,6 +379,10 @@ pub fn add_ship(
 
             if let Some(radar) = ship.debug.radar_debug {
                 spawned_radar.insert(radar);
+            }
+
+            if let Some(arc) = ship.debug.arc_debug {
+                spawned_radar.insert(arc);
             }
         });
 

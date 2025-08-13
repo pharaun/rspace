@@ -17,12 +17,14 @@ impl Plugin for RadarPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<ContactEvent>()
             .add_systems(FixedUpdate, (
-                apply_radar.in_set(FixedGameSystem::GameLogic),
+                apply_arc.in_set(FixedGameSystem::GameLogic),
+                apply_radar.in_set(FixedGameSystem::GameLogic).after(apply_arc),
             ))
             .add_systems(RunFixedMainLoop, (
-                interpolate_radar.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+                interpolate_arc.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
             ))
             .add_systems(Update, (
+                debug_arc_gitzmos,
                 debug_radar_gitzmos,
             ));
     }
@@ -30,6 +32,7 @@ impl Plugin for RadarPlugin {
 
 #[derive(Bundle, Clone)]
 pub struct RadarBundle {
+    pub arc: Arc,
     pub radar: Radar,
     pub noprop: NoRotationPropagation,
 }
@@ -37,32 +40,52 @@ pub struct RadarBundle {
 impl RadarBundle {
     pub fn new(current: AbsRot, target: AbsRot, current_arc: u8, target_arc: u8) -> RadarBundle {
         RadarBundle {
-            radar: Radar {
+            arc: Arc {
                 current,
                 target,
                 current_arc,
                 target_arc,
             },
+            radar: Radar,
             noprop: NoRotationPropagation,
         }
     }
 
     pub fn rotation(&mut self, rotation: AbsRot) {
-        self.radar.current = rotation;
-        self.radar.target = rotation;
+        self.arc.current = rotation;
+        self.arc.target = rotation;
     }
 
     pub fn arc(&mut self, arc: u8) {
-        self.radar.current_arc = arc;
-        self.radar.target_arc = arc;
+        self.arc.current_arc = arc;
+        self.arc.target_arc = arc;
     }
 }
+
+// There are other components such as shields that wants to reuse the arc subsystem
+// TODO: Reuse the Arc component for defining the Shield generator and shield arc
+#[derive(Component, Clone, Copy, Default)]
+pub struct Arc {
+    pub current: AbsRot,
+    pub target: AbsRot,
+
+    // Units arc - [0 = off, 1 = 1/256th of an arc, max 128]
+    pub current_arc: u8,
+    pub target_arc: u8,
+}
+
+#[derive(Component, Clone, Copy)]
+pub struct ArcDebug;
 
 // TODO:
 // - radar rotation system
 // - radar arc2length via area rule system?
 // - radar detection system -> emits contact events.
 // - Script subsystem listen for contact event and act upon it
+//
+// Radar:
+//  TODO: Other types such as fixed radar (missiles?) and rotating radar
+//  - Direction + arc-width (boosting detection distance)
 //
 // Radar detection system
 // - check the distance of all contacts
@@ -74,20 +97,9 @@ impl RadarBundle {
 // with ECM and any other warfare stuff later
 // - This approach is basically "converting" each entities into a polaris coordination from your
 // ship/radar
-
-// Radar:
-//  TODO: Other types such as fixed radar (missiles?) and rotating radar
-//  - Direction + arc-width (boosting detection distance)
-//  - Add rendering iterpolation
 #[derive(Component, Clone, Copy)]
-pub struct Radar {
-    pub current: AbsRot,
-    pub target: AbsRot,
-
-    // Units arc - [0 = off, 1 = 1/256th of an arc, max 128]
-    pub current_arc: u8,
-    pub target_arc: u8,
-}
+#[require(Arc)]
+pub struct Radar;
 
 #[derive(Component, Clone, Copy)]
 pub struct RadarDebug;
@@ -110,32 +122,39 @@ enum RadarContact {
 // Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
 // Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
 // - Since we do have velocity information so we should be able to do better interpolation
-pub(crate) fn interpolate_radar(
-    mut query: Query<(&mut Transform, &Radar)>,
+pub(crate) fn interpolate_arc(
+    mut query: Query<(&mut Transform, &Arc)>,
     fixed_time: Res<Time<Fixed>>
 ) {
     // How much of a "partial timestep" has accumulated since the last fixed timestep run.
     // Between `0.0` and `1.0`.
     let overstep = fixed_time.overstep_fraction();
 
-    for (mut transform, radar) in &mut query {
+    for (mut transform, arc) in &mut query {
         // Note: `slerp` will always take the shortest path, but when the two rotations are more than
         // 180 degrees apart, this can cause visual artifacts as the rotation "flips" to the other side.
-        transform.rotation = radar.current.transform_slerp(radar.target, overstep);
+        transform.rotation = arc.current.transform_slerp(arc.target, overstep);
+    }
+}
+
+// Handle arc
+pub(crate) fn apply_arc(
+    mut query: Query<&mut Arc>
+) {
+    for mut arc in query.iter_mut() {
+        // Update arc rotation & arc width
+        arc.current = arc.target;
+        arc.current_arc = arc.target_arc;
     }
 }
 
 // TODO: split this and setup system ordering but for now.
 pub(crate) fn apply_radar(
     mut events: EventWriter<ContactEvent>,
-    mut query: Query<(&mut Radar, &ChildOf)>,
+    query: Query<(&Arc, &ChildOf), With<Radar>>,
     ship_query: Query<(Entity, &Position)>,
 ) {
-    for (mut radar, child_of) in query.iter_mut() {
-        // Update radar rotation & arc width
-        radar.current = radar.target;
-        radar.current_arc = radar.target_arc;
-
+    for (arc, child_of) in query.iter() {
         // Scan through all target on field, and calculate their distance and angle,
         // if within the arc store it in a list till we know the closest contact
         let mut best_target: Option<(Entity, IVec2)> = None;
@@ -150,7 +169,7 @@ pub(crate) fn apply_radar(
 
             match within_radar_arc(
                 base_position.0, target_position.0,
-                radar.current, radar.current_arc, DISTANCE_SQUARED
+                arc.current, arc.current_arc, DISTANCE_SQUARED
             ) {
                 RadarContact::Contact => {
                     // Is this contact better than current winner?
@@ -194,22 +213,19 @@ fn within_radar_arc(
     }
 }
 
-pub(crate) fn debug_radar_gitzmos(
+pub(crate) fn debug_arc_gitzmos(
     mut gizmos: Gizmos,
-    query: Query<(&Radar, &ChildOf), With<RadarDebug>>,
-    parent_query: Query<(&Transform, &Position)>,
+    query: Query<(&Arc, &ChildOf), With<ArcDebug>>,
+    parent_query: Query<&Transform>
 ) {
-    for (radar, child_of) in query.iter() {
-        // Need the ship translation to position the radar gizmo right
-        let (base, base_pos) = {
-            let (base, pos) = parent_query.get(child_of.parent()).unwrap();
-            (base.translation.truncate(), pos)
-        };
-        let heading = radar.current;
-        let target = radar.target;
+    for (arc, child_of) in query.iter() {
+        // Need the ship translation to position the arc gizmo right
+        let base = parent_query.get(child_of.parent()).unwrap().translation.truncate();
+        let heading = arc.current;
+        let target = arc.target;
 
-        let cw_arc = heading + RelRot((radar.current_arc / 2) as i8);
-        let ccw_arc = heading + RelRot(-((radar.current_arc / 2) as i8));
+        let cw_arc = heading + RelRot((arc.current_arc / 2) as i8);
+        let ccw_arc = heading + RelRot(-((arc.current_arc / 2) as i8));
 
         // Current heading
         gizmos.line_2d(
@@ -225,7 +241,7 @@ pub(crate) fn debug_radar_gitzmos(
             bevy::color::palettes::css::GREEN,
         );
 
-        // Radar arc - only current for now
+        // Arc - only current for now
         gizmos.line_2d(
             base + cw_arc.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
             base + cw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
@@ -248,6 +264,20 @@ pub(crate) fn debug_radar_gitzmos(
             base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
+    }
+}
+
+pub(crate) fn debug_radar_gitzmos(
+    mut gizmos: Gizmos,
+    query: Query<(&Arc, &ChildOf), With<RadarDebug>>,
+    parent_query: Query<(&Transform, &Position)>,
+) {
+    for (arc, child_of) in query.iter() {
+        // Need the ship translation to position the radar gizmo right
+        let (base, base_pos) = {
+            let (base, pos) = parent_query.get(child_of.parent()).unwrap();
+            (base.translation.truncate(), pos)
+        };
 
         // Draw distance & contact status
         gizmos.circle_2d(
@@ -266,7 +296,7 @@ pub(crate) fn debug_radar_gitzmos(
             // Find out if its a contact, if so color the lines
             let color = match within_radar_arc(
                 base_pos.0, target_pos.0,
-                radar.current, radar.current_arc, DISTANCE_SQUARED
+                arc.current, arc.current_arc, DISTANCE_SQUARED
             ) {
                 RadarContact::Contact => bevy::color::palettes::css::GREEN,
                 RadarContact::OutsideArc => bevy::color::palettes::css::YELLOW,
