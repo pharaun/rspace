@@ -30,6 +30,9 @@ use crate::weapon::DebugWeapon;
 use crate::weapon::DebugMissile;
 use crate::weapon::DebugWarhead;
 
+use crate::weapon::ShieldBundle;
+use crate::weapon::ShieldHealthDebug;
+
 
 // INFO:
 // - Ship class: Tiny, Small, Med, Large where they would occupy roughly
@@ -108,6 +111,7 @@ pub struct StarterShip {
     rotation: RotationBundle,
     radar: RadarBundle,
     health: Health,
+    shield: ShieldBundle,
     warhead: Option<DebugWarhead>,
     script: Script,
     debug: DebugShip,
@@ -125,6 +129,7 @@ pub struct ShipBuilder {
     rotation: RotationBundle,
     radar: RadarBundle,
     health: Health,
+    shield: ShieldBundle,
     warhead: Option<DebugWarhead>,
     script: Script,
     debug: DebugShip,
@@ -159,6 +164,14 @@ impl ShipBuilder {
                 current: 100,
                 maximum: 100,
             },
+            shield: ShieldBundle::new(
+                AbsRot(0),
+                AbsRot(0),
+                64,
+                64,
+                0.5,
+                100,
+            ),
             warhead: None,
             script,
             debug: DebugShip::new(),
@@ -218,6 +231,26 @@ impl ShipBuilder {
         self
     }
 
+    pub fn shield(mut self, rotation: AbsRot) -> ShipBuilder {
+        self.shield.rotation(rotation);
+        self
+    }
+
+    pub fn shield_arc(mut self, arc: u8) -> ShipBuilder {
+        self.shield.arc(arc);
+        self
+    }
+
+    pub fn shield_health(mut self, shield: u16) -> ShipBuilder {
+        self.shield.health(shield);
+        self
+    }
+
+    pub fn shield_damage_reduce(mut self, damage_reduce: f32) -> ShipBuilder {
+        self.shield.damage_reduce(damage_reduce);
+        self
+    }
+
     pub fn warhead(mut self, damage: u16) -> ShipBuilder {
         self.warhead = Some(DebugWarhead {
             damage
@@ -242,6 +275,7 @@ impl ShipBuilder {
             rotation: self.rotation,
             radar: self.radar,
             health: self.health,
+            shield: self.shield,
             warhead: self.warhead,
             script: self.script,
             debug: self.debug,
@@ -255,20 +289,24 @@ impl ShipBuilder {
 #[derive(Clone)]
 pub struct DebugShip {
     radar_debug: Option<RadarDebug>,
-    arc_debug: Option<ArcDebug>,
+    radar_arc_debug: Option<ArcDebug>,
     mov_debug: Option<MovDebug>,
     rot_debug: Option<RotDebug>,
     health_debug: Option<HealthDebug>,
+    shield_health_debug: Option<ShieldHealthDebug>,
+    shield_arc_debug: Option<ArcDebug>,
 }
 
 impl DebugShip {
     pub fn new() -> DebugShip {
         DebugShip {
             radar_debug: None,
-            arc_debug: None,
+            radar_arc_debug: None,
             mov_debug: None,
             rot_debug: None,
             health_debug: None,
+            shield_health_debug: None,
+            shield_arc_debug: None,
         }
     }
 
@@ -279,20 +317,24 @@ impl DebugShip {
 
 pub struct DebugBuilder {
     radar_debug: Option<RadarDebug>,
-    arc_debug: Option<ArcDebug>,
+    radar_arc_debug: Option<ArcDebug>,
     mov_debug: Option<MovDebug>,
     rot_debug: Option<RotDebug>,
     health_debug: Option<HealthDebug>,
+    shield_health_debug: Option<ShieldHealthDebug>,
+    shield_arc_debug: Option<ArcDebug>,
 }
 
 impl DebugBuilder {
     pub fn new() -> DebugBuilder {
         DebugBuilder {
             radar_debug: None,
-            arc_debug: None,
+            radar_arc_debug: None,
             mov_debug: None,
             rot_debug: None,
             health_debug: None,
+            shield_health_debug: None,
+            shield_arc_debug: None,
         }
     }
 
@@ -301,8 +343,8 @@ impl DebugBuilder {
         self
     }
 
-    pub fn arc(mut self) -> DebugBuilder {
-        self.arc_debug = Some(ArcDebug);
+    pub fn radar_arc(mut self) -> DebugBuilder {
+        self.radar_arc_debug = Some(ArcDebug);
         self
     }
 
@@ -321,13 +363,25 @@ impl DebugBuilder {
         self
     }
 
+    pub fn shield_health(mut self) -> DebugBuilder {
+        self.shield_health_debug = Some(ShieldHealthDebug);
+        self
+    }
+
+    pub fn shield_arc(mut self) -> DebugBuilder {
+        self.shield_arc_debug = Some(ArcDebug);
+        self
+    }
+
     pub fn build(self) -> DebugShip {
         DebugShip {
             radar_debug: self.radar_debug,
-            arc_debug: self.arc_debug,
+            radar_arc_debug: self.radar_arc_debug,
             mov_debug: self.mov_debug,
             rot_debug: self.rot_debug,
             health_debug: self.health_debug,
+            shield_health_debug: self.shield_health_debug,
+            shield_arc_debug: self.shield_arc_debug,
         }
     }
 }
@@ -381,8 +435,23 @@ pub fn add_ship(
                 spawned_radar.insert(radar);
             }
 
-            if let Some(arc) = ship.debug.arc_debug {
+            if let Some(arc) = ship.debug.radar_arc_debug {
                 spawned_radar.insert(arc);
+            }
+        })
+
+        // Insert shielding
+        .with_children(|parent| {
+            let mut spawned_shield = parent.spawn((
+                ship.shield,
+            ));
+
+            if let Some(shield_health) = ship.debug.shield_health_debug {
+                spawned_shield.insert(shield_health);
+            }
+
+            if let Some(arc) = ship.debug.shield_arc_debug {
+                spawned_shield.insert(arc);
             }
         });
 

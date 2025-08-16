@@ -11,6 +11,10 @@ use crate::ship::ShipBuilder;
 use crate::script::Script;
 use crate::rotation::Rotation;
 use crate::spawner::SpawnEvent;
+use crate::rotation::NoRotationPropagation;
+use crate::radar::Arc;
+
+use crate::AbsRot;
 
 
 // TODO: dynamic warhead distance, for now fixed
@@ -44,6 +48,7 @@ impl Plugin for WeaponPlugin {
             ))
             .add_systems(Update, (
                 debug_health_gitzmos,
+                debug_shield_health_gitzmos,
             ));
     }
 }
@@ -133,6 +138,11 @@ pub struct FireDebugWarheadEvent (pub Entity);
 #[derive(Event, Copy, Clone, Debug)]
 pub struct FireDebugMissileEvent (pub Entity);
 
+// TODO: add logic to query for shield on the ship, and check
+// if the shield covers where the damage is coming from, and then if so,
+// apply the shield damage reduce, pass it on to the ship health, and deduce the rest
+// from the shield health pool, once shield health pool is zero, then just pass full
+// damage through
 pub fn process_damage_event(
     trigger: Trigger<DamageEvent>,
     mut commands: Commands,
@@ -316,30 +326,125 @@ pub fn process_fire_debug_missile_event(
     }
 }
 
+fn render_bar_gizmos(
+    gizmos: &mut Gizmos,
+    position: Vec2,
+    width: f32,
+    percentage_full: f32,
+    bar_color: Srgba,
+) {
+    let bar_offset = (width * percentage_full) - (width / 2.);
+
+    // Primitive bar-graph in gizmo form
+    for v_off in 1..10 {
+        gizmos.line_2d(
+            position + Vec2::new(-(width / 2.), 5. - v_off as f32),
+            position + Vec2::new(bar_offset, 5. - v_off as f32),
+            bar_color,
+        );
+    }
+    gizmos.rect_2d(
+        Isometry2d::from_translation(position),
+        Vec2::new(width, 10.),
+        bevy::color::palettes::css::RED,
+    );
+}
+
 pub(crate) fn debug_health_gitzmos(
     mut gizmos: Gizmos,
-    query: Query<(&Health, &Transform), With<HealthDebug>>,
+    query: Query<(&Health, &Transform), (With<HealthDebug>, Without<Shield>)>,
 ) {
     for (health, tran) in query.iter() {
         let base = tran.translation.truncate();
 
-        // Health-line as a percentage
-        let width: f32 = 35.;
-        let health_bar = width * (health.current as f32 / health.maximum as f32);
-        let health_offset = health_bar - (width / 2.);
-
-        // Primitive bar-graph in gizmo form
-        for v_off in 1..10 {
-            gizmos.line_2d(
-                base + Vec2::new(-(width / 2.), -20. - v_off as f32),
-                base + Vec2::new(health_offset, -20. - v_off as f32),
-                bevy::color::palettes::css::GREEN,
-            );
-        }
-        gizmos.rect_2d(
-            Isometry2d::from_translation(base + Vec2::new(0., -25.)),
-            Vec2::new(width, 10.),
-            bevy::color::palettes::css::RED,
+        render_bar_gizmos(
+            &mut gizmos,
+            base + Vec2::new(0., -25.),
+            35.,
+            health.current as f32 / health.maximum as f32,
+            bevy::color::palettes::css::GREEN,
         );
     }
 }
+
+pub(crate) fn debug_shield_health_gitzmos(
+    mut gizmos: Gizmos,
+    query: Query<(&Health, &ChildOf), (With<ShieldHealthDebug>, With<Shield>)>,
+    ship_query: Query<&Transform>,
+) {
+    for (health, child_of) in query.iter() {
+        let base = ship_query.get(child_of.parent()).unwrap().translation.truncate();
+
+        render_bar_gizmos(
+            &mut gizmos,
+            base + Vec2::new(0., -35.),
+            35.,
+            health.current as f32 / health.maximum as f32,
+            bevy::color::palettes::css::BLUE,
+        );
+    }
+}
+
+
+#[derive(Bundle, Clone)]
+pub struct ShieldBundle {
+    pub arc: Arc,
+    pub shield: Shield,
+    pub health: Health,
+    pub noprop: NoRotationPropagation,
+}
+
+impl ShieldBundle {
+    pub fn new(
+        current: AbsRot,
+        target: AbsRot,
+        current_arc: u8,
+        target_arc: u8,
+        damage_reduce: f32,
+        health: u16,
+    ) -> ShieldBundle {
+        ShieldBundle {
+            arc: Arc {
+                current,
+                target,
+                current_arc,
+                target_arc,
+            },
+            shield: Shield {
+                damage_reduce,
+            },
+            health: Health {
+                current: health,
+                maximum: health,
+            },
+            noprop: NoRotationPropagation,
+        }
+    }
+
+    pub fn rotation(&mut self, rotation: AbsRot) {
+        self.arc.current = rotation;
+        self.arc.target = rotation;
+    }
+
+    pub fn arc(&mut self, arc: u8) {
+        self.arc.current_arc = arc;
+        self.arc.target_arc = arc;
+    }
+
+    pub fn damage_reduce(&mut self, damage_reduce: f32) {
+        self.shield.damage_reduce = damage_reduce;
+    }
+
+    pub fn health(&mut self, health: u16) {
+        self.health.current = health;
+        self.health.maximum = health;
+    }
+}
+
+#[derive(Component, Clone, Copy)]
+pub struct Shield {
+    damage_reduce: f32,
+}
+
+#[derive(Component, Clone, Copy)]
+pub struct ShieldHealthDebug;

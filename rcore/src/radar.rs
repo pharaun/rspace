@@ -66,6 +66,9 @@ impl RadarBundle {
 // TODO: Reuse the Arc component for defining the Shield generator and shield arc
 #[derive(Component, Clone, Copy, Default)]
 pub struct Arc {
+    // TODO: Can probs pull out the AbsRot and reuse Rotation component
+    // But would have to look into the catch when it comes to 1/256th of an arc since
+    // right now we cannot, best we can do is 2/256th of an arc
     pub current: AbsRot,
     pub target: AbsRot,
 
@@ -195,6 +198,7 @@ pub(crate) fn apply_radar(
     }
 }
 
+// TODO: probs can abstract this somewhat or have a companion for shields
 fn within_radar_arc(
     base: IVec2, target: IVec2,
     radar_heading: AbsRot, radar_arc: u8, distance_squared: i32,

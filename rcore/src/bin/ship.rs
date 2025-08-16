@@ -161,7 +161,7 @@ fn ship_setup(mut commands: Commands) {
             .radar(AbsRot(0))
             .radar_arc(64)
             .debug(DebugBuilder::new()
-                .arc()
+                .radar_arc()
                 .build())
             .build(),
 
@@ -176,6 +176,8 @@ fn ship_setup(mut commands: Commands) {
             .radar_arc(2)
             .debug(DebugBuilder::new()
                 .health()
+                .shield_health()
+                .shield_arc()
                 .build())
             .build(),
 
@@ -190,6 +192,8 @@ fn ship_setup(mut commands: Commands) {
             .radar_arc(2)
             .debug(DebugBuilder::new()
                 .health()
+                .shield_health()
+                .shield_arc()
                 .build())
             .build(),
 
