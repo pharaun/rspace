@@ -13,6 +13,8 @@ use crate::rotation::Rotation;
 use crate::spawner::SpawnEvent;
 use crate::rotation::NoRotationPropagation;
 use crate::radar::Arc;
+use crate::radar::ArcCheck;
+use crate::radar::within_arc;
 
 use crate::AbsRot;
 
@@ -56,7 +58,7 @@ impl Plugin for WeaponPlugin {
 // Health and armor system for ships
 //
 // When a ship is hit with a weapon, this is when this system comes in play
-#[derive(Component, Debug, Clone, Copy)]
+#[derive(Component, Debug, Clone, Copy, Default)]
 pub struct Health {
     pub current: u16,
     pub maximum: u16,
@@ -65,9 +67,10 @@ pub struct Health {
 #[derive(Component, Clone, Copy)]
 pub struct HealthDebug;
 
+// 0 - Origin of the damage (for shield coverage check)
 // 1 - health to deduce
 #[derive(Event, Copy, Clone, Debug)]
-pub struct DamageEvent (pub u16);
+pub struct DamageEvent (pub IVec2, pub u16);
 
 // Basic 360 no scope test weapon, it can zap anything when told to fire
 #[derive(Component, Clone)]
@@ -146,11 +149,58 @@ pub struct FireDebugMissileEvent (pub Entity);
 pub fn process_damage_event(
     trigger: Trigger<DamageEvent>,
     mut commands: Commands,
-    mut query: Query<&mut Health>,
+    mut query: Query<(&mut Health, &Position, &Children), Without<Shield>>,
+    mut shield_query: Query<(&mut Health, &Shield, &Arc)>,
 ) {
     let ship = trigger.target();
-    if let Ok(mut health) = query.get_mut(ship) {
-        if let Some(new_health) = health.current.checked_sub(trigger.event().0) {
+    if let Ok((mut health, ship_pos, children)) = query.get_mut(ship) {
+        let mut ship_damage: u16 = trigger.event().1;
+
+        // Scan through the children to find the shield if there is one.
+        // TODO: support multiple shield, for now assume one.
+        for child in children.iter() {
+            if let Ok((mut shield_health, shield, arc)) = shield_query.get_mut(child) {
+                // Check if the shield is not at 0 health
+                if shield_health.current == 0 {
+                    // Pass on full damage
+                    ship_damage = trigger.event().1;
+                    break;
+                }
+
+                // Check if the damage source is covered by the shield arc
+                match within_arc(ship_pos.0, trigger.event().0, arc.current, arc.current_arc) {
+                    ArcCheck::InsideArc => {
+                        // Split incoming damage into shield and ship damage
+                        let shield_damage: u16 = (trigger.event().1 as f32 * shield.damage_reduce).round() as u16;
+
+                        // If shield can't cover full shield damage, deduce and pass on to ship
+                        if let Some(new_shield_health) = shield_health.current.checked_sub(shield_damage) {
+                            shield_health.current = new_shield_health;
+                            ship_damage = trigger.event().1 - shield_damage;
+                        } else {
+                            // Can't cover full damage, deduce what we can and pass it on
+                            let carry_shield_damage = shield_damage - shield_health.current;
+                            shield_health.current = 0;
+                            ship_damage = trigger.event().1 - shield_damage + carry_shield_damage;
+                        }
+                    },
+                    ArcCheck::OutsideArc => {
+                        // Pass on full damage
+                        ship_damage = trigger.event().1;
+                    },
+                    ArcCheck::SamePosition => {
+                        // Print warning & pass on full damage
+                        println!("Warning self-damaging? - {:?}", ship_pos.0);
+                        ship_damage = trigger.event().1;
+                    }
+                }
+
+                // It matched a shield, we are done with processing
+                break;
+            }
+        }
+
+        if let Some(new_health) = health.current.checked_sub(ship_damage) {
             health.current = new_health;
         } else {
             // This ship is now dead, despawn it
@@ -227,11 +277,11 @@ pub(crate) fn render_debug_warhead(
 pub fn process_fire_debug_weapon_event(
     mut commands: Commands,
     mut fire_debug_weapon_events: EventReader<FireDebugWeaponEvent>,
-    mut query: Query<&mut DebugWeapon>,
+    mut query: Query<(&mut DebugWeapon, &Position)>,
     position: Query<&Transform>,
 ) {
     for FireDebugWeaponEvent(ship, target) in fire_debug_weapon_events.read() {
-        if let Ok(mut weapon) = query.get_mut(*ship) {
+        if let Ok((mut weapon, ship_pos)) = query.get_mut(*ship) {
             if weapon.current == 0 {
                 weapon.current = weapon.cooldown;
 
@@ -246,7 +296,7 @@ pub fn process_fire_debug_weapon_event(
                 });
 
                 // emit damage event to the target
-                commands.trigger_targets(DamageEvent(weapon.damage), target.clone());
+                commands.trigger_targets(DamageEvent(ship_pos.0, weapon.damage), target.clone());
             }
         }
     }
@@ -279,7 +329,7 @@ pub fn process_fire_debug_warhead_event(
                 }
 
                 if base_position.0.distance_squared(target_position.0) < DISTANCE_SQUARED {
-                    commands.trigger_targets(DamageEvent(warhead.damage), target_ship);
+                    commands.trigger_targets(DamageEvent(base_position.0, warhead.damage), target_ship);
                 }
             }
 
@@ -385,7 +435,8 @@ pub(crate) fn debug_shield_health_gitzmos(
     }
 }
 
-
+// TODO: figure out collision detection with shields for misiles and other ships but
+// for now skip
 #[derive(Bundle, Clone)]
 pub struct ShieldBundle {
     pub arc: Arc,
@@ -442,6 +493,8 @@ impl ShieldBundle {
 }
 
 #[derive(Component, Clone, Copy)]
+#[require(Arc)]
+#[require(Health)]
 pub struct Shield {
     damage_reduce: f32,
 }

@@ -115,10 +115,17 @@ pub struct ContactEvent (pub Entity, pub Entity);
 // Radar Contact Result
 #[derive(Debug)]
 enum RadarContact {
-    Contact,
     TooFar,
+    Contact,
     SamePosition,
     OutsideArc,
+}
+
+#[derive(Debug)]
+pub enum ArcCheck {
+    InsideArc,
+    OutsideArc,
+    SamePosition,
 }
 
 // Handles rendering
@@ -170,7 +177,7 @@ pub(crate) fn apply_radar(
                 continue;
             }
 
-            match within_radar_arc(
+            match within_radar(
                 base_position.0, target_position.0,
                 arc.current, arc.current_arc, DISTANCE_SQUARED
             ) {
@@ -198,22 +205,31 @@ pub(crate) fn apply_radar(
     }
 }
 
-// TODO: probs can abstract this somewhat or have a companion for shields
-fn within_radar_arc(
+fn within_radar(
     base: IVec2, target: IVec2,
     radar_heading: AbsRot, radar_arc: u8, distance_squared: i32,
 ) -> RadarContact {
     if base.distance_squared(target) > distance_squared {
         return RadarContact::TooFar;
     }
+    match within_arc(base, target, radar_heading, radar_arc) {
+        ArcCheck::InsideArc => RadarContact::Contact,
+        ArcCheck::OutsideArc => RadarContact::OutsideArc,
+        ArcCheck::SamePosition => RadarContact::SamePosition,
+    }
+}
 
+pub fn within_arc(
+    base: IVec2, target: IVec2,
+    heading: AbsRot, arc: u8
+) -> ArcCheck {
     match AbsRot::from_vec2_angle(base, target) {
-        Some(rot) => if radar_heading.between(radar_arc, rot) {
-            RadarContact::Contact
+        Some(rot) => if heading.between(arc, rot) {
+            ArcCheck::InsideArc
         } else {
-            RadarContact::OutsideArc
+            ArcCheck::OutsideArc
         },
-        None => RadarContact::SamePosition,
+        None => ArcCheck::SamePosition,
     }
 }
 
@@ -298,7 +314,7 @@ pub(crate) fn debug_radar_gitzmos(
             }
 
             // Find out if its a contact, if so color the lines
-            let color = match within_radar_arc(
+            let color = match within_radar(
                 base_pos.0, target_pos.0,
                 arc.current, arc.current_arc, DISTANCE_SQUARED
             ) {
