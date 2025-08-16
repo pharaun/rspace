@@ -11,7 +11,6 @@ use crate::ship::ShipBuilder;
 use crate::script::Script;
 use crate::rotation::Rotation;
 use crate::spawner::SpawnEvent;
-use crate::rotation::NoRotationPropagation;
 use crate::radar::Arc;
 use crate::radar::ArcCheck;
 use crate::radar::within_arc;
@@ -447,7 +446,6 @@ pub struct ShieldBundle {
     pub arc: Arc,
     pub shield: Shield,
     pub health: Health,
-    pub noprop: NoRotationPropagation,
 }
 
 impl ShieldBundle {
@@ -473,7 +471,6 @@ impl ShieldBundle {
                 current: health,
                 maximum: health,
             },
-            noprop: NoRotationPropagation,
         }
     }
 
