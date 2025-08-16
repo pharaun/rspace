@@ -437,6 +437,11 @@ pub(crate) fn debug_shield_health_gitzmos(
 
 // TODO: figure out collision detection with shields for misiles and other ships but
 // for now skip
+// TODO: consider how a ship can fire its weapon through the shield, maybe have it so that
+// if your own shield blocks the weapon fire it will damage your own shield and reduce the amount
+// of damage that gets through to the other ship, that could be interesting, in that you have to
+// move your shield over to fire a weapon or you can keep it up and absorb the damage from your
+// own weapon to your shield?
 #[derive(Bundle, Clone)]
 pub struct ShieldBundle {
     pub arc: Arc,
