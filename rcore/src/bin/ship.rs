@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use avian2d::prelude::*;
 
+//use bevy::window::PresentMode;
+
 use bevy_screen_diagnostics::ScreenDiagnosticsPlugin;
 use bevy_screen_diagnostics::ScreenEntityDiagnosticsPlugin;
 use bevy_screen_diagnostics::ScreenFrameDiagnosticsPlugin;
@@ -68,6 +70,9 @@ fn main() {
             |mut commands: Commands| {
                 commands.spawn(Camera2d::default());
             },
+//            |mut window: Single<&mut Window>| {
+//                window.present_mode = PresentMode::AutoNoVsync;
+//            },
             arena_bounds_setup,
             ship_setup,
         ))
@@ -160,9 +165,7 @@ impl ShipScript for SimpleShip {
 struct DummyShip;
 
 impl ShipScript for DummyShip {
-    fn on_update(&mut self, _status: &ShipStatus) -> ShipAction {
-        ShipAction::new()
-    }
+    fn on_update(&mut self, _status: &ShipStatus) -> ShipAction {ShipAction::new()}
     fn on_contact(&mut self, _target_pos: IVec2, _target_entity: Entity) {}
     fn on_collision(&mut self) {}
 }
