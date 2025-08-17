@@ -181,6 +181,17 @@ fn process_on_contact(
 // to figure out how to find the target entity and stuff, maybe update the
 // on contact code to query+give the entity id for now for the target so
 // that its easier to just 'fire' the weapon.
+//
+// TODO: consider maybe some sort of like ship-status cache on each ship (maybe part of scripts)
+// that gets updated with relevant information in all sort of systems then we can
+// query for it and pass it right into the script rather than having a ton of extra
+// queries here.
+//
+// TODO: find a better way to handle ship updates post script since we may need to have many many
+// events and queries to update all sort of entities, this is tightly coupled. Maybe have a
+// per frame ShipAction event that gets sent out to all sort of subsystem and they check
+// if its relevant, and if so they update theirselves, otherwise they skip, this may
+// be a better way since it would let us to self-contain the logic into each area's systems?
 fn process_on_update(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
@@ -198,13 +209,6 @@ fn process_on_update(
 ) {
     // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
-        // TODO:
-        // Sum up the ship status/environment
-        // Pass it into rhai somehow (callback or some sort of status object)
-        // Run the script, and the script can return a list of changes to perform to the ship
-        //  -or- invoke script functions directly to update a state that gets synchronized to the
-        //  ship
-        //  -or- just update the components directly?
         for (entity, mut ship_script) in query.iter_mut() {
             let ship = ship_query.get(entity).unwrap();
 
