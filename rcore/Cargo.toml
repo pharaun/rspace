@@ -6,6 +6,9 @@ edition = "2024"
 [dependencies]
 bevy_prototype_lyon = { git = "https://github.com/rparrett/bevy_prototype_lyon", branch = "fix-dynamic-examples" }
 
+# To permit ship dyn object to be cloned (so that they all have their own memory region for data)
+dyn-clone = "1.0.20"
+
 # FPS dialog
 bevy_screen_diagnostics = "0.8"
 

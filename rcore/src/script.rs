@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use avian2d::prelude::*;
 
-use std::sync::Arc;
-use std::sync::Mutex;
+use dyn_clone::DynClone;
+
 use std::fmt;
 
 use crate::movement::Velocity;
@@ -17,6 +17,7 @@ use crate::weapon::FireDebugWeaponEvent;
 use crate::weapon::FireDebugWarheadEvent;
 use crate::weapon::FireDebugMissileEvent;
 
+use crate::FixedGameSystem;
 use crate::math::AbsRot;
 use crate::math::RelRot;
 
@@ -56,7 +57,7 @@ use crate::math::RelRot;
 // ....
 // event -> is at A, yes, goto b return
 
-pub trait ShipScript: Send + Sync + 'static {
+pub trait ShipScript: DynClone + Send + Sync + 'static {
     fn on_update(
         &mut self,
         pos: IVec2,
@@ -66,12 +67,11 @@ pub trait ShipScript: Send + Sync + 'static {
     fn on_contact(&mut self, target_pos: IVec2, target_entity: Entity);
     fn on_collision(&mut self);
 }
+dyn_clone::clone_trait_object!(ShipScript);
 
-
-// Use this to develop what we need for the future alternative language/VM but for now rhai will do
 #[derive(Component, Clone)]
 pub struct Script {
-    pub script: Arc<Mutex<dyn ShipScript>>
+    pub script: Box<dyn ShipScript>
 }
 
 impl fmt::Debug for Script {
@@ -87,9 +87,11 @@ pub struct ScriptPlugins;
 impl Plugin for ScriptPlugins {
     fn build(&self, app: &mut App) {
         app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 1.0, TimerMode::Repeating)))
-            .add_systems(Update, process_on_update)
-            .add_systems(Update, process_on_collision)
-            .add_systems(Update, process_on_contact);
+            .add_systems(FixedUpdate, (
+                process_on_update.in_set(FixedGameSystem::ShipLogic),
+                process_on_collision.in_set(FixedGameSystem::ShipLogic),
+                process_on_contact.in_set(FixedGameSystem::ShipLogic),
+            ));
     }
 }
 
@@ -100,11 +102,9 @@ fn process_on_collision(
     // Handle collision events first
     for CollisionStarted(e1, e2) in collision_events.read() {
         if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
-            for ship_script in [e1_script, e2_script] {
+            for mut ship_script in [e1_script, e2_script] {
                 // Invoke collision handler
-                let script = ship_script.script.clone();
-                let mut mut_script = script.lock().unwrap();
-                mut_script.on_collision();
+                ship_script.script.on_collision();
             }
         } else {
             println!("ERROR - SCRIPT - CollisionStarted({:?}, {:?})", e1, e2);
@@ -121,11 +121,9 @@ fn process_on_contact(
         let ContactEvent(e1, e2) = contact_event;
         // TODO: right now with the ContactEvent being copies it leads to aliased query here,
         // This should be fixed once we have proper contact event that does not refer to self
-        if let Ok([(_, _, e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2]) {
+        if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2]) {
             // E1 knows where e2 is
-            let script = e1_script.script.clone();
-            let mut mut_script = script.lock().unwrap();
-            mut_script.on_contact(e2_pos.0, e2_entity);
+            e1_script.script.on_contact(e2_pos.0, e2_entity);
         } else {
             println!("ERROR - SCRIPT - {:?}", contact_event);
         }
@@ -160,18 +158,15 @@ fn process_on_update(
         //  -or- invoke script functions directly to update a state that gets synchronized to the
         //  ship
         //  -or- just update the components directly?
-        for (entity, ship_script) in query.iter_mut() {
+        for (entity, mut ship_script) in query.iter_mut() {
             let ship = ship_query.get(entity).unwrap();
 
             let vel = ship.0;
             let pos = ship.1.0;
             let rot = ship.3.0;
 
-            let script = ship_script.script.clone();
-            let mut mut_script = script.lock().unwrap();
-
             // [ to_rot, to_vel, to_rdr_rot, target]
-            let res = mut_script.on_update(
+            let res = ship_script.script.on_update(
                 pos,
                 vel.velocity,
                 rot,

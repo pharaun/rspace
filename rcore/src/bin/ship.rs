@@ -7,9 +7,6 @@ use bevy_screen_diagnostics::ScreenFrameDiagnosticsPlugin;
 
 use bevy_prototype_lyon::prelude::ShapePlugin;
 
-use std::sync::Arc;
-use std::sync::Mutex;
-
 use rcore::FixedGameSystem;
 use rcore::arena_bounds_setup;
 
@@ -74,6 +71,7 @@ fn main() {
 }
 
 // Simple ship script
+#[derive(Clone)]
 struct SimpleShip {
     acc: i32,
     dec: i32,
@@ -146,6 +144,7 @@ impl ShipScript for SimpleShip {
 }
 
 // Non-reactive ship
+#[derive(Clone)]
 struct DummyShip;
 
 impl ShipScript for DummyShip {
@@ -175,7 +174,7 @@ fn camera_setup(mut commands: Commands) {
 // things limit_r, target_r,
 fn ship_setup(mut commands: Commands) {
     let ships = vec![
-        ShipBuilder::new(Script { script: Arc::new(Mutex::new(SimpleShip::new())) })
+        ShipBuilder::new(Script { script: Box::new(SimpleShip::new()) })
             .position(0, 0)
             .velocity(0, 0)
             .velocity_limit(100)
@@ -188,7 +187,7 @@ fn ship_setup(mut commands: Commands) {
                 .build())
             .build(),
 
-        ShipBuilder::new(Script { script: Arc::new(Mutex::new(DummyShip)) })
+        ShipBuilder::new(Script { script: Box::new(DummyShip) })
             .position(3500, 0)
             .velocity(0, 0)
             .radar_arc(2)
@@ -201,7 +200,7 @@ fn ship_setup(mut commands: Commands) {
                 .build())
             .build(),
 
-        ShipBuilder::new(Script { script: Arc::new(Mutex::new(DummyShip)) })
+        ShipBuilder::new(Script { script: Box::new(DummyShip) })
             .position(-3500, 0)
             .velocity(0, 0)
             .radar_arc(2)
@@ -214,7 +213,7 @@ fn ship_setup(mut commands: Commands) {
                 .build())
             .build(),
 
-        ShipBuilder::new(Script { script: Arc::new(Mutex::new(DummyShip)) })
+        ShipBuilder::new(Script { script: Box::new(DummyShip) })
             .position(-4500, -2500)
             .velocity(0, 0)
             .radar_arc(2)
