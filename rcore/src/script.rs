@@ -57,13 +57,60 @@ use crate::math::RelRot;
 // ....
 // event -> is at A, yes, goto b return
 
+// This is the ship status object that gives the current status of the ship
+pub struct ShipStatus {
+    pub position: IVec2,
+    pub velocity: IVec2,
+    pub acceleration: i32,
+    pub heading: AbsRot
+}
+
+// Initial attempt of building a ship action structure for what to do
+pub struct ShipAction {
+    pub heading: RelRot,
+    pub acceleration: i32,
+    pub radar_heading: RelRot,
+    pub target_entity: Option<Entity>
+}
+
+impl ShipAction {
+    pub fn new() -> ShipAction {
+        ShipAction {
+            heading: RelRot(0),
+            acceleration: 0,
+            radar_heading: RelRot(0),
+            target_entity: None
+        }
+    }
+
+    pub fn heading(mut self, hdr: RelRot) -> ShipAction {
+        self.heading = hdr;
+        self
+    }
+
+    pub fn acceleration(mut self, acc: i32) -> ShipAction {
+        self.acceleration = acc;
+        self
+    }
+
+    pub fn radar_heading(mut self, hdr: RelRot) -> ShipAction {
+        self.radar_heading = hdr;
+        self
+    }
+
+    pub fn target_entity(mut self, target: Option<Entity>) -> ShipAction {
+        self.target_entity = target;
+        self
+    }
+}
+
 pub trait ShipScript: DynClone + Send + Sync + 'static {
     fn on_update(
         &mut self,
-        pos: IVec2,
-        vel: IVec2,
-        rot: AbsRot
-    ) -> (RelRot, i32, RelRot, Option<Entity>);
+        status: &ShipStatus,
+    ) -> ShipAction;
+
+    // TODO: add ship status to these as well
     fn on_contact(&mut self, target_pos: IVec2, target_entity: Entity);
     fn on_collision(&mut self);
 }
@@ -161,41 +208,39 @@ fn process_on_update(
         for (entity, mut ship_script) in query.iter_mut() {
             let ship = ship_query.get(entity).unwrap();
 
-            let vel = ship.0;
-            let pos = ship.1.0;
-            let rot = ship.3.0;
+            let ship_status = ShipStatus {
+                position: ship.1.0,
+                velocity: ship.0.velocity,
+                acceleration: ship.0.acceleration,
+                heading: ship.3.0,
+            };
 
-            // [ to_rot, to_vel, to_rdr_rot, target]
-            let res = ship_script.script.on_update(
-                pos,
-                vel.velocity,
-                rot,
-            );
+            let res = ship_script.script.on_update(&ship_status);
 
             // Always apply
             let mut velocity = ship_query.get_mut(entity).unwrap().0;
-            velocity.acceleration = res.1;
+            velocity.acceleration = res.acceleration;
 
             let mut rotation = ship_query.get_mut(entity).unwrap().2;
-            rotation.target += res.0;
+            rotation.target += res.heading;
 
             // Radar is on the children entity of the ship
             let children = ship_query.get(entity).unwrap().4;
             for child_entity in children {
                 if let Ok(mut radar) = radar_query.get_mut(*child_entity) {
-                    radar.target += res.2;
+                    radar.target += res.radar_heading;
                 }
             }
 
             // For now emit a fire event
-            if let Some(target) = res.3 {
+            if let Some(target) = res.target_entity {
                 if let Ok(target_entity) = target_query.get(target) {
                     events.write(FireDebugWeaponEvent(entity, target_entity));
                 }
             }
 
             // For now spam the warhead fire event
-            if let Some(_) = res.3 {
+            if let Some(_) = res.target_entity {
                 w_events.write(FireDebugWarheadEvent(entity));
                 m_events.write(FireDebugMissileEvent(entity));
             }

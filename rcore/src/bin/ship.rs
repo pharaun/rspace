@@ -21,6 +21,8 @@ use rcore::math::AbsRot;
 use rcore::math::RelRot;
 use rcore::script::ShipScript;
 use rcore::script::Script;
+use rcore::script::ShipStatus;
+use rcore::script::ShipAction;
 use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::add_ship;
@@ -106,28 +108,36 @@ impl ShipScript for SimpleShip {
     // - going upward it snaps between 180 and 0
     // - going downward it slowly changes between 0 to 180 and never quite snaps to 180
     // - figure out why
-    fn on_update(
-        &mut self,
-        pos: IVec2,
-        vel: IVec2,
-        rot: AbsRot
-    ) -> (RelRot, i32, RelRot, Option<Entity>) {
-        println!("on_update: Pos - {:?} - Vel - {:?} - Rot - {:?}", pos, vel, rot);
+    fn on_update(&mut self, status: &ShipStatus) -> ShipAction {
+        println!(
+            "on_update: Pos - {:?} - Vel - {:?} - Rot - {:?}",
+            status.position,
+            status.velocity,
+            status.heading,
+        );
 
-        if rot == AbsRot(0) || rot == AbsRot(128) {
-            if vel.y < 95 && rot == AbsRot(0){
+        if status.heading == AbsRot(0) || status.heading == AbsRot(128) {
+            if status.velocity.y < 95 && status.heading == AbsRot(0){
                 println!("Accelerate");
-                (RelRot(0), self.acc, RelRot(0), self.target_e)
-            } else if vel.y > -95 && rot == AbsRot(128) {
+                ShipAction::new()
+                    .acceleration(self.acc)
+                    .target_entity(self.target_e)
+            } else if status.velocity.y > -95 && status.heading == AbsRot(128) {
                 println!("Decelerate");
-                (RelRot(0), self.dec, RelRot(0), self.target_e)
+                ShipAction::new()
+                    .acceleration(self.dec)
+                    .target_entity(self.target_e)
             } else {
                 println!("Rotate & Radar");
-                (RelRot(self.rot), 0, RelRot(64), self.target_e)
+                ShipAction::new()
+                    .heading(RelRot(self.rot))
+                    .radar_heading(RelRot(64))
+                    .target_entity(self.target_e)
             }
         } else {
             println!("Idle");
-            (RelRot(0), 0, RelRot(0), self.target_e)
+            ShipAction::new()
+                .target_entity(self.target_e)
         }
     }
 
@@ -150,13 +160,8 @@ impl ShipScript for SimpleShip {
 struct DummyShip;
 
 impl ShipScript for DummyShip {
-    fn on_update(
-        &mut self,
-        _pos: IVec2,
-        _vel: IVec2,
-        _rot: AbsRot
-    ) -> (RelRot, i32, RelRot, Option<Entity>) {
-        (RelRot(0), 0, RelRot(0), None)
+    fn on_update(&mut self, _status: &ShipStatus) -> ShipAction {
+        ShipAction::new()
     }
     fn on_contact(&mut self, _target_pos: IVec2, _target_entity: Entity) {}
     fn on_collision(&mut self) {}
