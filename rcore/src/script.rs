@@ -5,9 +5,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::fmt;
 
-use std::collections::HashMap;
-use rust_dynamic::value::Value;
-
 use crate::movement::Velocity;
 use crate::movement::Position;
 use crate::rotation::TargetRotation;
@@ -59,35 +56,27 @@ use crate::math::RelRot;
 // ....
 // event -> is at A, yes, goto b return
 
+pub trait ShipScript: Send + Sync + 'static {
+    fn on_update(
+        &mut self,
+        pos: IVec2,
+        vel: IVec2,
+        rot: AbsRot
+    ) -> (RelRot, i32, RelRot, Option<Entity>);
+    fn on_contact(&mut self, target_pos: IVec2, target_entity: Entity);
+    fn on_collision(&mut self);
+}
+
+
 // Use this to develop what we need for the future alternative language/VM but for now rhai will do
 #[derive(Component, Clone)]
 pub struct Script {
-    state: Arc<Mutex<HashMap<&'static str, Value>>>,
-    on_update: Arc<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot, Option<Entity>) + Send + Sync>,
-    on_contact: Arc<dyn Fn(&mut HashMap<&'static str, Value>, IVec2, Entity) + Send + Sync>,
-    on_collision: Arc<dyn Fn(&mut HashMap<&'static str, Value>) + Send + Sync>,
+    pub script: Arc<Mutex<dyn ShipScript>>
 }
 
 impl fmt::Debug for Script {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "<Script>")
-    }
-}
-
-impl Script {
-    pub fn new<I, U, R, C>(on_init: I, on_update: U, on_contact: R, on_collision: C) -> Script
-    where
-        I: Fn() -> HashMap<&'static str, Value>,
-        U: Fn(&mut HashMap<&'static str, Value>, IVec2, IVec2, AbsRot) -> (RelRot, i32, RelRot, Option<Entity>) + Send + Sync + 'static,
-        R: Fn(&mut HashMap<&'static str, Value>, IVec2, Entity) + Send + Sync + 'static,
-        C: Fn(&mut HashMap<&'static str, Value>) -> () + Send + Sync + 'static,
-    {
-        Script {
-            state: Arc::new(Mutex::new(on_init())),
-            on_update: Arc::new(on_update),
-            on_contact: Arc::new(on_contact),
-            on_collision: Arc::new(on_collision),
-        }
     }
 }
 
@@ -111,11 +100,11 @@ fn process_on_collision(
     // Handle collision events first
     for CollisionStarted(e1, e2) in collision_events.read() {
         if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
-            for script in [e1_script, e2_script] {
+            for ship_script in [e1_script, e2_script] {
                 // Invoke collision handler
-                let state = script.state.clone();
-                let mut mut_state = state.lock().unwrap();
-                (script.on_collision)(&mut mut_state);
+                let script = ship_script.script.clone();
+                let mut mut_script = script.lock().unwrap();
+                mut_script.on_collision();
             }
         } else {
             println!("ERROR - SCRIPT - CollisionStarted({:?}, {:?})", e1, e2);
@@ -134,9 +123,9 @@ fn process_on_contact(
         // This should be fixed once we have proper contact event that does not refer to self
         if let Ok([(_, _, e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2]) {
             // E1 knows where e2 is
-            let state = e1_script.state.clone();
-            let mut mut_state = state.lock().unwrap();
-            (e1_script.on_contact)(&mut mut_state, e2_pos.0, e2_entity);
+            let script = e1_script.script.clone();
+            let mut mut_script = script.lock().unwrap();
+            mut_script.on_contact(e2_pos.0, e2_entity);
         } else {
             println!("ERROR - SCRIPT - {:?}", contact_event);
         }
@@ -171,19 +160,18 @@ fn process_on_update(
         //  -or- invoke script functions directly to update a state that gets synchronized to the
         //  ship
         //  -or- just update the components directly?
-        for (entity, script) in query.iter_mut() {
+        for (entity, ship_script) in query.iter_mut() {
             let ship = ship_query.get(entity).unwrap();
 
             let vel = ship.0;
             let pos = ship.1.0;
             let rot = ship.3.0;
 
-            let state = script.state.clone();
-            let mut mut_state = state.lock().unwrap();
+            let script = ship_script.script.clone();
+            let mut mut_script = script.lock().unwrap();
 
             // [ to_rot, to_vel, to_rdr_rot, target]
-            let res = (script.on_update)(
-                &mut mut_state,
+            let res = mut_script.on_update(
                 pos,
                 vel.velocity,
                 rot,

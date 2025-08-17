@@ -6,9 +6,6 @@ edition = "2024"
 [dependencies]
 bevy_prototype_lyon = { git = "https://github.com/rparrett/bevy_prototype_lyon", branch = "fix-dynamic-examples" }
 
-# Dynamic state for the simple scripting
-rust_dynamic = "0.48.0"
-
 # FPS dialog
 bevy_screen_diagnostics = "0.8"
 
