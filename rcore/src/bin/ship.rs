@@ -63,7 +63,9 @@ fn main() {
 
         // Startup setup
         .add_systems(Startup, (
-            camera_setup,
+            |mut commands: Commands| {
+                commands.spawn(Camera2d::default());
+            },
             arena_bounds_setup,
             ship_setup,
         ))
@@ -158,16 +160,6 @@ impl ShipScript for DummyShip {
     }
     fn on_contact(&mut self, _target_pos: IVec2, _target_entity: Entity) {}
     fn on_collision(&mut self) {}
-}
-
-#[derive(Component)]
-struct CameraMarker;
-
-fn camera_setup(mut commands: Commands) {
-    commands.spawn((
-        Camera2d::default(),
-        CameraMarker,
-    ));
 }
 
 // TODO: a way to init a new ship with some preset value to help script do custom per ship
