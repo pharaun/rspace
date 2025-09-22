@@ -18,16 +18,11 @@ pub enum Token {
     CloseAngle,
 }
 
-#[derive(Debug)]
-enum LexMode {
-    Emitted, Useful
-}
-
-// Lexer
 pub struct Lexer<'a> {
     input_iter: Peekable<Chars<'a>>,
     mode: LexMode,
 }
+enum LexMode { Emitted, Useful }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Lexer<'a> {
@@ -78,7 +73,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn read_ident(&mut self, c: char) -> String {
+    fn read_str(&mut self, c: char) -> String {
         let mut ident = String::new();
         ident.push(c);
 
@@ -166,7 +161,7 @@ impl<'a> Lexer<'a> {
                 // Anything else, probs a string/label/instruction
                 _ => {
                     if c.is_alphabetic() {
-                        Some(Token::Str(self.read_ident(c)))
+                        Some(Token::Str(self.read_str(c)))
                     } else if c.is_digit(10) {
                         Some(Token::Num(self.read_digits(c, 10)))
                     } else {
@@ -302,101 +297,137 @@ pub mod lexer_token {
         assert_asm(expected, lex);
     }
 
-//    #[test]
-//    fn test_example_asm() {
-//        let input = r#"
-//            ; Comments
-//            dat: .BYTE 1
-//            a11: ADCA 10
-//                 ADCA 0xF ; hex
-//                 ADCA 0b10110101 ; 01010b
-//                 ADCA 0o44 ; 44o
-//            add: ADCA $dat
-//                 ADCA $0x1000
-//                 ADCA $0x22
-//                 ADCA [0x1000]
-//                 ADCA [dat]
-//            iid: ADCA 0,X
-//                 ADCA B,Y
-//                 ADCA ,Y
-//                 ADCA ,Y+
-//                 ADCA ,Y++
-//                 ADCA ,-X
-//                 ADCA ,--X
-//            snd: ADCA [0,X]
-//                 ADCA [B,X]
-//                 ADCA [,X]
-//                 ADCA [,X++]
-//                 ADCA [,--X]
-//            ral: ADCA 0,PC
-//                 ADCA 0,PCR
-//                 ADCA [0,PCR]
-//            ior: ADCA >dat
-//                 ADCA <a11
-//            oth:
-//                 RORW
-//                 AIM 0x3F,4,U
-//                 BAND A,5,1,0x40
-//                 PSHS U,Y,X,DP,CC ; test
-//        "#;
-//        let lex: Vec<Token> = Lexer::new(input).into_iter().collect();
-//
-//        let expected = vec![
-//            tstr("dat"), Token::Colon,
-//                Token::Dot, tstr("BYTE"), Token::Num(1), Token::Eol,
-//            tstr("a11"), Token::Colon,
-//                tstr("ADCA"), Token::Num(10), Token::Eol, // Decimal
-//            tstr("ADCA"), Token::Num(0xF), Token::Eol, // Hex
-//            tstr("ADCA"), Token::Num(0b10110101), Token::Eol, // Binary
-//            tstr("ADCA"), Token::Num(0o44), Token::Eol, // Oceot
-//            tstr("add"), Token::Colon,
-//                tstr("ADCA"), tstr("dat"), Token::Eol,
-//            tstr("ADCA"), Token::Num(10), Token::Eol,
-//            tstr("ADCA"), Token::Num(22), Token::Eol,
-//            tstr("ADCA"), Token::OpenBrace, Token::Num(22), Token::CloseBrace, Token::Eol,
-//            tstr("iid"), Token::Colon,
-//                tstr("ADCA"), Token::Num(0), Token::Comma, tstr("X"), Token::Eol,
-//            tstr("ADCA"), tstr("B"), Token::Comma, tstr("X"), Token::Eol,
-//            tstr("ADCA"), Token::Comma, tstr("Y"), Token::Eol,
-//            tstr("ADCA"), Token::Comma, tstr("Y"), Token::Plus, Token::Eol,
-//            tstr("ADCA"), Token::Comma, tstr("Y"), Token::Plus, Token::Plus, Token::Eol,
-//            tstr("ADCA"), Token::Comma, Token::Minus, tstr("Y"), Token::Eol,
-//            tstr("ADCA"), Token::Comma, Token::Minus, Token::Minus, tstr("Y"), Token::Eol,
-//            tstr("snd"), Token::Colon,
-//                tstr("ADCA"), Token::OpenBrace, Token::Num(0), Token::Comma, tstr("X"), Token::CloseBrace, Token::Eol,
-//            tstr("ADCA"), Token::OpenBrace, tstr("B"), Token::Comma, tstr("X"), Token::CloseBrace, Token::Eol,
-//            tstr("ADCA"), Token::OpenBrace, Token::Comma, tstr("X"), Token::CloseBrace, Token::Eol,
-//            tstr("ADCA"), Token::OpenBrace, Token::Comma, tstr("X"), Token::Plus, Token::Plus, Token::CloseBrace, Token::Eol,
-//            tstr("ADCA"), Token::OpenBrace, Token::Comma, Token::Minus, Token::Minus, tstr("X"), Token::CloseBrace,
-//                Token::Eol,
-//            tstr("ral"), Token::Colon,
-//                tstr("ADCA"), Token::Num(0), Token::Comma, tstr("PC"), Token::Eol,
-//            tstr("ADCA"), Token::Num(0), Token::Comma, tstr("PCR"), Token::Eol,
-//            tstr("ADCA"), Token::OpenBrace, Token::Num(0), Token::Comma, tstr("PCR"), Token::CloseBrace, Token::Eol,
-//            tstr("ior"), Token::Colon,
-//                tstr("ADCA"), Token::CloseAngle, tstr("dat"), Token::Eol,
-//            tstr("ADCA"), Token::OpenAngle, tstr("a11"), Token::Eol,
-//            tstr("oth"), Token::Colon, Token::Eol,
-//                tstr("RORW"), Token::Eol,
-//            tstr("AIM"), Token::Num(10), Token::Comma, Token::Num(4), Token::Comma, tstr("U"), Token::Eol,
-//            tstr("BAND"), tstr("A"), Token::Comma, Token::Num(5), Token::Comma, Token::Num(1), Token::Comma,
-//                Token::Num(4), Token::Eol,
-//            tstr("PSHS"), tstr("U"), Token::Comma, tstr("Y"), Token::Comma, tstr("X"), Token::Comma, tstr("DP"),
-//                Token::Comma, tstr("CC"), Token::Eol,
-//        ];
-//
-//        // Assert
-//        for (e, t) in zip(expected.clone(), lex.clone()) {
-//            println!("expected {:?}, lexed {:?} ", e, t);
-//            assert_eq!(e, t);
-//        }
-//
-//        // Print out the lex if the length doesn't match
-//        if expected.len() != lex.len() {
-//            for t in &lex {
-//                println!("Lex: {:?}", t);
-//            }
-//        }
-//        assert_eq!(expected.len(), lex.len());
-//    }
+    #[test]
+    fn test_mem_word() {
+        let input = "dat: .BYTE 1";
+        let lex: Vec<Token> = Lexer::new(input).into_iter().collect();
+
+        let expected = vec![
+            tstr("dat"),
+            Token::Colon,
+            Token::Dot,
+            tstr("BYTE"),
+            Token::Num(1),
+            Token::Eol,
+        ];
+        assert_asm(expected, lex);
+    }
+
+    #[test]
+    fn test_number_parse() {
+        let input = r#"
+            ADCA 10
+            ADCA 0xF ; hex
+            ADCA 0b10110101 ; 01010b
+            ADCA 0o44 ; 44o
+        "#;
+        let lex: Vec<Token> = Lexer::new(input).into_iter().collect();
+
+        let expected = vec![
+            tstr("ADCA"), Token::Num(10), Token::Eol, // Decimal
+            tstr("ADCA"), Token::Num(0xF), Token::Eol, // Hex
+            tstr("ADCA"), Token::Num(0b10110101), Token::Eol, // Binary
+            tstr("ADCA"), Token::Num(0o44), Token::Eol, // Oceot
+        ];
+        assert_asm(expected, lex);
+    }
+
+    #[test]
+    fn test_addr_parse() {
+        let input = r#"
+            ADCA $dat
+            ADCA $0x1000
+            ADCA $0x22
+            ADCA [0x1000]
+            ADCA [dat]
+            ADCA >dat
+            ADCA <dat
+        "#;
+        let lex: Vec<Token> = Lexer::new(input).into_iter().collect();
+
+        let expected = vec![
+            tstr("ADCA"), Token::Dollar, tstr("dat"), Token::Eol,
+            tstr("ADCA"), Token::Dollar, Token::Num(0x1000), Token::Eol,
+            tstr("ADCA"), Token::Dollar, Token::Num(0x22), Token::Eol,
+            tstr("ADCA"), Token::OpenBrace, Token::Num(0x1000), Token::CloseBrace, Token::Eol,
+            tstr("ADCA"), Token::OpenBrace, tstr("dat"), Token::CloseBrace, Token::Eol,
+            tstr("ADCA"), Token::CloseAngle, tstr("dat"), Token::Eol,
+            tstr("ADCA"), Token::OpenAngle, tstr("dat"), Token::Eol,
+        ];
+        assert_asm(expected, lex);
+    }
+
+    #[test]
+    fn test_indexed_parse() {
+        let input = r#"
+            ADCA 0,Y
+            ADCA B,Y
+            ADCA ,Y
+            ADCA ,Y+
+            ADCA ,Y++
+            ADCA ,-Y
+            ADCA ,--Y
+            ADCA [0,Y]
+            ADCA [B,Y]
+            ADCA [,Y]
+            ADCA [,Y++]
+            ADCA [,--Y]
+        "#;
+        let lex: Vec<Token> = Lexer::new(input).into_iter().collect();
+
+        let expected = vec![
+            tstr("ADCA"), Token::Num(0), Token::Comma, tstr("Y"), Token::Eol,
+            tstr("ADCA"), tstr("B"), Token::Comma, tstr("Y"), Token::Eol,
+            tstr("ADCA"), Token::Comma, tstr("Y"), Token::Eol,
+            tstr("ADCA"), Token::Comma, tstr("Y"), Token::Plus, Token::Eol,
+            tstr("ADCA"), Token::Comma, tstr("Y"), Token::Plus, Token::Plus, Token::Eol,
+            tstr("ADCA"), Token::Comma, Token::Minus, tstr("Y"), Token::Eol,
+            tstr("ADCA"), Token::Comma, Token::Minus, Token::Minus, tstr("Y"), Token::Eol,
+
+            tstr("ADCA"), Token::OpenBrace, Token::Num(0), Token::Comma, tstr("Y"), Token::CloseBrace, Token::Eol,
+            tstr("ADCA"), Token::OpenBrace, tstr("B"), Token::Comma, tstr("Y"), Token::CloseBrace, Token::Eol,
+            tstr("ADCA"), Token::OpenBrace, Token::Comma, tstr("Y"), Token::CloseBrace, Token::Eol,
+            tstr("ADCA"), Token::OpenBrace, Token::Comma, tstr("Y"), Token::Plus, Token::Plus, Token::CloseBrace, Token::Eol,
+            tstr("ADCA"), Token::OpenBrace, Token::Comma, Token::Minus, Token::Minus, tstr("Y"), Token::CloseBrace, Token::Eol,
+        ];
+        assert_asm(expected, lex);
+    }
+
+    #[test]
+    fn test_pc_parse() {
+        let input = r#"
+            ADCA 0,PC
+            ADCA 0,PCR
+            ADCA [0,PCR]
+        "#;
+        let lex: Vec<Token> = Lexer::new(input).into_iter().collect();
+
+        let expected = vec![
+            tstr("ADCA"), Token::Num(0), Token::Comma, tstr("PC"), Token::Eol,
+            tstr("ADCA"), Token::Num(0), Token::Comma, tstr("PCR"), Token::Eol,
+            tstr("ADCA"), Token::OpenBrace, Token::Num(0), Token::Comma, tstr("PCR"), Token::CloseBrace, Token::Eol,
+        ];
+        assert_asm(expected, lex);
+    }
+
+    #[test]
+    fn test_misc_parse() {
+        let input = r#"
+            RORW
+            AIM 0x3F,4,U
+            BAND A,5,1,0x40
+            PSHS U,Y,X,DP,CC
+        "#;
+        let lex: Vec<Token> = Lexer::new(input).into_iter().collect();
+
+        let expected = vec![
+            tstr("RORW"), Token::Eol,
+            tstr("AIM"), Token::Num(0x3F), Token::Comma, Token::Num(4), Token::Comma, tstr("U"), Token::Eol,
+            tstr("BAND"), tstr("A"), Token::Comma, Token::Num(5), Token::Comma, Token::Num(1), Token::Comma,
+                Token::Num(0x40), Token::Eol,
+            tstr("PSHS"), tstr("U"), Token::Comma, tstr("Y"), Token::Comma, tstr("X"), Token::Comma, tstr("DP"),
+                Token::Comma, tstr("CC"), Token::Eol,
+        ];
+        assert_asm(expected, lex);
+    }
 }
