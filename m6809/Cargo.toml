@@ -1,0 +1,12 @@
+[package]
+name = "m6809"
+version = "0.1.0"
+authors = ["Anja Berens <pharaun666@gmail.com>"]
+edition = "2024"
+
+[dependencies]
+# Bit twiddling
+twiddle = "1.1.0"
+
+# Reading bits from memory
+byteorder = "1.3.2"

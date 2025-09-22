@@ -3,6 +3,7 @@
 members = [
     "riscv",
     "rcore",
+    "m6809",
 ]
 
 resolver = "2"
