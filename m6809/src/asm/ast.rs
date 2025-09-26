@@ -3,11 +3,6 @@ use twiddle::Twiddle;
 use std::str::FromStr;
 
 
-pub enum ABDInst {
-    ADC,
-}
-
-
 // Just specify full instruction AST, easier
 #[derive(Debug, PartialEq, Clone)]
 pub enum Inst {
@@ -27,11 +22,8 @@ pub enum Inst {
     TFM(TfmMode, InterReg, InterReg),
 
 
-    Imm8AB(ABDInst, u8),
 
-    Imm16D(ABDInst, u16),
 
-    AddrAB(ABDInst, AddrMode),
 
     // ADCA, ADCB, - imm8
     // ADCD, - imm16
