@@ -3,12 +3,35 @@ use twiddle::Twiddle;
 use std::str::FromStr;
 
 
+pub enum ABDInst {
+    ADC,
+}
+
+
 // Just specify full instruction AST, easier
 #[derive(Debug, PartialEq, Clone)]
 pub enum Inst {
     // Inherit
     ABX, DAA, MUL, NOP, RTI, RTS, SEX, SEXW,
     SWI, SWI2, SWI3, SYNC,
+
+    // DIVD -imm8
+    // DIVQ -imm16
+    DIV(DivReg, AddrMode),
+
+    // MULD - imm16
+    MULD(AddrMode),
+
+    // Weird one - uses InterReg but only admits
+    // X, Y, U, S, D
+    TFM(TfmMode, InterReg, InterReg),
+
+
+    Imm8AB(ABDInst, u8),
+
+    Imm16D(ABDInst, u16),
+
+    AddrAB(ABDInst, AddrMode),
 
     // ADCA, ADCB, - imm8
     // ADCD, - imm16
@@ -26,6 +49,17 @@ pub enum Inst {
     // ANDD - imm16
     AND(Reg6809, AddrMode),
 
+    // EORA, EORB, - imm8
+    // EORD - imm16
+    EOR(Reg6809, AddrMode),
+
+    // BITA, BITB - imm8
+    // BITD - imm16
+    BIT(Reg6809, AddrMode),
+
+
+
+
     // ADDA, ADDB, ADDE, ADDF, - imm8
     // ADDD, ADDW - imm16
     ADD(Reg6309, AddrMode),
@@ -34,9 +68,8 @@ pub enum Inst {
     // SUBD, SUBW - imm16
     SUB(Reg6309, AddrMode),
 
-    // BITA, BITB - imm8
-    // BITD - imm16
-    BIT(Reg6309, AddrMode),
+
+
 
     // ASLA, ASLB, ASLD
     // Also LSL
@@ -44,6 +77,12 @@ pub enum Inst {
 
     // ASRA, ASRB, ASRD
     ASR(Reg6809),
+
+    // NEGA, NEGB, NEGD
+    NEG(Reg6809),
+
+
+
 
     // CLRA, CLRB, CLRD
     // CLRE, CLRF, CLRW
@@ -65,23 +104,11 @@ pub enum Inst {
     // DECE, DECF, DECW
     TST(Reg6309),
 
-    // NEGA, NEGB, NEGD
-    NEG(Reg6809),
+
+
 
     // LSRA, LSRB, LSRD, LSRW
     LSR(ShiftReg),
-
-    // CMPA, CMPB, CMPE, CMPF - imm8
-    // CMPD, CMPW - imm16
-    // CMPS, CMPU, CMPX, CMPY - imm16
-    CMP(Reg6309Stack, AddrMode),
-
-    // DIVD -imm8
-    // DIVQ -imm16
-    DIV(DivReg, AddrMode),
-
-    // EORA, EORB, EORD
-    EOR(Reg6809, AddrMode),
 
     // ROLA, ROLB -imm8
     // ROLD, ROLW -imm16
@@ -90,6 +117,14 @@ pub enum Inst {
     // RORA, RORB - imm8
     // RORD, RORW - imm16
     ROR(ShiftReg),
+
+
+
+
+    // CMPA, CMPB, CMPE, CMPF - imm8
+    // CMPD, CMPW - imm16
+    // CMPS, CMPU, CMPX, CMPY - imm16
+    CMP(Reg6309Stack, AddrMode),
 
     // LDA, LDB, LDE, LDF - imm8
     // LDD, LDW - imm16
@@ -105,8 +140,8 @@ pub enum Inst {
     // STQ - imm32
     STQ(AddrMode),
 
-    // MULD - imm16
-    MULD(AddrMode),
+
+
 
     // BAND r, u8, u8, Direct
     // BEOR r, u8, u8, Direct
@@ -122,6 +157,10 @@ pub enum Inst {
     BOR(BitReg, u8, u8, Direct),
     LDBT(BitReg, u8, u8, Direct),
     STBT(BitReg, u8, u8, Direct),
+
+
+
+
 
     // Branching
     // Two mode, imm8 and imm16
@@ -147,6 +186,8 @@ pub enum Inst {
     BVS(BranchMode),
 
 
+
+
     // ANDCC - imm8
     // BITMD - imm8
     // CWAI - imm8
@@ -158,6 +199,9 @@ pub enum Inst {
     LDMD(u8),
     ORCC(u8),
 
+
+
+
     // Stack Registers (technically a imm8 inst)
     // PSHS, PSHU
     PSH(StackReg, Vec<StackSubReg>),
@@ -166,6 +210,9 @@ pub enum Inst {
     // PULS, PULU
     PUL(StackReg, Vec<StackSubReg>),
     PULW(StackReg),
+
+
+
 
     // Register to Register
     // TODO: could swap the typing here
@@ -180,14 +227,13 @@ pub enum Inst {
     SUBR(InterReg, InterReg),
     TFR(InterReg, InterReg),
 
-    // Weird one - uses InterReg but only admits
-    // X, Y, U, S, D
-    TFM(TfmMode, InterReg, InterReg),
 
     // LEAS, LEAU, LEAX, LEAY - Indexed
     //NonIndirect(IndexType),
     //Indirect(IndexType),
     LEA(LeaReg, AddrMode),
+
+
 
     // Imm8 & Address
     // Direct/NonIndirect/Indirect/Extended
@@ -195,6 +241,8 @@ pub enum Inst {
     EIM(u8, AddrMode),
     OIM(u8, AddrMode),
     TIM(u8, AddrMode),
+
+
 
     // Direct/NonIndirect/Indirect/Extended
     ASLaddr(AddrMode), // ALSO LSLaddr
@@ -208,6 +256,8 @@ pub enum Inst {
     ROLaddr(AddrMode),
     RORaddr(AddrMode),
     TSTaddr(AddrMode),
+
+
 
     // TODO: Figure out Effective Address thing, there's a few instruction that uses it, validate
     JMP(AddrMode),
