@@ -32,6 +32,9 @@ pub enum Inst {
     // ASLA, ASLB, ASLD
     // ASRA, ASRB, ASRD
     // NEGA, NEGB, NEGD
+    ImplictHalfRegister(String, HalfAccReg),
+
+    // Implict Register Instructions
     // CLRA, CLRB, CLRD, CLRE, CLRF, CLRW
     // COMA, COMB, COMD, COME, COMF, COMW
     // DECA, DECB, DECD, DECE, DECF, DECW
@@ -51,6 +54,9 @@ pub enum Inst {
     // EORA, EORB, EORD
     // ORA,  ORB,  ORD
     // SBCA, SBCB, SBCD
+    ImmHalfReg(String, HalfAccReg, u16),
+
+    // Immedidate Register
     // ADDA, ADDB, ADDD, ADDE, ADDF, ADDW
     // CMPA, CMPB, CMPD, CMPE, CMPF, CMPW
     // LDA,  LDB,  LDD,  LDE,  LDF,  LDW
@@ -81,6 +87,10 @@ pub enum Inst {
     // EORA, EORB, EORD
     // ORA,  ORB,  ORD
     // SBCA, SBCB, SBCD
+    AddrHalfReg(String, HalfAccReg, AddrMode),
+
+    // Address Register
+    // Direct/NonIndirect/Indirect/Extended
     // ADDA, ADDB, ADDD, ADDE, ADDF, ADDW
     // CMPA, CMPB, CMPD, CMPE, CMPF, CMPW
     // LDA,  LDB,  LDD,  LDE,  LDF,  LDW
@@ -383,6 +393,29 @@ impl From<IndexStackReg> for u8 {
             IndexStackReg::Y => 0b01,
             IndexStackReg::U => 0b10,
             IndexStackReg::S => 0b11,
+        }
+    }
+}
+
+
+// 6809 Subset accumulator registers
+#[derive(Debug, Clone, PartialEq)]
+pub enum HalfAccReg {
+    A, B, D,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseHalfAccRegError { _priv: () }
+
+impl FromStr for HalfAccReg {
+    type Err = ParseHalfAccRegError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "A" => Ok(HalfAccReg::A),
+            "B" => Ok(HalfAccReg::B),
+            "D" => Ok(HalfAccReg::D),
+            _   => Err(ParseHalfAccRegError { _priv: () }),
         }
     }
 }
