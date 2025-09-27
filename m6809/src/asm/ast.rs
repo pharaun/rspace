@@ -1,4 +1,6 @@
 use twiddle::Twiddle;
+use arbitrary_int::prelude::u3;
+use bitfield_struct::bitfield;
 
 use std::str::FromStr;
 
@@ -6,276 +8,182 @@ use std::str::FromStr;
 // Just specify full instruction AST, easier
 #[derive(Debug, PartialEq, Clone)]
 pub enum Inst {
-    // Inherit
-    ABX, DAA, MUL, NOP, RTI, RTS, SEX, SEXW,
-    SWI, SWI2, SWI3, SYNC,
-
-    // DIVD -imm8
-    // DIVQ -imm16
-    DIV(DivReg, AddrMode),
-
-    // MULD - imm16
-    MULD(AddrMode),
-
-    // Weird one - uses InterReg but only admits
-    // X, Y, U, S, D
+    // Edge Case Instructions
     TFM(TfmMode, InterReg, InterReg),
-
-
-
-
-
-    // ADCA, ADCB, - imm8
-    // ADCD, - imm16
-    ADC(Reg6809, AddrMode),
-
-    // SBCA, SBCB - imm8
-    // SBCD - imm16
-    SBC(Reg6809, AddrMode),
-
-    // ORA, ORB - imm8
-    // ORD - imm16
-    OR(Reg6809, AddrMode),
-
-    // ANDA, ANDB - imm8
-    // ANDD - imm16
-    AND(Reg6809, AddrMode),
-
-    // EORA, EORB, - imm8
-    // EORD - imm16
-    EOR(Reg6809, AddrMode),
-
-    // BITA, BITB - imm8
-    // BITD - imm16
-    BIT(Reg6809, AddrMode),
-
-
-
-
-    // ADDA, ADDB, ADDE, ADDF, - imm8
-    // ADDD, ADDW - imm16
-    ADD(Reg6309, AddrMode),
-
-    // SUBA, SUBB, SUBE, SUBF - imm8
-    // SUBD, SUBW - imm16
-    SUB(Reg6309, AddrMode),
-
-
-
-
-    // ASLA, ASLB, ASLD
-    // Also LSL
-    ASL(Reg6809),
-
-    // ASRA, ASRB, ASRD
-    ASR(Reg6809),
-
-    // NEGA, NEGB, NEGD
-    NEG(Reg6809),
-
-
-
-
-    // CLRA, CLRB, CLRD
-    // CLRE, CLRF, CLRW
-    CLR(Reg6309),
-
-    // COMA, COMB, COMD
-    // COME, COMF, COMW
-    COM(Reg6309),
-
-    // DECA, DECB, DECD
-    // DECE, DECF, DECW
-    DEC(Reg6309),
-
-    // INCA, INCB, INCD
-    // INCE, INCF, INCW
-    INC(Reg6309),
-
-    // DECA, DECB, DECD
-    // DECE, DECF, DECW
-    TST(Reg6309),
-
-
-
-
-    // LSRA, LSRB, LSRD, LSRW
-    LSR(ShiftReg),
-
-    // ROLA, ROLB -imm8
-    // ROLD, ROLW -imm16
-    ROL(ShiftReg),
-
-    // RORA, RORB - imm8
-    // RORD, RORW - imm16
-    ROR(ShiftReg),
-
-
-
-
-    // CMPA, CMPB, CMPE, CMPF - imm8
-    // CMPD, CMPW - imm16
-    // CMPS, CMPU, CMPX, CMPY - imm16
-    CMP(Reg6309Stack, AddrMode),
-
-    // LDA, LDB, LDE, LDF - imm8
-    // LDD, LDW - imm16
-    // LDS, LDU, LDX, LDY - imm16
-    LD(Reg6309Stack, AddrMode),
-    // LDQ - imm32
-    LDQ(AddrMode),
-
-    // STA, STB, STE, STF - imm8
-    // STD, STW - imm16
-    // STS, STU, STX, STY - imm16
-    ST(Reg6309Stack, AddrMode),
-    // STQ - imm32
-    STQ(AddrMode),
-
-
-
-
-    // BAND r, u8, u8, Direct
-    // BEOR r, u8, u8, Direct
-    // BIAND r, u8, u8, Direct
-    // BIEOR r, u8, u8, Direct
-    // BIOR r, u8, u8, Direct
-    // BOR r, u8, u8, Direct
-    BAND(BitReg, u8, u8, Direct),
-    BEOR(BitReg, u8, u8, Direct),
-    BIAND(BitReg, u8, u8, Direct),
-    BIEOR(BitReg, u8, u8, Direct),
-    BIOR(BitReg, u8, u8, Direct),
-    BOR(BitReg, u8, u8, Direct),
-    LDBT(BitReg, u8, u8, Direct),
-    STBT(BitReg, u8, u8, Direct),
-
-
-
-
-
-    // Branching
-    // Two mode, imm8 and imm16
-    // BCC - imm8, LBCC - imm16
-    BCC(BranchMode),
-    BCS(BranchMode),
-    BEQ(BranchMode),
-    BGE(BranchMode),
-    BGT(BranchMode),
-    BHI(BranchMode),
-    BHS(BranchMode),
-    BLE(BranchMode),
-    BLO(BranchMode),
-    BLS(BranchMode),
-    BLT(BranchMode),
-    BMI(BranchMode),
-    BNE(BranchMode),
-    BPL(BranchMode),
-    BRA(BranchMode),
-    BRN(BranchMode),
-    BSR(BranchMode),
-    BVC(BranchMode),
-    BVS(BranchMode),
-
-
-
-
-    // ANDCC - imm8
-    // BITMD - imm8
-    // CWAI - imm8
-    // LDMD - imm8
-    // ORCC - imm8
-    ANDCC(u8),
-    BITMD(u8),
-    CWAI(u8),
-    LDMD(u8),
-    ORCC(u8),
-
-
-
-
-    // Stack Registers (technically a imm8 inst)
-    // PSHS, PSHU
-    PSH(StackReg, Vec<StackSubReg>),
-    PSHW(StackReg),
-
-    // PULS, PULU
-    PUL(StackReg, Vec<StackSubReg>),
-    PULW(StackReg),
-
-
-
-
-    // Register to Register
-    // TODO: could swap the typing here
-    ADCR(InterReg, InterReg),
-    SBCR(InterReg, InterReg),
-    ADDR(InterReg, InterReg),
-    ANDR(InterReg, InterReg),
-    CMPR(InterReg, InterReg),
-    EORR(InterReg, InterReg),
-    EXG(InterReg, InterReg),
-    ORR(InterReg, InterReg),
-    SUBR(InterReg, InterReg),
-    TFR(InterReg, InterReg),
-
-
     // LEAS, LEAU, LEAX, LEAY - Indexed
-    //NonIndirect(IndexType),
-    //Indirect(IndexType),
-    LEA(LeaReg, AddrMode),
-
-
-
-    // Imm8 & Address
-    // Direct/NonIndirect/Indirect/Extended
-    AIM(u8, AddrMode),
-    EIM(u8, AddrMode),
-    OIM(u8, AddrMode),
-    TIM(u8, AddrMode),
-
-
-
-    // Direct/NonIndirect/Indirect/Extended
-    ASLaddr(AddrMode), // ALSO LSLaddr
-    ASRaddr(AddrMode),
-    CLRaddr(AddrMode),
-    COMaddr(AddrMode),
-    DECaddr(AddrMode),
-    INCaddr(AddrMode),
-    LSRaddr(AddrMode),
-    NEGaddr(AddrMode),
-    ROLaddr(AddrMode),
-    RORaddr(AddrMode),
-    TSTaddr(AddrMode),
-
-
-
-    // TODO: Figure out Effective Address thing, there's a few instruction that uses it, validate
+    LEA(LeaReg, IndexAddrMode),
+    // Jump - Uses EA (same as LEA but it uses the full addressing modes)
     JMP(AddrMode),
     JSR(AddrMode),
+
+    // Implict Instructions
+    // ABX, DAA, MUL, NOP, RTI, RTS, SEX, SEXW, SWI, SWI2, SWI3, SYNC,
+    Implict(String),
+
+    // Immedidate Implict
+    // ANDCC
+    // BITMD
+    // CWAI
+    // LDMD
+    // ORCC
+    ImplictImm(String, u8),
+
+    // Implict Register Instructions
+    // ASLA, ASLB, ASLD
+    // ASRA, ASRB, ASRD
+    // NEGA, NEGB, NEGD
+    // CLRA, CLRB, CLRD, CLRE, CLRF, CLRW
+    // COMA, COMB, COMD, COME, COMF, COMW
+    // DECA, DECB, DECD, DECE, DECF, DECW
+    // INCA, INCB, INCD, INCE, INCF, INCW
+    ImplictRegister(String, AccReg),
+
+    // Implict Register instructions for shifting
+    // LSRA, LSRB, LSRD, LSRW
+    // ROLA, ROLB, ROLD, ROLW
+    // RORA, RORB, RORD, RORW
+    ImplictShift(String, ShiftReg),
+
+    // Immedidate Register
+    // ADCA, ADCB, ADCD
+    // ANDA, ANDB, ANDD
+    // BITA, BITB, BITD
+    // EORA, EORB, EORD
+    // ORA,  ORB,  ORD
+    // SBCA, SBCB, SBCD
+    // ADDA, ADDB, ADDD, ADDE, ADDF, ADDW
+    // CMPA, CMPB, CMPD, CMPE, CMPF, CMPW
+    // LDA,  LDB,  LDD,  LDE,  LDF,  LDW
+    // STA,  STB,  STD,  STE,  STF,  STW
+    // SUBA, SUBB, SUBD, SUBE, SUBF, SUBW
+    ImmReg(String, AccReg, u16),
+
+    // Stack Registers (technically a imm8 inst)
+    // PSHS, PSHU, PSHSW, PSHUW
+    // PULS, PULU, PULSW, PULUW
+    Stack(PushPullMode, PushPullReg, PushPullPostByte),
+    StackW(PushPullMode, PushPullReg),
+
+    // DIVD - Imm8
+    // DIVQ - Imm16
+    // MULD - Imm16
+    Imm16(String, u16),
+
+    // LDQ
+    // STQ
+    Imm32(String, u32),
+
+    // Address Register
+    // Direct/NonIndirect/Indirect/Extended
+    // ADCA, ADCB, ADCD
+    // ANDA, ANDB, ANDD
+    // BITA, BITB, BITD
+    // EORA, EORB, EORD
+    // ORA,  ORB,  ORD
+    // SBCA, SBCB, SBCD
+    // ADDA, ADDB, ADDD, ADDE, ADDF, ADDW
+    // CMPA, CMPB, CMPD, CMPE, CMPF, CMPW
+    // LDA,  LDB,  LDD,  LDE,  LDF,  LDW
+    // STA,  STB,  STD,  STE,  STF,  STW
+    // SUBA, SUBB, SUBD, SUBE, SUBF, SUBW
+    AddrReg(String, AccReg, AddrMode),
+
+    // DIVD - Imm8
+    // DIVQ - Imm16
+    // MULD - Imm16
+    Addr16Reg(String, AddrMode),
+
+    // LDQ
+    // STQ
+    Addr32Reg(String, AddrMode),
+
+    // Immedidate Stack Register
+    // CMPS, CMPU, CMPX, CMPY
+    // LDS,  LDU,  LDX,  LDY
+    // STS,  STU,  STX,  STY
+    ImmStaReg(String, IndexStackReg, u16),
+
+    // Address Stack Register
+    // Direct/NonIndirect/Indirect/Extended
+    // CMPS, CMPU, CMPX, CMPY
+    // LDS,  LDU,  LDX,  LDY
+    AddrStaReg(String, IndexStackReg, AddrMode),
+
+    // Bit memory instruction
+    // BAND  r, u8, u8, Direct
+    // BIAND r, u8, u8, Direct
+    // BEOR  r, u8, u8, Direct
+    // BIEOR r, u8, u8, Direct
+    // BOR   r, u8, u8, Direct
+    // BIOR  r, u8, u8, Direct
+    // LDBT  r, u8, u8, Direct
+    // STBT  r, u8, u8, Direct
+    DirectBit(String, BitReg, u3, u3, Direct),
+
+    // Branching
+    // Two mode, imm8 and imm16 - Long/Short branching
+    // BCC, LBCC
+    // BCS, LBCS
+    // BEQ, LBEQ
+    // BGE, LBGE
+    // BGT, LBGT
+    // BHI, LBHI
+    // BHS, LBHS
+    // BLE, LBLE
+    // BLO, LBLO
+    // BLS, LBLS
+    // BLT, LBLT
+    // BMI, LBMI
+    // BNE, LBNE
+    // BPL, LBPL
+    // BRA, LBRA
+    // BRN, LBRN
+    // BSR, LBSR
+    // BVC, LBVC
+    // BVS, LBVS
+    Branch(String, BranchMode),
+
+    // Register to Register
+    // ADCR
+    // ADDR
+    // ANDR
+    // CMPR
+    // EORR
+    // EXG
+    // ORR
+    // SBCR
+    // SUBR
+    // TFR
+    RegToReg(String, InterReg, InterReg),
+
+    // Memory to Memory instruction (ie adjusting a byte in memory)
+    // Direct/NonIndirect/Indirect/Extended
+    // ASL
+    // ASR
+    // CLR
+    // COM
+    // DEC
+    // INC
+    // LSR
+    // NEG
+    // ROL
+    // ROR
+    // TST
+    MemToMem(String, AddrMode),
+
+    // Imm to Mem (Adjusting a byte in memory via an imm8)
+    // Direct/NonIndirect/Indirect/Extended
+    // AIM
+    // EIM
+    // OIM
+    // TIM
+    ImmToMem(String, u8, AddrMode),
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Reg6809 { A, B, D }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Reg6309 { A, B, E, F, D, W }
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Reg6309Stack { A, B, E, F, D, W, S, U, X, Y }
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum StackReg { S, U }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LeaReg { S, U, X, Y }
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ShiftReg { A, B, D, W }
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum DivReg { D, Q }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Direct(u8);
@@ -417,29 +325,28 @@ pub fn bit_reg_post_byte(r: BitReg, source: u8, dest: u8) -> u8 {
 // Addressing Mode
 #[derive(Debug, Clone, PartialEq)]
 pub enum AddrMode {
-    // TODO: separate the Imm8 from imm16
-    Immediate8(u8),
-    Immediate16(u16),
-
-    // Rest of memory access
     Direct(u8),
+    Indexed(IndexAddrMode),
+    Extended(u16),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IndexAddrMode {
     NonIndirect(IndexType),
     Indirect(IndexType),
-    Extended(u16),
-    Inherent,
 }
 
 // Indexed Type
 #[derive(Debug, Clone, PartialEq)]
 pub enum IndexType {
-    ConstOffset(i16, IndexReg),
+    ConstOffset(i16, IndexStackReg),
     ConstOffsetW(i16),
     ConstOffsetPC(i16),
-    AccOffset(AccReg, IndexReg),
-    IncOne(IndexReg),
-    IncTwo(IndexReg),
-    DecOne(IndexReg),
-    DecTwo(IndexReg),
+    AccOffset(AccReg, IndexStackReg),
+    IncOne(IndexStackReg),
+    IncTwo(IndexStackReg),
+    DecOne(IndexStackReg),
+    DecTwo(IndexStackReg),
     IncTwoW,
     DecTwoW,
     Extended(u16),
@@ -448,34 +355,34 @@ pub enum IndexType {
 
 // Indexed Registers
 #[derive(Debug, Clone, PartialEq)]
-pub enum IndexReg {
+pub enum IndexStackReg {
     X, Y, U, S,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseIndexRegError { _priv: () }
+pub struct ParseIndexStackRegError { _priv: () }
 
-impl FromStr for IndexReg {
-    type Err = ParseIndexRegError;
+impl FromStr for IndexStackReg {
+    type Err = ParseIndexStackRegError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "X" => Ok(IndexReg::X),
-            "Y" => Ok(IndexReg::Y),
-            "U" => Ok(IndexReg::U),
-            "S" => Ok(IndexReg::S),
-            _   => Err(ParseIndexRegError { _priv: () }),
+            "X" => Ok(IndexStackReg::X),
+            "Y" => Ok(IndexStackReg::Y),
+            "U" => Ok(IndexStackReg::U),
+            "S" => Ok(IndexStackReg::S),
+            _   => Err(ParseIndexStackRegError { _priv: () }),
         }
     }
 }
 
-impl From<IndexReg> for u8 {
-    fn from(original: IndexReg) -> u8 {
+impl From<IndexStackReg> for u8 {
+    fn from(original: IndexStackReg) -> u8 {
         match original {
-            IndexReg::X => 0b00,
-            IndexReg::Y => 0b01,
-            IndexReg::U => 0b10,
-            IndexReg::S => 0b11,
+            IndexStackReg::X => 0b00,
+            IndexStackReg::Y => 0b01,
+            IndexStackReg::U => 0b10,
+            IndexStackReg::S => 0b11,
         }
     }
 }
@@ -520,45 +427,68 @@ impl From<AccReg> for u8 {
 }
 
 
-// Stack registers
-#[derive(Debug, Clone, PartialEq)]
-pub enum StackSubReg {
-    PC, US, Y, X, DP, B, A, CC
+// Shift Registers
+#[derive(Debug, PartialEq, Clone)]
+pub enum ShiftReg {
+    A, B, D, W,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseStackSubRegError { _priv: () }
+pub struct ParseShiftRegError { _priv: () }
 
-impl FromStr for StackSubReg {
-    type Err = ParseStackSubRegError;
+impl FromStr for ShiftReg {
+    type Err = ParseShiftRegError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "PC" => Ok(StackSubReg::PC),
-            "U"  => Ok(StackSubReg::US),
-            "S"  => Ok(StackSubReg::US),
-            "Y"  => Ok(StackSubReg::Y),
-            "X"  => Ok(StackSubReg::X),
-            "DP" => Ok(StackSubReg::DP),
-            "B"  => Ok(StackSubReg::B),
-            "A"  => Ok(StackSubReg::A),
-            "CC" => Ok(StackSubReg::CC),
-            _   => Err(ParseStackSubRegError { _priv: () }),
+            "A" => Ok(ShiftReg::A),
+            "B" => Ok(ShiftReg::B),
+            "D" => Ok(ShiftReg::D),
+            "W" => Ok(ShiftReg::W),
+            _   => Err(ParseShiftRegError { _priv: () }),
         }
     }
 }
 
-impl From<StackSubReg> for u8 {
-    fn from(original: StackSubReg) -> u8 {
-        match original {
-            StackSubReg::PC => 0b1000_0000,
-            StackSubReg::US => 0b0100_0000,
-            StackSubReg::Y  => 0b0010_0000,
-            StackSubReg::X  => 0b0001_0000,
-            StackSubReg::DP => 0b0000_1000,
-            StackSubReg::B  => 0b0000_0100,
-            StackSubReg::A  => 0b0000_0010,
-            StackSubReg::CC => 0b0000_0001,
+
+// Registers for pushing/pulling to stack
+#[derive(Debug, PartialEq, Clone)]
+pub enum PushPullReg {
+    S, U
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum PushPullMode {
+    Push, Pull
+}
+
+#[bitfield(u8, order=Msb)]
+#[derive(PartialEq)]
+pub struct PushPullPostByte {
+    pc: bool, // 0b1000_0000
+    us: bool,
+    y:  bool,
+    x:  bool,
+    dp: bool,
+    b:  bool,
+    a:  bool,
+    cc: bool, // 0b0000_0001
+}
+
+impl PushPullPostByte {
+    // Enable using a string to toggle a field on or off
+    pub fn with_str(&self, reg: &str, val: bool) -> Self {
+        match reg {
+            "PC" => self.with_pc(val),
+            "U"  => self.with_us(val),
+            "S"  => self.with_us(val),
+            "Y"  => self.with_y(val),
+            "X"  => self.with_x(val),
+            "DP" => self.with_dp(val),
+            "B"  => self.with_b(val),
+            "A"  => self.with_a(val),
+            "CC" => self.with_cc(val),
+            _ => *self,
         }
     }
 }
@@ -595,5 +525,41 @@ pub mod ast_post_byte {
             0b0000_0101,
         );
         assert_eq!(expect, result);
+    }
+}
+
+#[cfg(test)]
+pub mod ast_stack_post_byte {
+    use super::*;
+
+    #[test]
+    fn test_cc_bit() {
+        let expect: u8 = 0b0000_0001;
+        let result = PushPullPostByte::new().with_str("CC", true);
+        assert_eq!(expect, result.into());
+    }
+
+    #[test]
+    fn test_pc_dp_cc_bit() {
+        let expect: u8 = 0b1000_1001;
+        let result = PushPullPostByte::new()
+            .with_str("PC", true)
+            .with_str("DP", true)
+            .with_str("CC", true);
+        assert_eq!(expect, result.into());
+    }
+
+    #[test]
+    fn test_u_bit() {
+        let expect: u8 = 0b0100_0000;
+        let result = PushPullPostByte::new().with_str("U", true);
+        assert_eq!(expect, result.into());
+    }
+
+    #[test]
+    fn test_s_bit() {
+        let expect: u8 = 0b0100_0000;
+        let result = PushPullPostByte::new().with_str("S", true);
+        assert_eq!(expect, result.into());
     }
 }
