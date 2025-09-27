@@ -39,6 +39,7 @@ pub enum Inst {
     // COMA, COMB, COMD, COME, COMF, COMW
     // DECA, DECB, DECD, DECE, DECF, DECW
     // INCA, INCB, INCD, INCE, INCF, INCW
+    // TSTA, TSTB, TSTD, TSTE, TSTF, TSTW
     ImplictRegister(String, AccReg),
 
     // Implict Register instructions for shifting
