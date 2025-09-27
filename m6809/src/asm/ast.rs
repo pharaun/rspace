@@ -5,6 +5,19 @@ use bitfield_struct::bitfield;
 use std::str::FromStr;
 
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum IInst {
+    ABX, DAA, MUL, NOP, RTI, RTS, SEX, SEXW, SWI, SWI2, SWI3, SYNC,
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum ImmInst {
+    ANDCC, BITMD, CWAI, LDMD, ORCC,
+}
+
+
+
+
 // Just specify full instruction AST, easier
 #[derive(Debug, PartialEq, Clone)]
 pub enum Inst {
@@ -17,16 +30,10 @@ pub enum Inst {
     JSR(AddrMode),
 
     // Implict Instructions
-    // ABX, DAA, MUL, NOP, RTI, RTS, SEX, SEXW, SWI, SWI2, SWI3, SYNC,
-    Implict(String),
+    Implict(IInst),
 
     // Immedidate Implict
-    // ANDCC
-    // BITMD
-    // CWAI
-    // LDMD
-    // ORCC
-    ImplictImm(String, u8),
+    ImplictImm(ImmInst, u8),
 
     // Implict Register Instructions
     // ASLA, ASLB, ASLD

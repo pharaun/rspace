@@ -1,6 +1,6 @@
 mod ast;
 mod lexer;
-//mod parser;
+mod parser;
 //mod cleaner;
 //mod labeler;
 //mod assembler;
