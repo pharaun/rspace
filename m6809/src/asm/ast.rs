@@ -21,19 +21,12 @@ pub enum ImmInst {
 // Just specify full instruction AST, easier
 #[derive(Debug, PartialEq, Clone)]
 pub enum Inst {
-    // Edge Case Instructions
-    TFM(TfmMode, InterReg, InterReg),
-    // LEAS, LEAU, LEAX, LEAY - Indexed
-    LEA(LeaReg, IndexAddrMode),
-    // Jump - Uses EA (same as LEA but it uses the full addressing modes)
-    JMP(AddrMode),
-    JSR(AddrMode),
-
     // Implict Instructions
     Implict(IInst),
 
     // Immedidate Implict
     ImplictImm(ImmInst, u8),
+
 
     // Implict Register Instructions
     // ASLA, ASLB, ASLD
@@ -196,6 +189,14 @@ pub enum Inst {
     // OIM
     // TIM
     ImmToMem(String, u8, AddrMode),
+
+    // Edge Case Instructions
+    TFM(TfmMode, InterReg, InterReg),
+    // LEAS, LEAU, LEAX, LEAY - Indexed
+    LEA(LeaReg, IndexAddrMode),
+    // Jump - Uses EA (same as LEA but it uses the full addressing modes)
+    JMP(AddrMode),
+    JSR(AddrMode),
 }
 
 

@@ -5,6 +5,7 @@ use nom::{
       tag,
       take_while1,
   },
+  character::one_of,
   character::complete::multispace0,
   combinator::{
       map_res,
@@ -17,12 +18,14 @@ use nom::{
   sequence::{
       preceded,
       delimited,
+      pair,
   },
   multi::{
       many0,
       separated_list1,
   },
 };
+use num_traits::Num;
 
 use crate::asm::ast;
 
@@ -77,14 +80,26 @@ fn radix(input: &str) -> IResult<&str, u32> {
     )).parse(input)
 }
 
-fn number(input: &str) -> IResult<&str, u32> {
-    let (input, radix) = radix.parse(input)?;
-
-    let is_digit = |c: char| c.is_digit(radix);
-    let from_digit = |s: &str| u32::from_str_radix(s, radix);
-    map_res(take_while1(is_digit), from_digit).parse(input)
+fn sign(input: &str) -> IResult<&str, char> {
+    alt((
+        one_of("+-"),
+        success('+'),
+    )).parse(input)
 }
 
+fn number<T: Num>(input: &str) -> IResult<&str, Result<T, T::FromStrRadixErr>> {
+    let (input, (sign, radix)) = pair(sign, radix).parse(input)?;
+    let (input, digit) = take_while1(|c: char| c.is_digit(radix)).parse(input)?;
+
+    Ok((
+        input,
+        T::from_str_radix(&(sign.to_string() + digit), radix),
+    ))
+}
+
+fn from_str<T: Num>(s: &str) -> Result<T, T::FromStrRadixErr> {
+    T::from_str_radix(s, 16)
+}
 
 
 
@@ -93,6 +108,18 @@ fn number(input: &str) -> IResult<&str, u32> {
 #[cfg(test)]
 mod test_parser {
     use super::*;
+
+
+    #[test]
+    fn test_from_str() {
+        assert_eq!(0xFF, from_str::<u8>("FF").unwrap());
+        assert_eq!(0xFF, from_str::<u8>("-FF").unwrap());
+        assert_eq!(0xFF, from_str::<u16>("FF").unwrap());
+        assert_eq!(0xFF, from_str::<u32>("FF").unwrap());
+        assert_eq!(0xFFu8 as i8, from_str::<i8>("-01").unwrap());
+    }
+
+
 
     #[test]
     fn test_implict() {
