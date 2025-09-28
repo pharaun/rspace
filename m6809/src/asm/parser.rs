@@ -1,30 +1,17 @@
-use nom::{
-  Parser,
-  IResult,
-  bytes::complete::{
-      tag,
-      take_while1,
-  },
-  character::one_of,
-  character::complete::multispace0,
-  combinator::{
-      map_res,
-      opt,
-      map,
-      value,
-      success,
-  },
-  branch::alt,
-  sequence::{
-      preceded,
-      delimited,
-      pair,
-  },
-  multi::{
-      many0,
-      separated_list1,
-  },
-};
+use nom::IResult;
+use nom::Parser;
+use nom::branch::alt;
+use nom::bytes::complete::tag;
+use nom::bytes::complete::take_while1;
+use nom::character::complete::space1;
+use nom::character::one_of;
+use nom::combinator::map;
+use nom::combinator::recognize;
+use nom::combinator::success;
+use nom::combinator::value;
+use nom::error::Error;
+use nom::sequence::pair;
+
 use num_traits::Num;
 
 use crate::asm::ast;
@@ -55,20 +42,9 @@ fn implict_imm(input: &str) -> IResult<&str, (ast::ImmInst, u8)> {
         value(ast::ImmInst::LDMD,  tag("LDMD")),
         value(ast::ImmInst::ORCC,  tag("ORCC")),
     )).parse(input)?;
+    let (input, _) = space1.parse(input)?;
 
-    map(u8_imm, |imm| (inst, imm)).parse(input)
-}
-
-fn u8_imm(input: &str) -> IResult<&str, u8> {
-    Ok((input, 0))
-}
-
-fn u16_imm(input: &str) -> IResult<&str, u8> {
-    Ok((input, 0))
-}
-
-fn u32_imm(input: &str) -> IResult<&str, u8> {
-    Ok((input, 0))
+    map(number, |imm| (inst, imm)).parse(input)
 }
 
 fn radix(input: &str) -> IResult<&str, u32> {
@@ -81,24 +57,29 @@ fn radix(input: &str) -> IResult<&str, u32> {
 }
 
 fn sign(input: &str) -> IResult<&str, char> {
-    alt((
-        one_of("+-"),
-        success('+'),
-    )).parse(input)
+    alt((one_of("+-"), success('+'))).parse(input)
 }
 
-fn number<T: Num>(input: &str) -> IResult<&str, Result<T, T::FromStrRadixErr>> {
+fn number<T: Num<FromStrRadixErr = std::num::ParseIntError>>(input: &str) -> IResult<&str, T> {
     let (input, (sign, radix)) = pair(sign, radix).parse(input)?;
-    let (input, digit) = take_while1(|c: char| c.is_digit(radix)).parse(input)?;
+    let (input, digit) = take_while1(
+        |c: char| c.is_digit(radix) || c == '_'
+    ).parse(input)?;
 
-    Ok((
-        input,
-        T::from_str_radix(&(sign.to_string() + digit), radix),
-    ))
-}
+    let integer = T::from_str_radix(
+        &str::replace(
+            &(sign.to_string() + digit),
+            "_",
+            ""
+        ),
+        radix
+    );
 
-fn from_str<T: Num>(s: &str) -> Result<T, T::FromStrRadixErr> {
-    T::from_str_radix(s, 16)
+    // TODO: Make this better, this is a hack to work around implementing a custom error
+    match integer {
+        Ok(n)  => Ok((input, n)),
+        Err(e) => Err(nom::Err::Error(Error::new("ParseIntError", nom::error::ErrorKind::Fail))),
+    }
 }
 
 
@@ -108,18 +89,6 @@ fn from_str<T: Num>(s: &str) -> Result<T, T::FromStrRadixErr> {
 #[cfg(test)]
 mod test_parser {
     use super::*;
-
-
-    #[test]
-    fn test_from_str() {
-        assert_eq!(0xFF, from_str::<u8>("FF").unwrap());
-        assert_eq!(0xFF, from_str::<u8>("-FF").unwrap());
-        assert_eq!(0xFF, from_str::<u16>("FF").unwrap());
-        assert_eq!(0xFF, from_str::<u32>("FF").unwrap());
-        assert_eq!(0xFFu8 as i8, from_str::<i8>("-01").unwrap());
-    }
-
-
 
     #[test]
     fn test_implict() {
@@ -134,10 +103,23 @@ mod test_parser {
     #[test]
     fn test_radix() {
         assert_eq!(radix("0xFF"), Ok(("FF", 16)));
+        assert_eq!(radix("123"), Ok(("123", 10)));
+        assert_eq!(radix("0o44"), Ok(("44", 8)));
+        assert_eq!(radix("0b1010"), Ok(("1010", 2)));
     }
 
     #[test]
-    fn test_radix_fallback() {
-        assert_eq!(radix("123"), Ok(("123", 10)));
+    fn test_number_parse() {
+        assert_eq!(number::<u8>("1"), Ok(("", 1)));
+        assert_eq!(number::<i8>("-1"), Ok(("", -1)));
+        assert_eq!(number::<u16>("512"), Ok(("", 512)));
+        assert_eq!(number::<u8>("0xFF"), Ok(("", 0xFF)));
+        assert_eq!(number::<u8>("0o44"), Ok(("", 0o44)));
+        assert_eq!(number::<u8>("0b1001"), Ok(("", 0b1001)));
+        assert_eq!(number::<i8>("-0x22"), Ok(("", -0x22)));
+        assert_eq!(number::<u16>("16_000"), Ok(("", 16_000)));
+        assert_eq!(number::<u16>("0xFF_FF"), Ok(("", 0xFF_FF)));
+        assert_eq!(number::<u16>("0o44_33"), Ok(("", 0o44_33)));
+        assert_eq!(number::<u16>("0b1010_1010"), Ok(("", 0b1010_1010)));
     }
 }
