@@ -15,7 +15,10 @@ pub enum ImmInst {
     ANDCC, BITMD, CWAI, LDMD, ORCC,
 }
 
-
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum IRInst {
+    ASL, ASR, NEG
+}
 
 
 // Just specify full instruction AST, easier
@@ -27,12 +30,9 @@ pub enum Inst {
     // Immedidate Implict
     ImplictImm(ImmInst, u8),
 
-
     // Implict Register Instructions
-    // ASLA, ASLB, ASLD
-    // ASRA, ASRB, ASRD
-    // NEGA, NEGB, NEGD
-    ImplictHalfRegister(String, HalfAccReg),
+    ImplictHalfRegister(IRInst, HalfAccReg),
+
 
     // Implict Register Instructions
     // CLRA, CLRB, CLRD, CLRE, CLRF, CLRW
@@ -412,23 +412,6 @@ impl From<IndexStackReg> for u8 {
 pub enum HalfAccReg {
     A, B, D,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseHalfAccRegError { _priv: () }
-
-impl FromStr for HalfAccReg {
-    type Err = ParseHalfAccRegError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "A" => Ok(HalfAccReg::A),
-            "B" => Ok(HalfAccReg::B),
-            "D" => Ok(HalfAccReg::D),
-            _   => Err(ParseHalfAccRegError { _priv: () }),
-        }
-    }
-}
-
 
 // Accumulator registers
 #[derive(Debug, Clone, PartialEq)]

@@ -47,6 +47,23 @@ fn implict_imm(input: &str) -> IResult<&str, (ast::ImmInst, u8)> {
     map(number, |imm| (inst, imm)).parse(input)
 }
 
+fn implict_reg(input: &str) -> IResult<&str, (ast::IRInst, ast::HalfAccReg)> {
+    alt((
+        pair(value(ast::IRInst::ASL, tag("ASL")), half_acc),
+        pair(value(ast::IRInst::ASR, tag("ASR")), half_acc),
+        pair(value(ast::IRInst::NEG, tag("NEG")), half_acc),
+    )).parse(input)
+}
+
+fn half_acc(input: &str) -> IResult<&str, ast::HalfAccReg> {
+    alt((
+        value(ast::HalfAccReg::A, tag("A")),
+        value(ast::HalfAccReg::B, tag("B")),
+        value(ast::HalfAccReg::D, tag("D")),
+    )).parse(input)
+}
+
+
 fn radix(input: &str) -> IResult<&str, u32> {
     alt((
         value(16, tag("0x")),
@@ -98,6 +115,13 @@ mod test_parser {
     #[test]
     fn test_imm_implict() {
         assert_eq!(implict_imm("ANDCC 0xFF"), Ok(("", (ast::ImmInst::ANDCC, 0xFF))));
+    }
+
+    #[test]
+    fn test_implict_reg() {
+        assert_eq!(implict_reg("ASLA"), Ok(("", (ast::IRInst::ASL, ast::HalfAccReg::A))));
+        assert_eq!(implict_reg("ASRB"), Ok(("", (ast::IRInst::ASR, ast::HalfAccReg::B))));
+        assert_eq!(implict_reg("NEGD"), Ok(("", (ast::IRInst::NEG, ast::HalfAccReg::D))));
     }
 
     #[test]
