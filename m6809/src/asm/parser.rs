@@ -63,6 +63,44 @@ fn half_acc(input: &str) -> IResult<&str, ast::HalfAccReg> {
     )).parse(input)
 }
 
+fn implict_full_reg(input: &str) -> IResult<&str, (ast::IRFInst, ast::AccReg)> {
+    alt((
+        pair(value(ast::IRFInst::CLR, tag("CLR")), full_acc),
+        pair(value(ast::IRFInst::COM, tag("COM")), full_acc),
+        pair(value(ast::IRFInst::DEC, tag("DEC")), full_acc),
+        pair(value(ast::IRFInst::INC, tag("INC")), full_acc),
+        pair(value(ast::IRFInst::TST, tag("TST")), full_acc),
+    )).parse(input)
+}
+
+fn full_acc(input: &str) -> IResult<&str, ast::AccReg> {
+    alt((
+        value(ast::AccReg::A, tag("A")),
+        value(ast::AccReg::B, tag("B")),
+        value(ast::AccReg::D, tag("D")),
+        value(ast::AccReg::E, tag("E")),
+        value(ast::AccReg::F, tag("F")),
+        value(ast::AccReg::W, tag("W")),
+    )).parse(input)
+}
+
+fn implict_shift(input: &str) -> IResult<&str, (ast::IRSInst, ast::ShiftReg)> {
+    alt((
+        pair(value(ast::IRSInst::LSR, tag("LSR")), shift_reg),
+        pair(value(ast::IRSInst::ROL, tag("ROL")), shift_reg),
+        pair(value(ast::IRSInst::ROR, tag("ROR")), shift_reg),
+    )).parse(input)
+}
+
+fn shift_reg(input: &str) -> IResult<&str, ast::ShiftReg> {
+    alt((
+        value(ast::ShiftReg::A, tag("A")),
+        value(ast::ShiftReg::B, tag("B")),
+        value(ast::ShiftReg::D, tag("D")),
+        value(ast::ShiftReg::W, tag("W")),
+    )).parse(input)
+}
+
 
 fn radix(input: &str) -> IResult<&str, u32> {
     alt((
@@ -122,6 +160,22 @@ mod test_parser {
         assert_eq!(implict_reg("ASLA"), Ok(("", (ast::IRInst::ASL, ast::HalfAccReg::A))));
         assert_eq!(implict_reg("ASRB"), Ok(("", (ast::IRInst::ASR, ast::HalfAccReg::B))));
         assert_eq!(implict_reg("NEGD"), Ok(("", (ast::IRInst::NEG, ast::HalfAccReg::D))));
+    }
+
+    #[test]
+    fn test_implict_full_reg() {
+        assert_eq!(implict_full_reg("CLRA"), Ok(("", (ast::IRFInst::CLR, ast::AccReg::A))));
+        assert_eq!(implict_full_reg("COMB"), Ok(("", (ast::IRFInst::COM, ast::AccReg::B))));
+        assert_eq!(implict_full_reg("DECD"), Ok(("", (ast::IRFInst::DEC, ast::AccReg::D))));
+        assert_eq!(implict_full_reg("INCE"), Ok(("", (ast::IRFInst::INC, ast::AccReg::E))));
+        assert_eq!(implict_full_reg("TSTF"), Ok(("", (ast::IRFInst::TST, ast::AccReg::F))));
+    }
+
+    #[test]
+    fn test_implict_shift() {
+        assert_eq!(implict_shift("LSRA"), Ok(("", (ast::IRSInst::LSR, ast::ShiftReg::A))));
+        assert_eq!(implict_shift("ROLB"), Ok(("", (ast::IRSInst::ROL, ast::ShiftReg::B))));
+        assert_eq!(implict_shift("RORW"), Ok(("", (ast::IRSInst::ROR, ast::ShiftReg::W))));
     }
 
     #[test]

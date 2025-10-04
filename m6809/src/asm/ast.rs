@@ -20,6 +20,16 @@ pub enum IRInst {
     ASL, ASR, NEG
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum IRFInst {
+    CLR, COM, DEC, INC, TST
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum IRSInst {
+    LSR, ROL, ROR
+}
+
 
 // Just specify full instruction AST, easier
 #[derive(Debug, PartialEq, Clone)]
@@ -33,20 +43,13 @@ pub enum Inst {
     // Implict Register Instructions
     ImplictHalfRegister(IRInst, HalfAccReg),
 
-
     // Implict Register Instructions
-    // CLRA, CLRB, CLRD, CLRE, CLRF, CLRW
-    // COMA, COMB, COMD, COME, COMF, COMW
-    // DECA, DECB, DECD, DECE, DECF, DECW
-    // INCA, INCB, INCD, INCE, INCF, INCW
-    // TSTA, TSTB, TSTD, TSTE, TSTF, TSTW
-    ImplictRegister(String, AccReg),
+    ImplictRegister(IRFInst, AccReg),
 
     // Implict Register instructions for shifting
-    // LSRA, LSRB, LSRD, LSRW
-    // ROLA, ROLB, ROLD, ROLW
-    // RORA, RORB, RORD, RORW
-    ImplictShift(String, ShiftReg),
+    ImplictShift(IRSInst, ShiftReg),
+
+
 
     // Immedidate Register
     // ADCA, ADCB, ADCD
@@ -419,25 +422,6 @@ pub enum AccReg {
     A, B, D, E, F, W,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseAccRegError { _priv: () }
-
-impl FromStr for AccReg {
-    type Err = ParseAccRegError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "A" => Ok(AccReg::A),
-            "B" => Ok(AccReg::B),
-            "D" => Ok(AccReg::D),
-            "E" => Ok(AccReg::E),
-            "F" => Ok(AccReg::F),
-            "W" => Ok(AccReg::W),
-            _   => Err(ParseAccRegError { _priv: () }),
-        }
-    }
-}
-
 impl From<AccReg> for u8 {
     fn from(original: AccReg) -> u8 {
         match original {
@@ -451,28 +435,10 @@ impl From<AccReg> for u8 {
     }
 }
 
-
 // Shift Registers
 #[derive(Debug, PartialEq, Clone)]
 pub enum ShiftReg {
     A, B, D, W,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseShiftRegError { _priv: () }
-
-impl FromStr for ShiftReg {
-    type Err = ParseShiftRegError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "A" => Ok(ShiftReg::A),
-            "B" => Ok(ShiftReg::B),
-            "D" => Ok(ShiftReg::D),
-            "W" => Ok(ShiftReg::W),
-            _   => Err(ParseShiftRegError { _priv: () }),
-        }
-    }
 }
 
 
