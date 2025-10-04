@@ -11,95 +11,260 @@ use nom::combinator::success;
 use nom::combinator::value;
 use nom::error::Error;
 use nom::sequence::pair;
+use nom::sequence::separated_pair;
+use nom::sequence::preceded;
 
 use num_traits::Num;
+use bitfield_struct::bitfield;
 
-use crate::asm::ast;
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum HalfAcc {A, B, D}
 
-pub fn implict(input: &str) -> IResult<&str, ast::IInst> {
+fn half_acc(input: &str) -> IResult<&str, HalfAcc> {
     alt((
-        value(ast::IInst::ABX,  tag("ABX")),
-        value(ast::IInst::DAA,  tag("DAA")),
-        value(ast::IInst::MUL,  tag("MUL")),
-        value(ast::IInst::NOP,  tag("NOP")),
-        value(ast::IInst::RTI,  tag("RTI")),
-        value(ast::IInst::RTS,  tag("RTS")),
-        value(ast::IInst::SEX,  tag("SEX")),
-        value(ast::IInst::SEXW, tag("SEXW")),
-        value(ast::IInst::SWI,  tag("SWI")),
-        value(ast::IInst::SWI2, tag("SWI2")),
-        value(ast::IInst::SWI3, tag("SWI3")),
-        value(ast::IInst::SYNC, tag("SYNC")),
+        value(HalfAcc::A, tag("A")),
+        value(HalfAcc::B, tag("B")),
+        value(HalfAcc::D, tag("D")),
     )).parse(input)
 }
 
-fn implict_imm(input: &str) -> IResult<&str, (ast::ImmInst, u8)> {
-    let (input, inst) = alt((
-        value(ast::ImmInst::ANDCC, tag("ANDCC")),
-        value(ast::ImmInst::BITMD, tag("BITMD")),
-        value(ast::ImmInst::CWAI,  tag("CWAI")),
-        value(ast::ImmInst::LDMD,  tag("LDMD")),
-        value(ast::ImmInst::ORCC,  tag("ORCC")),
-    )).parse(input)?;
-    let (input, _) = space1.parse(input)?;
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum FullAcc {A, B, D, E, F, W}
 
-    map(number, |imm| (inst, imm)).parse(input)
-}
-
-fn implict_reg(input: &str) -> IResult<&str, (ast::IRInst, ast::HalfAccReg)> {
+fn full_acc(input: &str) -> IResult<&str, FullAcc> {
     alt((
-        pair(value(ast::IRInst::ASL, tag("ASL")), half_acc),
-        pair(value(ast::IRInst::ASR, tag("ASR")), half_acc),
-        pair(value(ast::IRInst::NEG, tag("NEG")), half_acc),
+        value(FullAcc::A, tag("A")),
+        value(FullAcc::B, tag("B")),
+        value(FullAcc::D, tag("D")),
+        value(FullAcc::E, tag("E")),
+        value(FullAcc::F, tag("F")),
+        value(FullAcc::W, tag("W")),
     )).parse(input)
 }
 
-fn half_acc(input: &str) -> IResult<&str, ast::HalfAccReg> {
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum ShiftAcc {A, B, D, W}
+
+fn shift_acc(input: &str) -> IResult<&str, ShiftAcc> {
     alt((
-        value(ast::HalfAccReg::A, tag("A")),
-        value(ast::HalfAccReg::B, tag("B")),
-        value(ast::HalfAccReg::D, tag("D")),
+        value(ShiftAcc::A, tag("A")),
+        value(ShiftAcc::B, tag("B")),
+        value(ShiftAcc::D, tag("D")),
+        value(ShiftAcc::W, tag("W")),
     )).parse(input)
 }
 
-fn implict_full_reg(input: &str) -> IResult<&str, (ast::IRFInst, ast::AccReg)> {
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum Inherent {
+    // Simple Inherent instruction
+    ABX, DAA, MUL, NOP, RTI, RTS, SYNC,
+    PSHSW, PSHUW, PULSW, PULUW,
+    SEX, SEXW, SWI, SWI2, SWI3,
+
+    // Half Acc Inherent
+    ASL(HalfAcc), ASR(HalfAcc), NEG(HalfAcc),
+
+    // Full Acc Inherent
+    CLR(FullAcc), COM(FullAcc), DEC(FullAcc), INC(FullAcc), TST(FullAcc),
+
+    // Shift Acc Inherent
+    LSR(ShiftAcc), ROL(ShiftAcc), ROR(ShiftAcc),
+}
+
+fn simple_inherent(input: &str) -> IResult<&str, Inherent> {
     alt((
-        pair(value(ast::IRFInst::CLR, tag("CLR")), full_acc),
-        pair(value(ast::IRFInst::COM, tag("COM")), full_acc),
-        pair(value(ast::IRFInst::DEC, tag("DEC")), full_acc),
-        pair(value(ast::IRFInst::INC, tag("INC")), full_acc),
-        pair(value(ast::IRFInst::TST, tag("TST")), full_acc),
+        value(Inherent::ABX,   tag("ABX")),
+        value(Inherent::DAA,   tag("DAA")),
+        value(Inherent::MUL,   tag("MUL")),
+        value(Inherent::NOP,   tag("NOP")),
+        value(Inherent::RTI,   tag("RTI")),
+        value(Inherent::RTS,   tag("RTS")),
+        value(Inherent::SYNC,  tag("SYNC")),
+        value(Inherent::PSHSW, tag("PSHSW")),
+        value(Inherent::PSHUW, tag("PSHUW")),
+        value(Inherent::PULSW, tag("PULSW")),
+        value(Inherent::PULUW, tag("PULUW")),
+        value(Inherent::SEXW,  tag("SEXW")),
+        value(Inherent::SEX,   tag("SEX")),
+        value(Inherent::SWI3,  tag("SWI3")),
+        value(Inherent::SWI2,  tag("SWI2")),
+        value(Inherent::SWI,   tag("SWI")),
     )).parse(input)
 }
 
-fn full_acc(input: &str) -> IResult<&str, ast::AccReg> {
+fn inherent(input: &str) -> IResult<&str, Inherent> {
     alt((
-        value(ast::AccReg::A, tag("A")),
-        value(ast::AccReg::B, tag("B")),
-        value(ast::AccReg::D, tag("D")),
-        value(ast::AccReg::E, tag("E")),
-        value(ast::AccReg::F, tag("F")),
-        value(ast::AccReg::W, tag("W")),
+        // Simple
+        simple_inherent,
+        // Half
+        map(pair(tag("ASL"), half_acc), |(_, acc)| Inherent::ASL(acc)),
+        map(pair(tag("LSL"), half_acc), |(_, acc)| Inherent::ASL(acc)), // ASL/LSL
+        map(pair(tag("ASR"), half_acc), |(_, acc)| Inherent::ASR(acc)),
+        map(pair(tag("NEG"), half_acc), |(_, acc)| Inherent::NEG(acc)),
+        // Full
+        map(pair(tag("CLR"), full_acc), |(_, acc)| Inherent::CLR(acc)),
+        map(pair(tag("COM"), full_acc), |(_, acc)| Inherent::COM(acc)),
+        map(pair(tag("DEC"), full_acc), |(_, acc)| Inherent::DEC(acc)),
+        map(pair(tag("INC"), full_acc), |(_, acc)| Inherent::INC(acc)),
+        map(pair(tag("TST"), full_acc), |(_, acc)| Inherent::TST(acc)),
+        // Shift
+        map(pair(tag("LSR"), shift_acc), |(_, acc)| Inherent::LSR(acc)),
+        map(pair(tag("ROL"), shift_acc), |(_, acc)| Inherent::ROL(acc)),
+        map(pair(tag("ROR"), shift_acc), |(_, acc)| Inherent::ROR(acc)),
     )).parse(input)
 }
 
-fn implict_shift(input: &str) -> IResult<&str, (ast::IRSInst, ast::ShiftReg)> {
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum InterReg {
+    D  = 0b0000,
+    X  = 0b0001,
+    Y  = 0b0010,
+    U  = 0b0011,
+    S  = 0b0100,
+    PC = 0b0101,
+    W  = 0b0110,
+    V  = 0b0111,
+    A  = 0b1000,
+    B  = 0b1001,
+    CC = 0b1010,
+    DP = 0b1011,
+    // Z1/Z2 == 2x encoding of 0 register
+    Z1 = 0b1100,
+    Z2 = 0b1101,
+    E  = 0b1110,
+    F  = 0b1111,
+}
+
+fn inter_reg(input: &str) -> IResult<&str, InterReg> {
     alt((
-        pair(value(ast::IRSInst::LSR, tag("LSR")), shift_reg),
-        pair(value(ast::IRSInst::ROL, tag("ROL")), shift_reg),
-        pair(value(ast::IRSInst::ROR, tag("ROR")), shift_reg),
+        value(InterReg::D,  tag("D")),
+        value(InterReg::X,  tag("X")),
+        value(InterReg::Y,  tag("Y")),
+        value(InterReg::U,  tag("U")),
+        value(InterReg::S,  tag("S")),
+        value(InterReg::PC, tag("PC")),
+        value(InterReg::W,  tag("W")),
+        value(InterReg::V,  tag("V")),
+        value(InterReg::A,  tag("A")),
+        value(InterReg::B,  tag("B")),
+        value(InterReg::CC, tag("CC")),
+        value(InterReg::DP, tag("DP")),
+        value(InterReg::Z1, tag("0")), // Could also return Z2
+        value(InterReg::E,  tag("E")),
+        value(InterReg::F,  tag("F")),
     )).parse(input)
 }
 
-fn shift_reg(input: &str) -> IResult<&str, ast::ShiftReg> {
+pub fn inter_reg_post_byte(r0: InterReg, r1: InterReg) -> u8 {
+    let mask: u8 = 0b0000_1111;
+    (((r0 as u8) & mask) << 4) | ((r1 as u8) & mask)
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum TfmMode {
+    PlusPlus, // TFM r0+, r1+
+    MinusMinus, // TFM r0-, r1-
+    PlusNone, // TFM r0+, r1
+    NonePlus // TFM r0, r1+
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum Imm8 {
+    // Reg to Reg
+    ADCR, ADDR, ANDR, CMPR, EORR, ORR, SBCR, SUBR, EXG, TFR,
+
+    // Stack PostByte
+    PSHS, PSHU, PULS, PULU,
+
+    // Condition Code Flags
+    ANDCC, ORCC, CWAI,
+
+    // Weird
+    BITMD, LDMD, TFM(TfmMode),
+}
+
+fn Imm8(input: &str) -> IResult<&str, (Imm8, u8)> {
     alt((
-        value(ast::ShiftReg::A, tag("A")),
-        value(ast::ShiftReg::B, tag("B")),
-        value(ast::ShiftReg::D, tag("D")),
-        value(ast::ShiftReg::W, tag("W")),
+        // Reg to Reg
+        pair(value(Imm8::ADCR,  tag("ADCR")), preceded(space1, reg_to_reg)),
+        pair(value(Imm8::ADDR,  tag("ADDR")), preceded(space1, reg_to_reg)),
+        pair(value(Imm8::ANDR,  tag("ANDR")), preceded(space1, reg_to_reg)),
+        pair(value(Imm8::CMPR,  tag("CMPR")), preceded(space1, reg_to_reg)),
+        pair(value(Imm8::EORR,  tag("EORR")), preceded(space1, reg_to_reg)),
+        pair(value(Imm8::ORR,   tag("ORR")),  preceded(space1, reg_to_reg)),
+        pair(value(Imm8::SBCR,  tag("SBCR")), preceded(space1, reg_to_reg)),
+        pair(value(Imm8::SUBR,  tag("SUBR")), preceded(space1, reg_to_reg)),
+        pair(value(Imm8::EXG,   tag("EXG")),  preceded(space1, reg_to_reg)),
+        pair(value(Imm8::TFR,   tag("TFR")),  preceded(space1, reg_to_reg)),
+        // Stack PostByte
+//        pair(value(Imm8::PSHS,  tag("PSHS")), stack_postbyte),
+//        pair(value(Imm8::PSHU,  tag("PSHU")), stack_postbyte),
+//        pair(value(Imm8::PULS,  tag("PULS")), stack_postbyte),
+//        pair(value(Imm8::PULU,  tag("PULU")), stack_postbyte),
+//        // Condition Code Flags
+//        pair(value(Imm8::ANDCC, tag("ANDCC")), cc_flags),
+//        pair(value(Imm8::ORCC,  tag("ORCC")), cc_flags),
+//        pair(value(Imm8::CWAI,  tag("CWAI")), cc_flags),
+//        // Weird
+//        pair(value(Imm8::BITMD, tag("BITMD")), raw_imm8),
+//        pair(value(Imm8::LDMD,  tag("LDMD")),  raw_imm8),
+//        map(pair(tag("TFM"), tfm_reg), |(_, (mode, reg))| (Imm8::TFM(mode), reg)),
     )).parse(input)
 }
+
+fn reg_to_reg(input: &str) -> IResult<&str, u8> {
+    map(separated_pair(inter_reg, tag(","), inter_reg), |(r0, r1)| inter_reg_post_byte(r0, r1)).parse(input)
+}
+
+
+
+
+#[bitfield(u8, order=Msb)]
+#[derive(PartialEq)]
+pub struct PushPullPostByte {
+    pc: bool, // 0b1000_0000
+    us: bool,
+    y:  bool,
+    x:  bool,
+    dp: bool,
+    b:  bool,
+    a:  bool,
+    cc: bool, // 0b0000_0001
+}
+
+impl PushPullPostByte {
+    // Enable using a string to toggle a field on or off
+    pub fn with_str(&self, reg: &str, val: bool) -> Self {
+        match reg {
+            "PC" => self.with_pc(val),
+            "U"  => self.with_us(val),
+            "S"  => self.with_us(val),
+            "Y"  => self.with_y(val),
+            "X"  => self.with_x(val),
+            "DP" => self.with_dp(val),
+            "B"  => self.with_b(val),
+            "A"  => self.with_a(val),
+            "CC" => self.with_cc(val),
+            _ => *self,
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 fn radix(input: &str) -> IResult<&str, u32> {
@@ -137,45 +302,33 @@ fn number<T: Num<FromStrRadixErr = std::num::ParseIntError>>(input: &str) -> IRe
     }
 }
 
-
-
-
-
 #[cfg(test)]
 mod test_parser {
     use super::*;
 
     #[test]
-    fn test_implict() {
-        assert_eq!(implict("ABX"), Ok(("", ast::IInst::ABX)));
-    }
+    fn test_inherent() {
+        let data = vec![
+            // Simple
+            ("ABX", Inherent::ABX), ("SYNC", Inherent::SYNC),
+            ("PSHSW", Inherent::PSHSW), ("PULUW", Inherent::PULUW),
+            ("SWI", Inherent::SWI), ("SWI2", Inherent::SWI2),
+            // Half
+            ("ASLA", Inherent::ASL(HalfAcc::A)),
+            ("LSLA", Inherent::ASL(HalfAcc::A)),
+            ("ASRB", Inherent::ASR(HalfAcc::B)),
+            ("NEGD", Inherent::NEG(HalfAcc::D)),
+            // Full
+            ("CLRA", Inherent::CLR(FullAcc::A)),
+            ("COMB", Inherent::COM(FullAcc::B)),
+            ("DECD", Inherent::DEC(FullAcc::D)),
+            ("INCE", Inherent::INC(FullAcc::E)),
+            ("TSTW", Inherent::TST(FullAcc::W)),
+        ];
 
-    #[test]
-    fn test_imm_implict() {
-        assert_eq!(implict_imm("ANDCC 0xFF"), Ok(("", (ast::ImmInst::ANDCC, 0xFF))));
-    }
-
-    #[test]
-    fn test_implict_reg() {
-        assert_eq!(implict_reg("ASLA"), Ok(("", (ast::IRInst::ASL, ast::HalfAccReg::A))));
-        assert_eq!(implict_reg("ASRB"), Ok(("", (ast::IRInst::ASR, ast::HalfAccReg::B))));
-        assert_eq!(implict_reg("NEGD"), Ok(("", (ast::IRInst::NEG, ast::HalfAccReg::D))));
-    }
-
-    #[test]
-    fn test_implict_full_reg() {
-        assert_eq!(implict_full_reg("CLRA"), Ok(("", (ast::IRFInst::CLR, ast::AccReg::A))));
-        assert_eq!(implict_full_reg("COMB"), Ok(("", (ast::IRFInst::COM, ast::AccReg::B))));
-        assert_eq!(implict_full_reg("DECD"), Ok(("", (ast::IRFInst::DEC, ast::AccReg::D))));
-        assert_eq!(implict_full_reg("INCE"), Ok(("", (ast::IRFInst::INC, ast::AccReg::E))));
-        assert_eq!(implict_full_reg("TSTF"), Ok(("", (ast::IRFInst::TST, ast::AccReg::F))));
-    }
-
-    #[test]
-    fn test_implict_shift() {
-        assert_eq!(implict_shift("LSRA"), Ok(("", (ast::IRSInst::LSR, ast::ShiftReg::A))));
-        assert_eq!(implict_shift("ROLB"), Ok(("", (ast::IRSInst::ROL, ast::ShiftReg::B))));
-        assert_eq!(implict_shift("RORW"), Ok(("", (ast::IRSInst::ROR, ast::ShiftReg::W))));
+        for (s,e) in data {
+            assert_eq!(inherent(s), Ok(("", e)));
+        }
     }
 
     #[test]
