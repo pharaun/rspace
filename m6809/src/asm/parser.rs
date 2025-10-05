@@ -31,8 +31,16 @@ fn half_acc(input: &str) -> IResult<&str, HalfAcc> {
     )).parse(input)
 }
 
+#[repr(u8)]
 #[derive(Debug, PartialEq, Copy, Clone)]
-enum FullAcc {A, B, D, E, F, W}
+enum FullAcc {
+    A = 0b0110,
+    B = 0b0101,
+    D = 0b1011,
+    E = 0b0111,
+    F = 0b1010,
+    W = 0b1110
+}
 
 fn full_acc(input: &str) -> IResult<&str, FullAcc> {
     alt((
@@ -160,8 +168,7 @@ fn inter_reg(input: &str) -> IResult<&str, InterReg> {
 }
 
 fn inter_reg_post_byte(r0: InterReg, r1: InterReg) -> u8 {
-    let mask: u8 = 0b0000_1111;
-    (((r0 as u8) & mask) << 4) | ((r1 as u8) & mask)
+    ((r0 as u8) << 4) | (r1 as u8)
 }
 
 #[bitfield(u8, order=Msb)]
@@ -466,11 +473,141 @@ fn direct_addr(input: &str) -> IResult<&str, u8> {
     ).parse(input)
 }
 
+#[repr(u8)]
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum StackReg {
+    X = 0b00,
+    Y = 0b01,
+    U = 0b10,
+    S = 0b11,
+}
+
+fn stack_reg(input: &str) -> IResult<&str, StackReg> {
+    alt((
+        value(StackReg::X, tag("X")),
+        value(StackReg::Y, tag("Y")),
+        value(StackReg::U, tag("U")),
+        value(StackReg::S, tag("S")),
+    )).parse(input)
+}
+
+#[repr(u8)]
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum IndexType {
+    NonIndirect = 0b1111,
+    Indirect    = 0b0000,
+}
+
+#[repr(u8)]
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum ModeW {
+    Offset0  = 0b00,
+    Offset16 = 0b01,
+    IncInc   = 0b10,
+    DecDec   = 0b11,
+}
+
+#[repr(u8)]
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum IndexMode {
+    // Offset mode
+    Offset0  = 0b0100,
+    Offset8  = 0b1000,
+    Offset16 = 0b1001,
+
+    // Accumulator Offset
+    AccA = 0b0110,
+    AccB = 0b0101,
+    AccD = 0b1011,
+    AccE = 0b0111,
+    AccF = 0b1010,
+    AccW = 0b1110,
+
+    // Inc/Dec of RR register
+    IncInc = 0b0001,
+    DecDec = 0b0011,
+
+    // PC offset
+    PCR8  = 0b1100,
+    PCR16 = 0b1101,
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum IndexPostByte {
+    // - 5bit offset
+    Offset5(StackReg, u8),
+    // - Single Inc/Dec
+    Inc(StackReg),
+    Dec(StackReg),
+    // - Extended Indirect
+    ExtendedIndirect,
+    // W register
+    // Non Indirect / Indirect
+    RegW(ModeW, IndexType),
+    // Standard index modes
+    Standard(StackReg, IndexMode, IndexType),
+}
+
+fn index_post_byte(index: IndexPostByte) -> u8 {
+    let base: u8 = 0b1000_0000;
+
+    match index {
+        IndexPostByte::Offset5(rr, imm) => {
+            let imm5_mask: u8 = 0b0001_1111;
+            ((rr as u8) << 5) | (imm & imm5_mask)
+        },
+        IndexPostByte::Inc(rr) => {
+            base | ((rr as u8) << 5)
+        },
+        IndexPostByte::Dec(rr) => {
+            base | ((rr as u8) << 5) | 0b0010
+        },
+        IndexPostByte::ExtendedIndirect => {
+            0b10011111
+        },
+        IndexPostByte::RegW(mode, typ) => {
+            let i_typ: u8 = match typ {
+                IndexType::NonIndirect => 0b0000_0000,
+                IndexType::Indirect    => 0b0001_0000,
+            };
+            base | ((mode as u8) << 5) | i_typ | (typ as u8)
+        },
+        IndexPostByte::Standard(rr, mode, typ) => {
+            let i_typ: u8 = match typ {
+                IndexType::NonIndirect => 0b0000_0000,
+                IndexType::Indirect    => 0b0001_0000,
+            };
+            base | ((rr as u8) << 5) | i_typ | (mode as u8)
+        },
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum IndexBytes {
+    Zero,
+    One(u8),
+    Two(u8),
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum Indexed {
+    LEA(StackReg),
+}
+
+fn indexed(input: &str) -> IResult<&str, (Indexed, u8, IndexBytes)> {
+    map(
+        pair(tag("LEA"), stack_reg),
+        |(_, sreg)| (Indexed::LEA(sreg), 0, IndexBytes::Zero)
+    ).parse(input)
+}
+
+fn index_addr(input: &str) -> IResult<&str, (IndexPostByte, IndexBytes)> {
+    todo!("Implement");
+}
+
+
 
 // Instruction family to try to parse
-//
-// Indexed:
-//  LEAS LEAU LEAX LEAY
 //
 // Addr Only:
 //  ASL - LSL
