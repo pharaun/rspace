@@ -9,10 +9,12 @@ use nom::combinator::map;
 use nom::combinator::recognize;
 use nom::combinator::success;
 use nom::combinator::value;
+use nom::combinator::complete;
 use nom::error::Error;
 use nom::sequence::pair;
 use nom::sequence::separated_pair;
 use nom::sequence::preceded;
+use nom::multi::separated_list1;
 
 use num_traits::Num;
 use bitfield_struct::bitfield;
@@ -139,18 +141,18 @@ pub enum InterReg {
 
 fn inter_reg(input: &str) -> IResult<&str, InterReg> {
     alt((
+        value(InterReg::PC, tag("PC")),
+        value(InterReg::CC, tag("CC")),
+        value(InterReg::DP, tag("DP")),
         value(InterReg::D,  tag("D")),
         value(InterReg::X,  tag("X")),
         value(InterReg::Y,  tag("Y")),
         value(InterReg::U,  tag("U")),
         value(InterReg::S,  tag("S")),
-        value(InterReg::PC, tag("PC")),
         value(InterReg::W,  tag("W")),
         value(InterReg::V,  tag("V")),
         value(InterReg::A,  tag("A")),
         value(InterReg::B,  tag("B")),
-        value(InterReg::CC, tag("CC")),
-        value(InterReg::DP, tag("DP")),
         value(InterReg::Z1, tag("0")), // Could also return Z2
         value(InterReg::E,  tag("E")),
         value(InterReg::F,  tag("F")),
@@ -160,6 +162,67 @@ fn inter_reg(input: &str) -> IResult<&str, InterReg> {
 pub fn inter_reg_post_byte(r0: InterReg, r1: InterReg) -> u8 {
     let mask: u8 = 0b0000_1111;
     (((r0 as u8) & mask) << 4) | ((r1 as u8) & mask)
+}
+
+#[bitfield(u8, order=Msb)]
+#[derive(PartialEq)]
+pub struct StackPostByte {
+    pc: bool, // 0b1000_0000
+    us: bool,
+    y:  bool,
+    x:  bool,
+    dp: bool,
+    b:  bool,
+    a:  bool,
+    cc: bool, // 0b0000_0001
+}
+
+impl StackPostByte {
+    // Enable using a string to toggle a field on or off
+    pub fn with_str(&self, reg: &str, val: bool) -> Self {
+        match reg {
+            "PC" => self.with_pc(val),
+            "U"  => self.with_us(val),
+            "S"  => self.with_us(val),
+            "Y"  => self.with_y(val),
+            "X"  => self.with_x(val),
+            "DP" => self.with_dp(val),
+            "B"  => self.with_b(val),
+            "A"  => self.with_a(val),
+            "CC" => self.with_cc(val),
+            _ => *self,
+        }
+    }
+}
+
+#[bitfield(u8, order=Msb)]
+#[derive(PartialEq)]
+pub struct ConditionCodeByte {
+    e: bool, // 0b1000_0000
+    f: bool,
+    h: bool,
+    i: bool,
+    n: bool,
+    z: bool,
+    v: bool,
+    c: bool, // 0b0000_0001
+}
+
+impl ConditionCodeByte {
+    // Enable using a char to toggle a field on or off
+    pub fn with_char(&self, reg: char, val: bool) -> Self {
+        match reg {
+            'E' => self.with_e(val),
+            'F' => self.with_f(val),
+            'H' => self.with_h(val),
+            'I' => self.with_i(val),
+            'N' => self.with_n(val),
+            'Z' => self.with_z(val),
+            'V' => self.with_v(val),
+            'C' => self.with_c(val),
+            _ => *self,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -185,7 +248,7 @@ pub enum Imm8 {
     BITMD, LDMD, TFM(TfmMode),
 }
 
-fn Imm8(input: &str) -> IResult<&str, (Imm8, u8)> {
+fn imm8(input: &str) -> IResult<&str, (Imm8, u8)> {
     alt((
         // Reg to Reg
         pair(value(Imm8::ADCR,  tag("ADCR")), preceded(space1, reg_to_reg)),
@@ -199,18 +262,18 @@ fn Imm8(input: &str) -> IResult<&str, (Imm8, u8)> {
         pair(value(Imm8::EXG,   tag("EXG")),  preceded(space1, reg_to_reg)),
         pair(value(Imm8::TFR,   tag("TFR")),  preceded(space1, reg_to_reg)),
         // Stack PostByte
-//        pair(value(Imm8::PSHS,  tag("PSHS")), stack_postbyte),
-//        pair(value(Imm8::PSHU,  tag("PSHU")), stack_postbyte),
-//        pair(value(Imm8::PULS,  tag("PULS")), stack_postbyte),
-//        pair(value(Imm8::PULU,  tag("PULU")), stack_postbyte),
-//        // Condition Code Flags
-//        pair(value(Imm8::ANDCC, tag("ANDCC")), cc_flags),
-//        pair(value(Imm8::ORCC,  tag("ORCC")), cc_flags),
-//        pair(value(Imm8::CWAI,  tag("CWAI")), cc_flags),
-//        // Weird
-//        pair(value(Imm8::BITMD, tag("BITMD")), raw_imm8),
-//        pair(value(Imm8::LDMD,  tag("LDMD")),  raw_imm8),
-//        map(pair(tag("TFM"), tfm_reg), |(_, (mode, reg))| (Imm8::TFM(mode), reg)),
+        pair(value(Imm8::PSHS,  tag("PSHS")), preceded(space1, stack_postbyte)),
+        pair(value(Imm8::PSHU,  tag("PSHU")), preceded(space1, stack_postbyte)),
+        pair(value(Imm8::PULS,  tag("PULS")), preceded(space1, stack_postbyte)),
+        pair(value(Imm8::PULU,  tag("PULU")), preceded(space1, stack_postbyte)),
+        // Condition Code Flags
+        pair(value(Imm8::ANDCC, tag("ANDCC")), preceded(space1, condition_code)),
+        pair(value(Imm8::ORCC,  tag("ORCC")),  preceded(space1, condition_code)),
+        pair(value(Imm8::CWAI,  tag("CWAI")),  preceded(space1, condition_code)),
+        // Weird
+        pair(value(Imm8::BITMD, tag("BITMD")), preceded(space1, bitmd_imm8)),
+        pair(value(Imm8::LDMD,  tag("LDMD")),  preceded(space1, ldmd_imm8)),
+        map(pair(tag("TFM"), preceded(space1, tfm_reg)), |(_, (mode, reg))| (Imm8::TFM(mode), reg)),
     )).parse(input)
 }
 
@@ -218,47 +281,96 @@ fn reg_to_reg(input: &str) -> IResult<&str, u8> {
     map(separated_pair(inter_reg, tag(","), inter_reg), |(r0, r1)| inter_reg_post_byte(r0, r1)).parse(input)
 }
 
-
-
-
-#[bitfield(u8, order=Msb)]
-#[derive(PartialEq)]
-pub struct PushPullPostByte {
-    pc: bool, // 0b1000_0000
-    us: bool,
-    y:  bool,
-    x:  bool,
-    dp: bool,
-    b:  bool,
-    a:  bool,
-    cc: bool, // 0b0000_0001
+fn stack_postbyte(input: &str) -> IResult<&str, u8> {
+    separated_list1(
+        tag(","),
+        alt((
+            tag("PC"),
+            tag("DP"),
+            tag("CC"),
+            recognize(one_of("USYXBA"))
+        )),
+    ).parse(input).map(
+        |(input, items)| (input, items.into_iter().fold(
+            StackPostByte::new(),
+            |mut acc, x| acc.with_str(x, true),
+        ).into())
+    )
 }
 
-impl PushPullPostByte {
-    // Enable using a string to toggle a field on or off
-    pub fn with_str(&self, reg: &str, val: bool) -> Self {
-        match reg {
-            "PC" => self.with_pc(val),
-            "U"  => self.with_us(val),
-            "S"  => self.with_us(val),
-            "Y"  => self.with_y(val),
-            "X"  => self.with_x(val),
-            "DP" => self.with_dp(val),
-            "B"  => self.with_b(val),
-            "A"  => self.with_a(val),
-            "CC" => self.with_cc(val),
-            _ => *self,
-        }
-    }
+fn condition_code(input: &str) -> IResult<&str, u8> {
+    separated_list1(
+        tag(","),
+        one_of("EFHINZVC"),
+    ).parse(input).map(
+        |(input, items)| (input, items.into_iter().fold(
+            ConditionCodeByte::new(),
+            |mut acc, x| acc.with_char(x, true),
+        ).into())
+    )
 }
 
+fn bitmd_imm8(input: &str) -> IResult<&str, u8> {
+    separated_list1(
+        tag(","),
+        alt((
+            value(0b1000_0000, tag("/0")),
+            value(0b0100_0000, tag("IL")),
+        )),
+    ).parse(input).map(
+        |(input, items)| (input, items.into_iter().fold(
+            0,
+            |mut acc, x| acc | x,
+        ))
+    )
+}
 
+fn ldmd_imm8(input: &str) -> IResult<&str, u8> {
+    separated_list1(
+        tag(","),
+        alt((
+            value(0b0000_0010, tag("FM")),
+            value(0b0000_0001, tag("NM")),
+        )),
+    ).parse(input).map(
+        |(input, items)| (input, items.into_iter().fold(
+            0,
+            |mut acc, x| acc | x,
+        ))
+    )
+}
 
+fn tfm_mode_reg(input: &str) -> IResult<&str, (InterReg, char)> {
+    recognize(
+        one_of("XYUSD")
+    ).and_then(
+        inter_reg
+    ).and(
+        alt((
+            complete(one_of("+-")),
+            success(' ')
+        ))
+    ).parse(input)
+}
 
+fn tfm_reg(input: &str) -> IResult<&str, (TfmMode, u8)> {
+    let (input, (r0, r1)) = separated_pair(
+        tfm_mode_reg,
+        tag(","),
+        tfm_mode_reg,
+    ).parse(input)?;
 
+    let post_byte = inter_reg_post_byte(r0.0, r1.0);
+    let tfm_mode = match (r0.1, r1.1) {
+        ('+', '+') => Ok(TfmMode::PlusPlus),
+        ('-', '-') => Ok(TfmMode::MinusMinus),
+        ('+', ' ') => Ok(TfmMode::PlusNone),
+        (' ', '+') => Ok(TfmMode::NonePlus),
+        _ => Err(nom::Err::Error(Error::new("ParseTfmModeError", nom::error::ErrorKind::Fail))),
+    }?;
 
-
-
+    Ok((input, (tfm_mode, post_byte)))
+}
 
 
 
@@ -330,6 +442,108 @@ mod test_parser {
             assert_eq!(inherent(s), Ok(("", e)));
         }
     }
+
+    #[test]
+    fn test_parse_inter_reg() {
+        assert_eq!(inter_reg("D"), Ok(("", InterReg::D)));
+        assert_eq!(inter_reg("PC"), Ok(("", InterReg::PC)));
+        assert_eq!(inter_reg("CC"), Ok(("", InterReg::CC)));
+        assert_eq!(inter_reg("DP"), Ok(("", InterReg::DP)));
+        assert_eq!(inter_reg("0"), Ok(("", InterReg::Z1)));
+        assert_eq!(inter_reg("F"), Ok(("", InterReg::F)));
+    }
+
+    #[test]
+    fn test_inter_reg_post_byte() {
+        assert_eq!(
+            inter_reg_post_byte(InterReg::CC, InterReg::PC),
+            0b1010_0101,
+        );
+    }
+
+    #[test]
+    fn test_stack_post_byte() {
+        assert_eq!(stack_postbyte("PC"), Ok(("", 0b1000_0000)));
+        assert_eq!(stack_postbyte("U"), Ok(("", 0b0100_0000)));
+        assert_eq!(stack_postbyte("S"), Ok(("", 0b0100_0000)));
+        assert_eq!(stack_postbyte("PC,U,DP,A"), Ok(("", 0b1100_1010)));
+    }
+
+    #[test]
+    fn test_condition_code_byte() {
+        assert_eq!(condition_code("E"), Ok(("", 0b1000_0000)));
+        assert_eq!(condition_code("C"), Ok(("", 0b0000_0001)));
+        assert_eq!(condition_code("E,I,N,C"), Ok(("", 0b1001_1001)));
+    }
+
+    #[test]
+    fn test_bitmd_byte() {
+        assert_eq!(bitmd_imm8("/0"), Ok(("", 0b1000_0000)));
+        assert_eq!(bitmd_imm8("IL"), Ok(("", 0b0100_0000)));
+        assert_eq!(bitmd_imm8("IL,/0"), Ok(("", 0b1100_0000)));
+    }
+
+    #[test]
+    fn test_ldmd_byte() {
+        assert_eq!(ldmd_imm8("FM"), Ok(("", 0b0000_0010)));
+        assert_eq!(ldmd_imm8("NM"), Ok(("", 0b0000_0001)));
+        assert_eq!(ldmd_imm8("FM,NM"), Ok(("", 0b0000_0011)));
+    }
+
+    #[test]
+    fn test_tfm_mode_reg() {
+        assert_eq!(tfm_mode_reg("X+"), Ok(("", (InterReg::X, '+'))));
+        assert_eq!(tfm_mode_reg("Y-"), Ok(("", (InterReg::Y, '-'))));
+        assert_eq!(tfm_mode_reg("U"), Ok(("", (InterReg::U, ' '))));
+    }
+
+    #[test]
+    fn test_tfm_reg_byte() {
+        let data = vec![
+            ("X+,Y+", (TfmMode::PlusPlus,   inter_reg_post_byte(InterReg::X, InterReg::Y))),
+            ("X-,Y-", (TfmMode::MinusMinus, inter_reg_post_byte(InterReg::X, InterReg::Y))),
+            ("X+,Y",  (TfmMode::PlusNone,   inter_reg_post_byte(InterReg::X, InterReg::Y))),
+            ("X,Y+",  (TfmMode::NonePlus,   inter_reg_post_byte(InterReg::X, InterReg::Y))),
+        ];
+
+        for (s,e) in data {
+            assert_eq!(tfm_reg(s), Ok(("", e)));
+        }
+    }
+
+    #[test]
+    fn test_imm8() {
+        let data = vec![
+            // Reg to Reg
+            ("ADCR A,B", (Imm8::ADCR, inter_reg_post_byte(InterReg::A, InterReg::B))),
+            ("CMPR DP,0", (Imm8::CMPR, inter_reg_post_byte(InterReg::DP, InterReg::Z1))),
+            // Stack PostByte
+            ("PSHS PC", (Imm8::PSHS, StackPostByte::new().with_pc(true).into())),
+            ("PULU PC,CC,A", (
+                Imm8::PULU,
+                StackPostByte::new().with_pc(true).with_cc(true).with_a(true).into()
+            )),
+            // Condition Code Flags
+            ("ANDCC E", (Imm8::ANDCC, ConditionCodeByte::new().with_e(true).into())),
+            ("ORCC E,V", (Imm8::ORCC, ConditionCodeByte::new().with_e(true).with_v(true).into())),
+            // Weird
+            ("BITMD /0", (Imm8::BITMD, 0b1000_0000)),
+            ("BITMD /0,IL", (Imm8::BITMD, 0b1100_0000)),
+            ("LDMD NM", (Imm8::LDMD, 0b0000_0001)),
+            ("LDMD FM,NM", (Imm8::LDMD, 0b0000_0011)),
+            // TFM
+            ("TFM X+,Y+", (Imm8::TFM(TfmMode::PlusPlus), inter_reg_post_byte(InterReg::X, InterReg::Y))),
+            ("TFM X-,Y-", (Imm8::TFM(TfmMode::MinusMinus), inter_reg_post_byte(InterReg::X, InterReg::Y))),
+            ("TFM X+,Y", (Imm8::TFM(TfmMode::PlusNone), inter_reg_post_byte(InterReg::X, InterReg::Y))),
+            ("TFM X,Y+", (Imm8::TFM(TfmMode::NonePlus), inter_reg_post_byte(InterReg::X, InterReg::Y))),
+        ];
+
+        for (s,e) in data {
+            assert_eq!(imm8(s), Ok(("", e)));
+        }
+    }
+
+
 
     #[test]
     fn test_radix() {
