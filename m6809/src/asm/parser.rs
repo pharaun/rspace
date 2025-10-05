@@ -3,25 +3,25 @@ use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::bytes::complete::take_while1;
+use nom::character::complete::one_of;
 use nom::character::complete::space1;
-use nom::character::one_of;
 use nom::combinator::map;
 use nom::combinator::recognize;
 use nom::combinator::success;
 use nom::combinator::value;
-use nom::combinator::complete;
 use nom::error::Error;
-use nom::sequence::pair;
-use nom::sequence::separated_pair;
-use nom::sequence::preceded;
 use nom::multi::separated_list1;
+use nom::sequence::pair;
+use nom::sequence::preceded;
+use nom::sequence::separated_pair;
+use nom::sequence::terminated;
 
 use num_traits::Num;
 use bitfield_struct::bitfield;
 
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum HalfAcc {A, B, D}
+enum HalfAcc {A, B, D}
 
 fn half_acc(input: &str) -> IResult<&str, HalfAcc> {
     alt((
@@ -32,7 +32,7 @@ fn half_acc(input: &str) -> IResult<&str, HalfAcc> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum FullAcc {A, B, D, E, F, W}
+enum FullAcc {A, B, D, E, F, W}
 
 fn full_acc(input: &str) -> IResult<&str, FullAcc> {
     alt((
@@ -46,7 +46,7 @@ fn full_acc(input: &str) -> IResult<&str, FullAcc> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum ShiftAcc {A, B, D, W}
+enum ShiftAcc {A, B, D, W}
 
 fn shift_acc(input: &str) -> IResult<&str, ShiftAcc> {
     alt((
@@ -58,7 +58,7 @@ fn shift_acc(input: &str) -> IResult<&str, ShiftAcc> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Inherent {
+enum Inherent {
     // Simple Inherent instruction
     ABX, DAA, MUL, NOP, RTI, RTS, SYNC,
     PSHSW, PSHUW, PULSW, PULUW,
@@ -119,7 +119,7 @@ fn inherent(input: &str) -> IResult<&str, Inherent> {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum InterReg {
+enum InterReg {
     D  = 0b0000,
     X  = 0b0001,
     Y  = 0b0010,
@@ -159,14 +159,14 @@ fn inter_reg(input: &str) -> IResult<&str, InterReg> {
     )).parse(input)
 }
 
-pub fn inter_reg_post_byte(r0: InterReg, r1: InterReg) -> u8 {
+fn inter_reg_post_byte(r0: InterReg, r1: InterReg) -> u8 {
     let mask: u8 = 0b0000_1111;
     (((r0 as u8) & mask) << 4) | ((r1 as u8) & mask)
 }
 
 #[bitfield(u8, order=Msb)]
 #[derive(PartialEq)]
-pub struct StackPostByte {
+struct StackPostByte {
     pc: bool, // 0b1000_0000
     us: bool,
     y:  bool,
@@ -179,7 +179,7 @@ pub struct StackPostByte {
 
 impl StackPostByte {
     // Enable using a string to toggle a field on or off
-    pub fn with_str(&self, reg: &str, val: bool) -> Self {
+    fn with_str(&self, reg: &str, val: bool) -> Self {
         match reg {
             "PC" => self.with_pc(val),
             "U"  => self.with_us(val),
@@ -197,7 +197,7 @@ impl StackPostByte {
 
 #[bitfield(u8, order=Msb)]
 #[derive(PartialEq)]
-pub struct ConditionCodeByte {
+struct ConditionCodeByte {
     e: bool, // 0b1000_0000
     f: bool,
     h: bool,
@@ -210,7 +210,7 @@ pub struct ConditionCodeByte {
 
 impl ConditionCodeByte {
     // Enable using a char to toggle a field on or off
-    pub fn with_char(&self, reg: char, val: bool) -> Self {
+    fn with_char(&self, reg: char, val: bool) -> Self {
         match reg {
             'E' => self.with_e(val),
             'F' => self.with_f(val),
@@ -226,7 +226,7 @@ impl ConditionCodeByte {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum TfmMode {
+enum TfmMode {
     PlusPlus, // TFM r0+, r1+
     MinusMinus, // TFM r0-, r1-
     PlusNone, // TFM r0+, r1
@@ -234,7 +234,7 @@ pub enum TfmMode {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Imm8 {
+enum Imm8 {
     // Reg to Reg
     ADCR, ADDR, ANDR, CMPR, EORR, ORR, SBCR, SUBR, EXG, TFR,
 
@@ -347,7 +347,7 @@ fn tfm_mode_reg(input: &str) -> IResult<&str, (InterReg, char)> {
         inter_reg
     ).and(
         alt((
-            complete(one_of("+-")),
+            one_of("+-"),
             success(' ')
         ))
     ).parse(input)
@@ -372,7 +372,127 @@ fn tfm_reg(input: &str) -> IResult<&str, (TfmMode, u8)> {
     Ok((input, (tfm_mode, post_byte)))
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum BitMode { AND, EOR, OR }
 
+fn bit_mode(input: &str) -> IResult<&str, BitMode> {
+    alt((
+        value(BitMode::AND, tag("AND")),
+        value(BitMode::EOR, tag("EOR")),
+        value(BitMode::OR, tag("OR")),
+    )).parse(input)
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum BitInv { AsIs, Inverted }
+
+fn bit_inv(input: &str) -> IResult<&str, BitInv> {
+    preceded(
+        tag("B"),
+        alt((
+            value(BitInv::Inverted, tag("I")),
+            success(BitInv::AsIs),
+        )),
+    ).parse(input)
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum DirectBit {
+    // Load/Store
+    LDBT, STBT,
+
+    // Bit Mutation
+    BitMut(BitMode, BitInv),
+}
+
+fn direct_bit(input: &str) -> IResult<&str, (DirectBit, (u8, u8))> {
+    alt((
+        // Load/Store
+        pair(value(DirectBit::LDBT, tag("LDBT")), preceded(space1, bit_arg)),
+        pair(value(DirectBit::STBT, tag("STBT")), preceded(space1, bit_arg)),
+
+        // Bit Mutation
+        map(
+            pair(pair(bit_inv, bit_mode), preceded(space1, bit_arg)),
+            |((bi, bm), ba)| (DirectBit::BitMut(bm, bi), ba),
+        ),
+    )).parse(input)
+}
+
+fn bit_arg(input: &str) -> IResult<&str, (u8, u8)> {
+    // BIAND r, sBit, dBit, addr
+    map((
+        // r == CC = 0b00, A = 0b01, B = 0b10, invalid = 0b11
+        terminated(bit_reg, tag(",")),
+        // sBit/dBit == 0-7 -> 3bit
+        terminated(bit_sel, tag(",")),
+        terminated(bit_sel, tag(",")),
+        ),
+        |(reg, sBit, dBit)| {
+            reg << 6 | sBit << 3 | dBit
+        },
+    ).and(
+        // addr -> u8 byte
+        direct_addr
+    ).parse(input)
+}
+
+fn bit_reg(input: &str) -> IResult<&str, u8> {
+    alt((
+        value(0b00, tag("CC")),
+        value(0b01, tag("A")),
+        value(0b10, tag("B")),
+        // 0b11 == Invalid
+    )).parse(input)
+}
+
+fn bit_sel(input: &str) -> IResult<&str, u8> {
+    alt((
+        value(0b000, tag("0")),
+        value(0b001, tag("1")),
+        value(0b010, tag("2")),
+        value(0b011, tag("3")),
+        value(0b100, tag("4")),
+        value(0b101, tag("5")),
+        value(0b110, tag("6")),
+        value(0b111, tag("7")),
+    )).parse(input)
+}
+
+fn direct_addr(input: &str) -> IResult<&str, u8> {
+    preceded(
+        tag("$"),
+        number::<u8>,
+    ).parse(input)
+}
+
+
+// Instruction family to try to parse
+//
+// Indexed:
+//  LEAS LEAU LEAX LEAY
+//
+// Addr Only:
+//  ASL - LSL
+//  ASR
+//  CLR
+//  COM
+//  DEC
+//  INC
+//  JMP
+//  JSR
+//  LSR
+//  NEG
+//  ROL
+//  ROR
+//  TST
+//  STA STB STD STE STF STQ STS STU STW STX STY
+//
+// Addr Weird Only:
+//  AIM
+//  EIM
+//  OIM
+//  TIM
 
 
 
@@ -542,6 +662,28 @@ mod test_parser {
             assert_eq!(imm8(s), Ok(("", e)));
         }
     }
+
+    #[test]
+    fn test_direct_bit() {
+        let data = vec![
+            // Load/Store
+            ("LDBT CC,0,7,$0xFF", (DirectBit::LDBT, (0b00_000_111, 0xFF))),
+            ("STBT B,7,0,$0x00",  (DirectBit::STBT, (0b10_111_000, 0x00))),
+
+            // Bit Mutation
+            ("BAND B,7,0,$0xAF",  (DirectBit::BitMut(BitMode::AND, BitInv::AsIs), (0b10_111_000, 0xAF))),
+            ("BIAND B,7,0,$0xAF", (DirectBit::BitMut(BitMode::AND, BitInv::Inverted), (0b10_111_000, 0xAF))),
+            ("BEOR B,7,0,$0xAF",  (DirectBit::BitMut(BitMode::EOR, BitInv::AsIs), (0b10_111_000, 0xAF))),
+            ("BIEOR B,7,0,$0xAF", (DirectBit::BitMut(BitMode::EOR, BitInv::Inverted), (0b10_111_000, 0xAF))),
+            ("BOR B,7,0,$0xAF",   (DirectBit::BitMut(BitMode::OR, BitInv::AsIs), (0b10_111_000, 0xAF))),
+            ("BIOR B,7,0,$0xAF",  (DirectBit::BitMut(BitMode::OR, BitInv::Inverted), (0b10_111_000, 0xAF))),
+        ];
+
+        for (s,e) in data {
+            assert_eq!(direct_bit(s), Ok(("", e)));
+        }
+    }
+
 
 
 
