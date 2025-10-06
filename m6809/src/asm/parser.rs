@@ -16,6 +16,7 @@ use nom::sequence::pair;
 use nom::sequence::preceded;
 use nom::sequence::separated_pair;
 use nom::sequence::terminated;
+use nom::sequence::delimited;
 
 use num_traits::Num;
 use bitfield_struct::bitfield;
@@ -301,7 +302,7 @@ fn stack_postbyte(input: &str) -> IResult<&str, u8> {
     ).parse(input).map(
         |(input, items)| (input, items.into_iter().fold(
             StackPostByte::new(),
-            |mut acc, x| acc.with_str(x, true),
+            |acc, x| acc.with_str(x, true),
         ).into())
     )
 }
@@ -313,7 +314,7 @@ fn condition_code(input: &str) -> IResult<&str, u8> {
     ).parse(input).map(
         |(input, items)| (input, items.into_iter().fold(
             ConditionCodeByte::new(),
-            |mut acc, x| acc.with_char(x, true),
+            |acc, x| acc.with_char(x, true),
         ).into())
     )
 }
@@ -328,7 +329,7 @@ fn bitmd_imm8(input: &str) -> IResult<&str, u8> {
     ).parse(input).map(
         |(input, items)| (input, items.into_iter().fold(
             0,
-            |mut acc, x| acc | x,
+            |acc, x| acc | x,
         ))
     )
 }
@@ -343,7 +344,7 @@ fn ldmd_imm8(input: &str) -> IResult<&str, u8> {
     ).parse(input).map(
         |(input, items)| (input, items.into_iter().fold(
             0,
-            |mut acc, x| acc | x,
+            |acc, x| acc | x,
         ))
     )
 }
@@ -436,8 +437,8 @@ fn bit_arg(input: &str) -> IResult<&str, (u8, u8)> {
         terminated(bit_sel, tag(",")),
         terminated(bit_sel, tag(",")),
         ),
-        |(reg, sBit, dBit)| {
-            reg << 6 | sBit << 3 | dBit
+        |(reg, s_bit, d_bit)| {
+            reg << 6 | s_bit << 3 | d_bit
         },
     ).and(
         // addr -> u8 byte
@@ -614,9 +615,9 @@ fn index_post_byte(index: IndexPostByte) -> u8 {
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum IndexBytes {
-    Zero,
+    None,
     One(u8),
-    Two(u8),
+    Two(u16),
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -626,44 +627,57 @@ enum Indexed {
 
 fn indexed(input: &str) -> IResult<&str, (Indexed, u8, IndexBytes)> {
     map(
-        pair(tag("LEA"), stack_reg),
-        |(_, sreg)| (Indexed::LEA(sreg), 0, IndexBytes::Zero)
+        pair(
+            preceded(tag("LEA"), stack_reg),
+            preceded(space1, index_addr_parse),
+        ),
+        |(s_reg, (i_typ, (i_arg, w_stack)))| {
+            let (index_post, index_bytes) = index_parse_to_post_byte(
+                i_typ, i_arg, w_stack
+            );
+            let index_pb = index_post_byte(index_post);
+
+            (Indexed::LEA(s_reg), index_pb, index_bytes)
+        },
     ).parse(input)
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-enum WStack {W, PCR, Stack(StackReg)}
+enum WStack {W, PCR, Stack(StackReg), None}
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum IncDec {Inc, IncInc, Dec, DecDec, None}
 
-fn zero_offset_parse(input: &str) -> IResult<&str, (IncDec, WStack)> {
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum IndexArg {IncDec(IncDec), Imm(i16), Acc(FullAcc), UImm(u16)}
+
+fn zero_offset_parse(input: &str) -> IResult<&str, (IndexArg, WStack)> {
     preceded(
         pair(opt(tag("0")), tag(",")),
         alt((
             // 0,R ~= ,R
-            map(stack_reg, |s| (IncDec::None, WStack::Stack(s))),
+            map(stack_reg, |s| (IndexArg::IncDec(IncDec::None), WStack::Stack(s))),
             // 0,-R ~= ,-R
-            map(pair(tag("-"), stack_reg), |(_, s)| (IncDec::Dec, WStack::Stack(s))),
+            map(pair(tag("-"), stack_reg), |(_, s)| (IndexArg::IncDec(IncDec::Dec), WStack::Stack(s))),
             // 0,R+ ~= ,R+
-            map(pair(stack_reg, tag("+")), |(s, _)| (IncDec::Inc, WStack::Stack(s))),
+            map(pair(stack_reg, tag("+")), |(s, _)| (IndexArg::IncDec(IncDec::Inc), WStack::Stack(s))),
             // 0,--R ~= ,--R
-            map(pair(tag("--"), stack_reg), |(_, s)| (IncDec::DecDec, WStack::Stack(s))),
+            map(pair(tag("--"), stack_reg), |(_, s)| (IndexArg::IncDec(IncDec::DecDec), WStack::Stack(s))),
             // 0,R++ ~= ,R++
-            map(pair(stack_reg, tag("++")), |(s, _)| (IncDec::IncInc, WStack::Stack(s))),
+            map(pair(stack_reg, tag("++")), |(s, _)| (IndexArg::IncDec(IncDec::IncInc), WStack::Stack(s))),
             // 0,W ~= ,W
-            value((IncDec::None, WStack::W), tag("W")),
+            value((IndexArg::IncDec(IncDec::None), WStack::W), tag("W")),
             // 0,--W ~= ,--W
-            value((IncDec::DecDec, WStack::W), tag("--W")),
+            value((IndexArg::IncDec(IncDec::DecDec), WStack::W), tag("--W")),
             // 0,W++ ~= ,W++
-            value((IncDec::IncInc, WStack::W), tag("W++")),
+            value((IndexArg::IncDec(IncDec::IncInc), WStack::W), tag("W++")),
         ))
     ).parse(input)
 }
 
-fn imm_parse(input: &str) -> IResult<&str, (i16, WStack)> {
+fn imm_parse(input: &str) -> IResult<&str, (IndexArg, WStack)> {
     separated_pair(
-        number::<i16>,
+        map(number::<i16>, IndexArg::Imm),
         tag(","),
         alt((
             // n,R   - n = imm5, imm8, imm16
@@ -676,29 +690,135 @@ fn imm_parse(input: &str) -> IResult<&str, (i16, WStack)> {
     ).parse(input)
 }
 
-fn acc_stack(input: &str) -> IResult<&str, (FullAcc, StackReg)> {
+fn acc_stack(input: &str) -> IResult<&str, (IndexArg, WStack)> {
     // acc,R
-    separated_pair(full_acc, tag(","), stack_reg).parse(input)
+    separated_pair(
+        map(full_acc, IndexArg::Acc),
+        tag(","),
+        map(stack_reg, WStack::Stack),
+    ).parse(input)
 }
 
-fn index_addr(input: &str) -> IResult<&str, (IndexPostByte, IndexBytes)> {
+fn index_addr_parse(input: &str) -> IResult<&str, (IndexType, (IndexArg, WStack))> {
     alt((
-        map(zero_offset_parse, |(inc_dec, wstack)| {
-        }),
-        map(imm_parse, |(imm, wstack)| {
-        }),
-        map(acc_stack, |(acc, stack)| {
-        }),
-    )).parse(input);
-
-    Ok((input, (IndexPostByte::ExtendedIndirect, IndexBytes::Zero)))
-
-    //
-    // [<above stuff>] - indirect mode
-    //delimited(tag([), parse, tag(]))
-    //
-    // [n] - n == imm16
+        pair(
+            success(IndexType::Indirect),
+            delimited(
+                tag("["),
+                alt((
+                    zero_offset_parse,
+                    imm_parse,
+                    acc_stack,
+                    pair(
+                        map(number::<u16>, IndexArg::UImm),
+                        success(WStack::None),
+                    ),
+                )),
+                tag("]")
+            ),
+        ),
+        pair(
+            success(IndexType::NonIndirect),
+            alt((
+                zero_offset_parse,
+                imm_parse,
+                acc_stack,
+            )),
+        ),
+    )).parse(input)
 }
+
+fn index_parse_to_post_byte(it: IndexType, ia: IndexArg, ws: WStack) -> (IndexPostByte, IndexBytes) {
+    match (it, ia, ws) {
+        // Indirect Specials
+        // [n]
+        (IndexType::Indirect, IndexArg::UImm(addr), WStack::None) => {
+            (IndexPostByte::ExtendedIndirect, IndexBytes::Two(addr))
+        },
+        // NonIndirect Specials
+        // Inc
+        (IndexType::NonIndirect, IndexArg::IncDec(IncDec::Inc), WStack::Stack(s)) => {
+            (IndexPostByte::Inc(s), IndexBytes::None)
+        },
+        // Dec
+        (IndexType::NonIndirect, IndexArg::IncDec(IncDec::Dec), WStack::Stack(s)) => {
+            (IndexPostByte::Dec(s), IndexBytes::None)
+        },
+        // W register Specials
+        // 0,W++ ~= ,W++
+        (it, IndexArg::IncDec(IncDec::IncInc), WStack::W) => {
+            (IndexPostByte::RegW(ModeW::IncInc, it), IndexBytes::None)
+        },
+        // 0,--W ~= ,--W
+        (it, IndexArg::IncDec(IncDec::DecDec), WStack::W) => {
+            (IndexPostByte::RegW(ModeW::DecDec, it), IndexBytes::None)
+        },
+        // 0,W ~= ,W
+        (it, IndexArg::IncDec(IncDec::None), WStack::W) => {
+            (IndexPostByte::RegW(ModeW::Offset0, it), IndexBytes::None)
+        },
+        // n,W   - n = imm16
+        (it, IndexArg::Imm(offset), WStack::W) => {
+            (IndexPostByte::RegW(ModeW::Offset16, it), IndexBytes::Two(offset as u16))
+        },
+        // Standard index modes
+        // RR IncInc
+        (it, IndexArg::IncDec(IncDec::IncInc), WStack::Stack(s)) => {
+            (IndexPostByte::Standard(s, IndexMode::IncInc, it), IndexBytes::None)
+        },
+        // RR DecDec
+        (it, IndexArg::IncDec(IncDec::DecDec), WStack::Stack(s)) => {
+            (IndexPostByte::Standard(s, IndexMode::DecDec, it), IndexBytes::None)
+        },
+        // RR AccA/B/D/E/F/W
+        (it, IndexArg::Acc(acc), WStack::Stack(s)) => {
+            let acc_mode = match acc {
+                FullAcc::A => IndexMode::AccA,
+                FullAcc::B => IndexMode::AccB,
+                FullAcc::D => IndexMode::AccD,
+                FullAcc::E => IndexMode::AccE,
+                FullAcc::F => IndexMode::AccF,
+                FullAcc::W => IndexMode::AccW,
+            };
+            (IndexPostByte::Standard(s, acc_mode, it), IndexBytes::None)
+        },
+        // PCR8
+        // PCR16
+        (it, IndexArg::Imm(offset), WStack::PCR) => {
+            // if fit in 8bit emit pcr8, otherwise pcr16
+            let (pcr_mode, ib) = match i8::try_from(offset) {
+                Ok(imm8) => (IndexMode::PCR8,  IndexBytes::One(imm8 as u8)),
+                Err(_)   => (IndexMode::PCR16, IndexBytes::Two(offset as u16)),
+            };
+            // The stack register is ignored, just hardcode 1 here
+            (IndexPostByte::Standard(StackReg::X, pcr_mode, it), ib)
+        },
+        // Offset mode
+        // Offset0
+        (it, IndexArg::IncDec(IncDec::None), WStack::Stack(s)) => {
+            (IndexPostByte::Standard(s, IndexMode::Offset0, it), IndexBytes::None)
+        },
+        // Offset5 - Special (-16 to +15)
+        // Offset8
+        // Offset16
+        (it, IndexArg::Imm(offset), WStack::Stack(s)) => {
+            // Check if it fits in 5bit otherwise 8/16 bit
+            if (offset <= 15) && (offset >= -16) {
+                (IndexPostByte::Offset5(s, offset as u8), IndexBytes::None)
+            } else {
+                let (offset_mode, ib) = match i8::try_from(offset) {
+                    Ok(imm8) => (IndexMode::Offset8, IndexBytes::One(imm8 as u8)),
+                    Err(_)   => (IndexMode::Offset16, IndexBytes::Two(offset as u16)),
+                };
+                (IndexPostByte::Standard(s, offset_mode, it), ib)
+            }
+        },
+        _ => panic!("Should not reach here from the parser"),
+    }
+}
+
+
+
 
 
 
@@ -762,7 +882,7 @@ fn number<T: Num<FromStrRadixErr = std::num::ParseIntError>>(input: &str) -> IRe
     // TODO: Make this better, this is a hack to work around implementing a custom error
     match integer {
         Ok(n)  => Ok((input, n)),
-        Err(e) => Err(nom::Err::Error(Error::new("ParseIntError", nom::error::ErrorKind::Fail))),
+        Err(_) => Err(nom::Err::Error(Error::new("ParseIntError", nom::error::ErrorKind::Fail))),
     }
 }
 
@@ -916,8 +1036,49 @@ mod test_parser {
         }
     }
 
+    #[test]
+    fn test_index_post_byte() {
+        // IndexPostByte -> u8
+    }
 
+    #[test]
+    fn test_zero_offset_parse() {
+        // 0,R ~= ,R
+        // 0,-R ~= ,-R
+        // 0,R+ ~= ,R+
+        // 0,--R ~= ,--R
+        // 0,R++ ~= ,R++
+        // 0,W ~= ,W
+        // 0,--W ~= ,--W
+        // 0,W++ ~= ,W++
+    }
 
+    #[test]
+    fn test_imm_parse() {
+        // n,R   - n = imm5, imm8, imm16
+        // n,W   - n = imm16
+        // n,PCR - n = imm8, imm16
+    }
+
+    #[test]
+    fn test_acc_stack() {
+        // acc,R
+    }
+
+    #[test]
+    fn test_index_addr_parse() {
+        // Test IndexType nesting for (IndexArg & WStack)
+    }
+
+    #[test]
+    fn test_index_parse_to_post_byte() {
+        // Test index_addr_parse -> IndexPostByte
+    }
+
+    #[test]
+    fn test_indexed() {
+        // LEA
+    }
 
     #[test]
     fn test_radix() {
