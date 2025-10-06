@@ -498,6 +498,15 @@ enum IndexType {
     Indirect    = 0b0000,
 }
 
+impl IndexType {
+    fn into_bool(&self) -> bool{
+        match self {
+            IndexType::NonIndirect => false,
+            IndexType::Indirect => true,
+        }
+    }
+}
+
 #[repr(u8)]
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum ModeW {
@@ -548,36 +557,56 @@ enum IndexPostByte {
     Standard(StackReg, IndexMode, IndexType),
 }
 
-fn index_post_byte(index: IndexPostByte) -> u8 {
-    let base: u8 = 0b1000_0000;
+#[bitfield(u8, order=Msb)]
+#[derive(PartialEq)]
+struct PackedIndexPostByte {
+    #[bits(1, default = true)]
+    __: bool,
+    #[bits(2)]
+    rr: u8,
+    #[bits(1)]
+    indirect: bool,
+    #[bits(4)]
+    mode: u8,
+}
 
+fn index_post_byte(index: IndexPostByte) -> u8 {
     match index {
         IndexPostByte::Offset5(rr, imm) => {
             let imm5_mask: u8 = 0b0001_1111;
             ((rr as u8) << 5) | (imm & imm5_mask)
         },
-        IndexPostByte::Inc(rr) => {
-            base | ((rr as u8) << 5)
-        },
-        IndexPostByte::Dec(rr) => {
-            base | ((rr as u8) << 5) | 0b0010
-        },
         IndexPostByte::ExtendedIndirect => {
             0b10011111
         },
+        IndexPostByte::Inc(rr) => {
+            PackedIndexPostByte::new()
+                .with_rr(rr as u8)
+                .with_indirect(false)
+                .with_mode(0b0000)
+                .into()
+        },
+        IndexPostByte::Dec(rr) => {
+            PackedIndexPostByte::new()
+                .with_rr(rr as u8)
+                .with_indirect(false)
+                .with_mode(0b0010)
+                .into()
+        },
         IndexPostByte::RegW(mode, typ) => {
-            let i_typ: u8 = match typ {
-                IndexType::NonIndirect => 0b0000_0000,
-                IndexType::Indirect    => 0b0001_0000,
-            };
-            base | ((mode as u8) << 5) | i_typ | (typ as u8)
+            PackedIndexPostByte::new()
+                .with_rr(mode as u8)
+                .with_indirect(typ.into_bool())
+                .with_mode(typ as u8)
+                .into()
         },
         IndexPostByte::Standard(rr, mode, typ) => {
-            let i_typ: u8 = match typ {
-                IndexType::NonIndirect => 0b0000_0000,
-                IndexType::Indirect    => 0b0001_0000,
-            };
-            base | ((rr as u8) << 5) | i_typ | (mode as u8)
+            PackedIndexPostByte::new()
+                .with_rr(rr as u8)
+                .with_indirect(typ.into_bool())
+                .with_mode(mode as u8)
+                .into()
+
         },
     }
 }
