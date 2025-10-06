@@ -9,6 +9,7 @@ use nom::combinator::map;
 use nom::combinator::recognize;
 use nom::combinator::success;
 use nom::combinator::value;
+use nom::combinator::opt;
 use nom::error::Error;
 use nom::multi::separated_list1;
 use nom::sequence::pair;
@@ -630,8 +631,73 @@ fn indexed(input: &str) -> IResult<&str, (Indexed, u8, IndexBytes)> {
     ).parse(input)
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum WStack {W, PCR, Stack(StackReg)}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum IncDec {Inc, IncInc, Dec, DecDec, None}
+
+fn zero_offset_parse(input: &str) -> IResult<&str, (IncDec, WStack)> {
+    preceded(
+        pair(opt(tag("0")), tag(",")),
+        alt((
+            // 0,R ~= ,R
+            map(stack_reg, |s| (IncDec::None, WStack::Stack(s))),
+            // 0,-R ~= ,-R
+            map(pair(tag("-"), stack_reg), |(_, s)| (IncDec::Dec, WStack::Stack(s))),
+            // 0,R+ ~= ,R+
+            map(pair(stack_reg, tag("+")), |(s, _)| (IncDec::Inc, WStack::Stack(s))),
+            // 0,--R ~= ,--R
+            map(pair(tag("--"), stack_reg), |(_, s)| (IncDec::DecDec, WStack::Stack(s))),
+            // 0,R++ ~= ,R++
+            map(pair(stack_reg, tag("++")), |(s, _)| (IncDec::IncInc, WStack::Stack(s))),
+            // 0,W ~= ,W
+            value((IncDec::None, WStack::W), tag("W")),
+            // 0,--W ~= ,--W
+            value((IncDec::DecDec, WStack::W), tag("--W")),
+            // 0,W++ ~= ,W++
+            value((IncDec::IncInc, WStack::W), tag("W++")),
+        ))
+    ).parse(input)
+}
+
+fn imm_parse(input: &str) -> IResult<&str, (i16, WStack)> {
+    separated_pair(
+        number::<i16>,
+        tag(","),
+        alt((
+            // n,R   - n = imm5, imm8, imm16
+            map(stack_reg, |s| WStack::Stack(s)),
+            // n,W   - n = imm16
+            value(WStack::W, tag("W")),
+            // n,PCR - n = imm8, imm16
+            value(WStack::PCR, tag("PCR")),
+        )),
+    ).parse(input)
+}
+
+fn acc_stack(input: &str) -> IResult<&str, (FullAcc, StackReg)> {
+    // acc,R
+    separated_pair(full_acc, tag(","), stack_reg).parse(input)
+}
+
 fn index_addr(input: &str) -> IResult<&str, (IndexPostByte, IndexBytes)> {
-    todo!("Implement");
+    alt((
+        map(zero_offset_parse, |(inc_dec, wstack)| {
+        }),
+        map(imm_parse, |(imm, wstack)| {
+        }),
+        map(acc_stack, |(acc, stack)| {
+        }),
+    )).parse(input);
+
+    Ok((input, (IndexPostByte::ExtendedIndirect, IndexBytes::Zero)))
+
+    //
+    // [<above stuff>] - indirect mode
+    //delimited(tag([), parse, tag(]))
+    //
+    // [n] - n == imm16
 }
 
 
@@ -874,5 +940,10 @@ mod test_parser {
         assert_eq!(number::<u16>("0xFF_FF"), Ok(("", 0xFF_FF)));
         assert_eq!(number::<u16>("0o44_33"), Ok(("", 0o44_33)));
         assert_eq!(number::<u16>("0b1010_1010"), Ok(("", 0b1010_1010)));
+        assert_eq!(number::<i16>("-16_000"), Ok(("", -16_000)));
+    }
+
+    #[test]
+    fn test_number_too_big_parse() {
     }
 }
