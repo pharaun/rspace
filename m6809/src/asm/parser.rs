@@ -655,22 +655,22 @@ fn zero_offset_parse(input: &str) -> IResult<&str, (IndexArg, WStack)> {
     preceded(
         pair(opt(tag("0")), tag(",")),
         alt((
-            // 0,R ~= ,R
-            map(stack_reg, |s| (IndexArg::IncDec(IncDec::None), WStack::Stack(s))),
+            // 0,--R ~= ,--R
+            map(pair(tag("--"), stack_reg), |(_, s)| (IndexArg::IncDec(IncDec::DecDec), WStack::Stack(s))),
+            // 0,--W ~= ,--W
+            value((IndexArg::IncDec(IncDec::DecDec), WStack::W), tag("--W")),
+            // 0,R++ ~= ,R++
+            map(pair(stack_reg, tag("++")), |(s, _)| (IndexArg::IncDec(IncDec::IncInc), WStack::Stack(s))),
+            // 0,W++ ~= ,W++
+            value((IndexArg::IncDec(IncDec::IncInc), WStack::W), tag("W++")),
             // 0,-R ~= ,-R
             map(pair(tag("-"), stack_reg), |(_, s)| (IndexArg::IncDec(IncDec::Dec), WStack::Stack(s))),
             // 0,R+ ~= ,R+
             map(pair(stack_reg, tag("+")), |(s, _)| (IndexArg::IncDec(IncDec::Inc), WStack::Stack(s))),
-            // 0,--R ~= ,--R
-            map(pair(tag("--"), stack_reg), |(_, s)| (IndexArg::IncDec(IncDec::DecDec), WStack::Stack(s))),
-            // 0,R++ ~= ,R++
-            map(pair(stack_reg, tag("++")), |(s, _)| (IndexArg::IncDec(IncDec::IncInc), WStack::Stack(s))),
+            // 0,R ~= ,R
+            map(stack_reg, |s| (IndexArg::IncDec(IncDec::None), WStack::Stack(s))),
             // 0,W ~= ,W
             value((IndexArg::IncDec(IncDec::None), WStack::W), tag("W")),
-            // 0,--W ~= ,--W
-            value((IndexArg::IncDec(IncDec::DecDec), WStack::W), tag("--W")),
-            // 0,W++ ~= ,W++
-            value((IndexArg::IncDec(IncDec::IncInc), WStack::W), tag("W++")),
         ))
     ).parse(input)
 }
@@ -845,6 +845,11 @@ fn index_parse_to_post_byte(it: IndexType, ia: IndexArg, ws: WStack) -> (IndexPo
 //  EIM
 //  OIM
 //  TIM
+//
+// Branching (long & short) relative jumps
+//
+// Remaining instructions
+//  imm8, imm16, and one or two imm32 + addr parsing
 
 
 
@@ -1038,46 +1043,168 @@ mod test_parser {
 
     #[test]
     fn test_index_post_byte() {
-        // IndexPostByte -> u8
+        let data = vec![
+            (0b00101000, IndexPostByte::Offset5(StackReg::Y, 0b0_1000)),
+            (0b10100000, IndexPostByte::Inc(StackReg::Y)),
+            (0b10100010, IndexPostByte::Dec(StackReg::Y)),
+            (0b10011111, IndexPostByte::ExtendedIndirect),
+            (0b10001111, IndexPostByte::RegW(ModeW::Offset0, IndexType::NonIndirect)),
+            (0b10101111, IndexPostByte::RegW(ModeW::Offset16, IndexType::NonIndirect)),
+            (0b10010000, IndexPostByte::RegW(ModeW::Offset0, IndexType::Indirect)),
+            (0b10110000, IndexPostByte::RegW(ModeW::Offset16, IndexType::Indirect)),
+            (0b11001111, IndexPostByte::RegW(ModeW::IncInc, IndexType::NonIndirect)),
+            (0b11101111, IndexPostByte::RegW(ModeW::DecDec, IndexType::NonIndirect)),
+            (0b11010000, IndexPostByte::RegW(ModeW::IncInc, IndexType::Indirect)),
+            (0b11110000, IndexPostByte::RegW(ModeW::DecDec, IndexType::Indirect)),
+            (0b11100100, IndexPostByte::Standard(StackReg::S, IndexMode::Offset0, IndexType::NonIndirect)),
+            (0b11101000, IndexPostByte::Standard(StackReg::S, IndexMode::Offset8, IndexType::NonIndirect)),
+            (0b11101001, IndexPostByte::Standard(StackReg::S, IndexMode::Offset16, IndexType::NonIndirect)),
+            (0b11100110, IndexPostByte::Standard(StackReg::S, IndexMode::AccA, IndexType::NonIndirect)),
+            (0b11100101, IndexPostByte::Standard(StackReg::S, IndexMode::AccB, IndexType::NonIndirect)),
+            (0b11101011, IndexPostByte::Standard(StackReg::S, IndexMode::AccD, IndexType::NonIndirect)),
+            (0b11100111, IndexPostByte::Standard(StackReg::S, IndexMode::AccE, IndexType::NonIndirect)),
+            (0b11101010, IndexPostByte::Standard(StackReg::S, IndexMode::AccF, IndexType::NonIndirect)),
+            (0b11101110, IndexPostByte::Standard(StackReg::S, IndexMode::AccW, IndexType::NonIndirect)),
+            (0b11100001, IndexPostByte::Standard(StackReg::S, IndexMode::IncInc, IndexType::NonIndirect)),
+            (0b11100011, IndexPostByte::Standard(StackReg::S, IndexMode::DecDec, IndexType::NonIndirect)),
+            (0b11101100, IndexPostByte::Standard(StackReg::S, IndexMode::PCR8, IndexType::NonIndirect)),
+            (0b11101101, IndexPostByte::Standard(StackReg::S, IndexMode::PCR16, IndexType::NonIndirect)),
+            (0b11110100, IndexPostByte::Standard(StackReg::S, IndexMode::Offset0, IndexType::Indirect)),
+            (0b11111000, IndexPostByte::Standard(StackReg::S, IndexMode::Offset8, IndexType::Indirect)),
+            (0b11111001, IndexPostByte::Standard(StackReg::S, IndexMode::Offset16, IndexType::Indirect)),
+            (0b11110110, IndexPostByte::Standard(StackReg::S, IndexMode::AccA, IndexType::Indirect)),
+            (0b11110101, IndexPostByte::Standard(StackReg::S, IndexMode::AccB, IndexType::Indirect)),
+            (0b11111011, IndexPostByte::Standard(StackReg::S, IndexMode::AccD, IndexType::Indirect)),
+            (0b11110111, IndexPostByte::Standard(StackReg::S, IndexMode::AccE, IndexType::Indirect)),
+            (0b11111010, IndexPostByte::Standard(StackReg::S, IndexMode::AccF, IndexType::Indirect)),
+            (0b11111110, IndexPostByte::Standard(StackReg::S, IndexMode::AccW, IndexType::Indirect)),
+            (0b11110001, IndexPostByte::Standard(StackReg::S, IndexMode::IncInc, IndexType::Indirect)),
+            (0b11110011, IndexPostByte::Standard(StackReg::S, IndexMode::DecDec, IndexType::Indirect)),
+            (0b11111100, IndexPostByte::Standard(StackReg::S, IndexMode::PCR8, IndexType::Indirect)),
+            (0b11111101, IndexPostByte::Standard(StackReg::S, IndexMode::PCR16, IndexType::Indirect)),
+        ];
+
+        for (e,s) in data {
+            assert_eq!(
+                index_post_byte(s),
+                e,
+                "index_post_byte = {:#010b} expect = {:#010b}",
+                index_post_byte(s),
+                e,
+            )
+        }
     }
 
     #[test]
     fn test_zero_offset_parse() {
-        // 0,R ~= ,R
-        // 0,-R ~= ,-R
-        // 0,R+ ~= ,R+
-        // 0,--R ~= ,--R
-        // 0,R++ ~= ,R++
-        // 0,W ~= ,W
-        // 0,--W ~= ,--W
-        // 0,W++ ~= ,W++
+        let data = vec![
+            // Stack Reg
+            ("0,X",   (IndexArg::IncDec(IncDec::None), WStack::Stack(StackReg::X))),
+            (",X",    (IndexArg::IncDec(IncDec::None), WStack::Stack(StackReg::X))),
+            ("0,-X",  (IndexArg::IncDec(IncDec::Dec), WStack::Stack(StackReg::X))),
+            (",-X",   (IndexArg::IncDec(IncDec::Dec), WStack::Stack(StackReg::X))),
+            ("0,X+",  (IndexArg::IncDec(IncDec::Inc), WStack::Stack(StackReg::X))),
+            (",X+",   (IndexArg::IncDec(IncDec::Inc), WStack::Stack(StackReg::X))),
+            ("0,--X", (IndexArg::IncDec(IncDec::DecDec), WStack::Stack(StackReg::X))),
+            (",--X",  (IndexArg::IncDec(IncDec::DecDec), WStack::Stack(StackReg::X))),
+            ("0,X++", (IndexArg::IncDec(IncDec::IncInc), WStack::Stack(StackReg::X))),
+            (",X++",  (IndexArg::IncDec(IncDec::IncInc), WStack::Stack(StackReg::X))),
+
+            // W Register
+            ("0,W",   (IndexArg::IncDec(IncDec::None), WStack::W)),
+            (",W",    (IndexArg::IncDec(IncDec::None), WStack::W)),
+            ("0,--W", (IndexArg::IncDec(IncDec::DecDec), WStack::W)),
+            (",--W",  (IndexArg::IncDec(IncDec::DecDec), WStack::W)),
+            ("0,W++", (IndexArg::IncDec(IncDec::IncInc), WStack::W)),
+            (",W++",  (IndexArg::IncDec(IncDec::IncInc), WStack::W)),
+        ];
+
+        for (s,e) in data {
+            assert_eq!(zero_offset_parse(s), Ok(("", e)));
+        }
     }
 
     #[test]
     fn test_imm_parse() {
-        // n,R   - n = imm5, imm8, imm16
-        // n,W   - n = imm16
-        // n,PCR - n = imm8, imm16
+        let data = vec![
+            // n,R   - n = imm5, imm8, imm16
+            ("4,Y",    (IndexArg::Imm(4), WStack::Stack(StackReg::Y))),
+            ("-4,Y",   (IndexArg::Imm(-4), WStack::Stack(StackReg::Y))),
+            ("128,Y",  (IndexArg::Imm(128), WStack::Stack(StackReg::Y))),
+            ("-128,Y", (IndexArg::Imm(-128), WStack::Stack(StackReg::Y))),
+            ("512,Y",  (IndexArg::Imm(512), WStack::Stack(StackReg::Y))),
+            ("-512,Y", (IndexArg::Imm(-512), WStack::Stack(StackReg::Y))),
+            // n,W   - n = imm16
+            ("512,W",  (IndexArg::Imm(512), WStack::W)),
+            ("-512,W", (IndexArg::Imm(-512), WStack::W)),
+            // n,PCR - n = imm8, imm16
+            ("64,PCR",   (IndexArg::Imm(64), WStack::PCR)),
+            ("-64,PCR",  (IndexArg::Imm(-64), WStack::PCR)),
+            ("512,PCR",  (IndexArg::Imm(512), WStack::PCR)),
+            ("-512,PCR", (IndexArg::Imm(-512), WStack::PCR)),
+        ];
+
+        for (s,e) in data {
+            assert_eq!(imm_parse(s), Ok(("", e)));
+        }
     }
 
     #[test]
     fn test_acc_stack() {
-        // acc,R
+        let data = vec![
+            // acc,R
+            ("A,X", (IndexArg::Acc(FullAcc::A), WStack::Stack(StackReg::X))),
+            ("D,X", (IndexArg::Acc(FullAcc::D), WStack::Stack(StackReg::X))),
+            ("W,U", (IndexArg::Acc(FullAcc::W), WStack::Stack(StackReg::U))),
+        ];
+
+        for (s,e) in data {
+            assert_eq!(acc_stack(s), Ok(("", e)));
+        }
     }
 
     #[test]
     fn test_index_addr_parse() {
-        // Test IndexType nesting for (IndexArg & WStack)
+        // We know that the zero_offset_parse/imm_parse/acc_stack parsers work
+        // Just pick one example from each to validate the parse
+        let data = vec![
+            // NonIndirect
+            ("0,--X", (IndexType::NonIndirect, (IndexArg::IncDec(IncDec::DecDec), WStack::Stack(StackReg::X)))),
+            ("512,W", (IndexType::NonIndirect, (IndexArg::Imm(512), WStack::W))),
+            ("W,U",   (IndexType::NonIndirect, (IndexArg::Acc(FullAcc::W), WStack::Stack(StackReg::U)))),
+            // Indirect
+            ("[0,--X]", (IndexType::Indirect, (IndexArg::IncDec(IncDec::DecDec), WStack::Stack(StackReg::X)))),
+            ("[512,W]", (IndexType::Indirect, (IndexArg::Imm(512), WStack::W))),
+            ("[W,U]",   (IndexType::Indirect, (IndexArg::Acc(FullAcc::W), WStack::Stack(StackReg::U)))),
+            // Extended Indirect
+            ("[0xFFFF]", (IndexType::Indirect, (IndexArg::UImm(0xFFFF), WStack::None))),
+        ];
+
+        for (s,e) in data {
+            assert_eq!(index_addr_parse(s), Ok(("", e)));
+        }
     }
 
     #[test]
     fn test_index_parse_to_post_byte() {
-        // Test index_addr_parse -> IndexPostByte
+        let data = vec![
+        ];
+
+        for (it, ia, ws, e) in data {
+            assert_eq!(index_parse_to_post_byte(it, ia, ws), e);
+        }
     }
 
     #[test]
     fn test_indexed() {
-        // LEA
+        assert_eq!(
+            indexed("LEAY [0xFFFF]"),
+            Ok(("", (
+                Indexed::LEA(StackReg::Y),
+                0b10011111,
+                IndexBytes::Two(0xFFFF),
+            ))),
+        );
     }
 
     #[test]
