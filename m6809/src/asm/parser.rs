@@ -990,6 +990,15 @@ enum ImmMemBytes{
     Mem(MemAddrMode),
 }
 
+fn imm_mem_bytes(input: &str) -> IResult<&str, ImmMemBytes> {
+    alt((
+        map(number::<u8>, ImmMemBytes::Imm8),
+        map(number::<u16>, ImmMemBytes::Imm16),
+        map(number::<u32>, ImmMemBytes::Imm32),
+        map(mem_addr_mode, ImmMemBytes::Mem),
+    )).parse(input)
+}
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum ImmMem {
     // Half - u8/u16
@@ -1488,5 +1497,17 @@ mod test_parser {
 
     #[test]
     fn test_number_too_big_parse() {
+        assert_eq!(
+            number::<u8>("0xFF_FF"),
+            Err(nom::Err::Error(Error::new("ParseIntError", nom::error::ErrorKind::Fail))),
+        );
+        assert_eq!(
+            number::<u16>("0xFF_FF_FF_FF"),
+            Err(nom::Err::Error(Error::new("ParseIntError", nom::error::ErrorKind::Fail))),
+        );
+        assert_eq!(
+            number::<u32>("0xFF_FF_FF_FF_FF_FF_FF_FF"),
+            Err(nom::Err::Error(Error::new("ParseIntError", nom::error::ErrorKind::Fail))),
+        );
     }
 }
