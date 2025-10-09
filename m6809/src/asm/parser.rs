@@ -1187,10 +1187,51 @@ mod test_parser {
 
     #[test]
     fn test_index_parse_to_post_byte() {
+        // Focus on offset logic, the rest are just straight forward transformations
         let data = vec![
+            // 0,W ~= ,W
+            (
+                (IndexType::NonIndirect, IndexArg::IncDec(IncDec::None), WStack::W),
+                (IndexPostByte::RegW(ModeW::Offset0, IndexType::NonIndirect), IndexBytes::None),
+            ),
+            // n,W   - n = imm16
+            (
+                (IndexType::Indirect, IndexArg::Imm(-512), WStack::W),
+                (IndexPostByte::RegW(ModeW::Offset16, IndexType::Indirect), IndexBytes::Two(-512i16 as u16)),
+            ),
+            // PCR8
+            (
+                (IndexType::Indirect, IndexArg::Imm(64), WStack::PCR),
+                (IndexPostByte::Standard(StackReg::X, IndexMode::PCR8, IndexType::Indirect), IndexBytes::One(64)),
+            ),
+            // PCR16
+            (
+                (IndexType::Indirect, IndexArg::Imm(-512), WStack::PCR),
+                (IndexPostByte::Standard(StackReg::X, IndexMode::PCR16, IndexType::Indirect), IndexBytes::Two(-512i16 as u16)),
+            ),
+            // Offset0
+            (
+                (IndexType::Indirect, IndexArg::IncDec(IncDec::None), WStack::Stack(StackReg::X)),
+                (IndexPostByte::Standard(StackReg::X, IndexMode::Offset0, IndexType::Indirect), IndexBytes::None),
+            ),
+            // Offset5
+            (
+                (IndexType::NonIndirect, IndexArg::Imm(8), WStack::Stack(StackReg::X)),
+                (IndexPostByte::Offset5(StackReg::X, 8), IndexBytes::None),
+            ),
+            // Offset8
+            (
+                (IndexType::Indirect, IndexArg::Imm(64), WStack::Stack(StackReg::X)),
+                (IndexPostByte::Standard(StackReg::X, IndexMode::Offset8, IndexType::Indirect), IndexBytes::One(64)),
+            ),
+            // Offset16
+            (
+                (IndexType::Indirect, IndexArg::Imm(512), WStack::Stack(StackReg::X)),
+                (IndexPostByte::Standard(StackReg::X, IndexMode::Offset16, IndexType::Indirect), IndexBytes::Two(512)),
+            ),
         ];
 
-        for (it, ia, ws, e) in data {
+        for ((it, ia, ws), e) in data {
             assert_eq!(index_parse_to_post_byte(it, ia, ws), e);
         }
     }
