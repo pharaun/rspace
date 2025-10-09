@@ -981,13 +981,38 @@ fn branch(input: &str) -> IResult<&str, (Branch, BranchMode)> {
     )).parse(input)
 }
 
-// Remaining instructions
-// imm8:
-//
-// imm16:
-//
-// imm32:
+// Not the most type safe but at this point in time, whatever
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum ImmMemBytes{
+    Imm8(u8),
+    Imm16(u16),
+    Imm32(u32),
+    Mem(MemAddrMode),
+}
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum ImmMem {
+    // Half - u8/u16
+    ADC(HalfAcc), AND(HalfAcc), BIT(HalfAcc), EOR(HalfAcc), OR(HalfAcc), SBC(HalfAcc),
+
+    // Full - u8/u16
+    ADD(FullAcc), SUB(FullAcc),
+
+    // Cmp-special (u8/u16 + u16)
+    CmpAcc(FullAcc),
+    CmpStack(StackReg),
+
+    // StoreLoad - u8/u16/u32
+    LD(StoreLoad),
+
+    // Special
+    DIVD, MULD, DIVQ,
+}
+
+fn imm_mem(input: &str) -> IResult<&str, (ImmMem, ImmMemBytes)> {
+
+    todo!()
+}
 
 
 
