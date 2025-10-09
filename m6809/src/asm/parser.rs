@@ -470,7 +470,7 @@ fn bit_sel(input: &str) -> IResult<&str, u8> {
 
 fn direct_addr(input: &str) -> IResult<&str, u8> {
     preceded(
-        tag("$"),
+        tag("<"),
         number::<u8>,
     ).parse(input)
 }
@@ -629,7 +629,7 @@ fn indexed(input: &str) -> IResult<&str, (Indexed, u8, IndexBytes)> {
     map(
         pair(
             preceded(tag("LEA"), stack_reg),
-            preceded(space1, index_addr_parse),
+            preceded(space1, index_addr),
         ),
         |(s_reg, (i_typ, (i_arg, w_stack)))| {
             let (index_post, index_bytes) = index_parse_to_post_byte(
@@ -699,7 +699,7 @@ fn acc_stack(input: &str) -> IResult<&str, (IndexArg, WStack)> {
     ).parse(input)
 }
 
-fn index_addr_parse(input: &str) -> IResult<&str, (IndexType, (IndexArg, WStack))> {
+fn index_addr(input: &str) -> IResult<&str, (IndexType, (IndexArg, WStack))> {
     alt((
         pair(
             success(IndexType::Indirect),
@@ -817,39 +817,176 @@ fn index_parse_to_post_byte(it: IndexType, ia: IndexArg, ws: WStack) -> (IndexPo
     }
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum StoreLoad {A, B, D, E, F, W, Q, S, U, X, Y}
 
+fn store_load(input: &str) -> IResult<&str, StoreLoad> {
+    alt((
+        value(StoreLoad::A, tag("A")),
+        value(StoreLoad::B, tag("B")),
+        value(StoreLoad::D, tag("D")),
+        value(StoreLoad::E, tag("E")),
+        value(StoreLoad::F, tag("F")),
+        value(StoreLoad::W, tag("W")),
+        value(StoreLoad::Q, tag("Q")),
+        value(StoreLoad::S, tag("S")),
+        value(StoreLoad::U, tag("U")),
+        value(StoreLoad::X, tag("X")),
+        value(StoreLoad::Y, tag("Y")),
+    )).parse(input)
+}
 
+// For now hard code < as direct > as extended sigils
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum MemAddrMode {
+    Direct(u8),
+    Extended(u16),
+    // PostByte + Additional Bytes
+    Indexed(u8, IndexBytes),
+}
 
+fn extended_addr(input: &str) -> IResult<&str, u16> {
+    preceded(
+        tag(">"),
+        number::<u16>,
+    ).parse(input)
+}
 
+fn mem_addr_mode(input: &str) -> IResult<&str, MemAddrMode> {
+    alt((
+        map(direct_addr, MemAddrMode::Direct),
+        map(extended_addr, MemAddrMode::Extended),
+        map(
+            index_addr,
+            |(i_typ, (i_arg, w_stack))| {
+                let (index_post, index_bytes) = index_parse_to_post_byte(
+                    i_typ, i_arg, w_stack
+                );
+                let index_pb = index_post_byte(index_post);
 
-// Instruction family to try to parse
-//
-// Addr Only:
-//  ASL - LSL
-//  ASR
-//  CLR
-//  COM
-//  DEC
-//  INC
-//  JMP
-//  JSR
-//  LSR
-//  NEG
-//  ROL
-//  ROR
-//  TST
-//  STA STB STD STE STF STQ STS STU STW STX STY
-//
-// Addr Weird Only:
-//  AIM
-//  EIM
-//  OIM
-//  TIM
-//
-// Branching (long & short) relative jumps
-//
+                MemAddrMode::Indexed(index_pb, index_bytes)
+            },
+        ),
+    )).parse(input)
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum DirectMem {
+    ASL, // LSL
+    ASR,
+    CLR,
+    COM,
+    DEC,
+    INC,
+    JMP,
+    JSR,
+    LSR,
+    NEG,
+    ROL,
+    ROR,
+    TST,
+    ST(StoreLoad),
+}
+
+fn direct_mem(input: &str) -> IResult<&str, (DirectMem, MemAddrMode)> {
+    alt((
+        pair(value(DirectMem::ASL, tag("ASL")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::ASL, tag("LSL")), preceded(space1, mem_addr_mode)), // ASL
+        pair(value(DirectMem::ASR, tag("ASR")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::CLR, tag("CLR")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::COM, tag("COM")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::DEC, tag("DEC")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::INC, tag("INC")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::JMP, tag("JMP")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::JSR, tag("JSR")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::LSR, tag("LSR")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::NEG, tag("NEG")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::ROL, tag("ROL")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::ROR, tag("ROR")), preceded(space1, mem_addr_mode)),
+        pair(value(DirectMem::TST, tag("TST")), preceded(space1, mem_addr_mode)),
+        // Store
+        preceded(tag("ST"), map(pair(store_load, preceded(space1, mem_addr_mode)), |(sl, mem)| (DirectMem::ST(sl), mem))),
+    )).parse(input)
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum LogicalMem {
+    AIM,
+    EIM,
+    OIM,
+    TIM,
+}
+
+fn logical_mem(input: &str) -> IResult<&str, (LogicalMem, u8, MemAddrMode)> {
+    (
+        alt((
+            value(LogicalMem::AIM, tag("AIM")),
+            value(LogicalMem::EIM, tag("EIM")),
+            value(LogicalMem::OIM, tag("OIM")),
+            value(LogicalMem::TIM, tag("TIM")),
+        )),
+        delimited(
+            space1,
+            number::<u8>,
+            tag(";"),
+        ),
+        mem_addr_mode,
+    ).parse(input)
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum BranchMode {
+    Short(i8),
+    Long(i16),
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum Branch {
+    BRA, BRN, BHI, BLS,
+    BCC, //BHS
+    BCS, //BLO
+    BNE, BEQ, BVC, BVS,
+    BPL, BMI, BGE, BLT,
+    BGT, BLE, BSR,
+}
+
+fn branch_inst(input: &str) -> IResult<&str, Branch> {
+    alt((
+        value(Branch::BRA, tag("BRA")),
+        value(Branch::BRN, tag("BRN")),
+        value(Branch::BHI, tag("BHI")),
+        value(Branch::BLS, tag("BLS")),
+        value(Branch::BCC, tag("BCC")),
+        value(Branch::BCC, tag("BHS")), // BCC
+        value(Branch::BCS, tag("BCS")),
+        value(Branch::BCS, tag("BLO")), // BCS
+        value(Branch::BNE, tag("BNE")),
+        value(Branch::BEQ, tag("BEQ")),
+        value(Branch::BVC, tag("BVC")),
+        value(Branch::BVS, tag("BVS")),
+        value(Branch::BPL, tag("BPL")),
+        value(Branch::BMI, tag("BMI")),
+        value(Branch::BGE, tag("BGE")),
+        value(Branch::BLT, tag("BLT")),
+        value(Branch::BGT, tag("BGT")),
+        value(Branch::BLE, tag("BLE")),
+        value(Branch::BSR, tag("BSR")),
+    )).parse(input)
+}
+
+fn branch(input: &str) -> IResult<&str, (Branch, BranchMode)> {
+    alt((
+        preceded(tag("L"), map(pair(branch_inst, preceded(space1, number::<i16>)), |(bi, ba)| (bi, BranchMode::Long(ba)))),
+        map(pair(branch_inst, preceded(space1, number::<i8>)), |(bi, ba)| (bi, BranchMode::Short(ba))),
+    )).parse(input)
+}
+
 // Remaining instructions
-//  imm8, imm16, and one or two imm32 + addr parsing
+// imm8:
+//
+// imm16:
+//
+// imm32:
 
 
 
@@ -1024,16 +1161,16 @@ mod test_parser {
     fn test_direct_bit() {
         let data = vec![
             // Load/Store
-            ("LDBT CC,0,7,$0xFF", (DirectBit::LDBT, (0b00_000_111, 0xFF))),
-            ("STBT B,7,0,$0x00",  (DirectBit::STBT, (0b10_111_000, 0x00))),
+            ("LDBT CC,0,7,<0xFF", (DirectBit::LDBT, (0b00_000_111, 0xFF))),
+            ("STBT B,7,0,<0x00",  (DirectBit::STBT, (0b10_111_000, 0x00))),
 
             // Bit Mutation
-            ("BAND B,7,0,$0xAF",  (DirectBit::BitMut(BitMode::AND, BitInv::AsIs), (0b10_111_000, 0xAF))),
-            ("BIAND B,7,0,$0xAF", (DirectBit::BitMut(BitMode::AND, BitInv::Inverted), (0b10_111_000, 0xAF))),
-            ("BEOR B,7,0,$0xAF",  (DirectBit::BitMut(BitMode::EOR, BitInv::AsIs), (0b10_111_000, 0xAF))),
-            ("BIEOR B,7,0,$0xAF", (DirectBit::BitMut(BitMode::EOR, BitInv::Inverted), (0b10_111_000, 0xAF))),
-            ("BOR B,7,0,$0xAF",   (DirectBit::BitMut(BitMode::OR, BitInv::AsIs), (0b10_111_000, 0xAF))),
-            ("BIOR B,7,0,$0xAF",  (DirectBit::BitMut(BitMode::OR, BitInv::Inverted), (0b10_111_000, 0xAF))),
+            ("BAND B,7,0,<0xAF",  (DirectBit::BitMut(BitMode::AND, BitInv::AsIs), (0b10_111_000, 0xAF))),
+            ("BIAND B,7,0,<0xAF", (DirectBit::BitMut(BitMode::AND, BitInv::Inverted), (0b10_111_000, 0xAF))),
+            ("BEOR B,7,0,<0xAF",  (DirectBit::BitMut(BitMode::EOR, BitInv::AsIs), (0b10_111_000, 0xAF))),
+            ("BIEOR B,7,0,<0xAF", (DirectBit::BitMut(BitMode::EOR, BitInv::Inverted), (0b10_111_000, 0xAF))),
+            ("BOR B,7,0,<0xAF",   (DirectBit::BitMut(BitMode::OR, BitInv::AsIs), (0b10_111_000, 0xAF))),
+            ("BIOR B,7,0,<0xAF",  (DirectBit::BitMut(BitMode::OR, BitInv::Inverted), (0b10_111_000, 0xAF))),
         ];
 
         for (s,e) in data {
@@ -1164,7 +1301,7 @@ mod test_parser {
     }
 
     #[test]
-    fn test_index_addr_parse() {
+    fn test_index_addr() {
         // We know that the zero_offset_parse/imm_parse/acc_stack parsers work
         // Just pick one example from each to validate the parse
         let data = vec![
@@ -1181,7 +1318,7 @@ mod test_parser {
         ];
 
         for (s,e) in data {
-            assert_eq!(index_addr_parse(s), Ok(("", e)));
+            assert_eq!(index_addr(s), Ok(("", e)));
         }
     }
 
@@ -1245,6 +1382,58 @@ mod test_parser {
                 0b10011111,
                 IndexBytes::Two(0xFFFF),
             ))),
+        );
+    }
+
+    #[test]
+    fn test_mem_addr_mode() {
+        assert_eq!(mem_addr_mode("<0xFF"), Ok(("", MemAddrMode::Direct(0xFF))));
+        assert_eq!(mem_addr_mode(">0xFFFF"), Ok(("", MemAddrMode::Extended(0xFFFF))));
+        assert_eq!(mem_addr_mode("[0xFFFF]"), Ok(("", MemAddrMode::Indexed(0b10011111, IndexBytes::Two(0xFFFF)))));
+    }
+
+    #[test]
+    fn test_direct_mem() {
+        let data = vec![
+            ("ASL <0xFF", (DirectMem::ASL, MemAddrMode::Direct(0xFF))),
+            ("LSL <0xFF", (DirectMem::ASL, MemAddrMode::Direct(0xFF))), // ASL
+            ("INC >0xFFFF", (DirectMem::INC, MemAddrMode::Extended(0xFFFF))),
+            ("STQ [0xFFFF]", (DirectMem::ST(StoreLoad::Q), MemAddrMode::Indexed(0b10011111, IndexBytes::Two(0xFFFF)))),
+        ];
+
+        for (s,e) in data {
+            assert_eq!(direct_mem(s), Ok(("", e)));
+        }
+    }
+
+    #[test]
+    fn test_logical_mem() {
+        assert_eq!(
+            logical_mem("AIM 0x43;[64,W]"),
+            Ok((
+                "",
+                (LogicalMem::AIM, 0x43, MemAddrMode::Indexed(0b10110000, IndexBytes::Two(64))),
+            ))
+        );
+    }
+
+    #[test]
+    fn test_branch() {
+        assert_eq!(
+            branch("BCC -16"),
+            Ok(("", (Branch::BCC, BranchMode::Short(-16)))),
+        );
+        assert_eq!(
+            branch("LBHS -256"), // BCC
+            Ok(("", (Branch::BCC, BranchMode::Long(-256)))),
+        );
+        assert_eq!(
+            branch("BCS -16"),
+            Ok(("", (Branch::BCS, BranchMode::Short(-16)))),
+        );
+        assert_eq!(
+            branch("LBLO -256"), // BCS
+            Ok(("", (Branch::BCS, BranchMode::Long(-256)))),
         );
     }
 
