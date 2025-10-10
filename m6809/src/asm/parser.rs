@@ -3,20 +3,25 @@ use nom::Parser;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::bytes::complete::take_while1;
+use nom::character::complete::line_ending;
 use nom::character::complete::one_of;
 use nom::character::complete::space1;
+use nom::character::complete::multispace0;
+use nom::character::complete::multispace1;
+use nom::combinator::all_consuming;
 use nom::combinator::map;
+use nom::combinator::opt;
 use nom::combinator::recognize;
 use nom::combinator::success;
 use nom::combinator::value;
-use nom::combinator::opt;
 use nom::error::Error;
+use nom::multi::many1;
 use nom::multi::separated_list1;
+use nom::sequence::delimited;
 use nom::sequence::pair;
 use nom::sequence::preceded;
 use nom::sequence::separated_pair;
 use nom::sequence::terminated;
-use nom::sequence::delimited;
 
 use num_traits::Num;
 use bitfield_struct::bitfield;
@@ -110,20 +115,20 @@ fn inherent(input: &str) -> IResult<&str, Inherent> {
         // Simple
         simple_inherent,
         // Half
-        map(pair(tag("ASL"), half_acc), |(_, acc)| Inherent::ASL(acc)),
-        map(pair(tag("LSL"), half_acc), |(_, acc)| Inherent::ASL(acc)), // ASL/LSL
-        map(pair(tag("ASR"), half_acc), |(_, acc)| Inherent::ASR(acc)),
-        map(pair(tag("NEG"), half_acc), |(_, acc)| Inherent::NEG(acc)),
+        map(preceded(tag("ASL"), half_acc), Inherent::ASL),
+        map(preceded(tag("LSL"), half_acc), Inherent::ASL), // ASL/LSL
+        map(preceded(tag("ASR"), half_acc), Inherent::ASR),
+        map(preceded(tag("NEG"), half_acc), Inherent::NEG),
         // Full
-        map(pair(tag("CLR"), full_acc), |(_, acc)| Inherent::CLR(acc)),
-        map(pair(tag("COM"), full_acc), |(_, acc)| Inherent::COM(acc)),
-        map(pair(tag("DEC"), full_acc), |(_, acc)| Inherent::DEC(acc)),
-        map(pair(tag("INC"), full_acc), |(_, acc)| Inherent::INC(acc)),
-        map(pair(tag("TST"), full_acc), |(_, acc)| Inherent::TST(acc)),
+        map(preceded(tag("CLR"), full_acc), Inherent::CLR),
+        map(preceded(tag("COM"), full_acc), Inherent::COM),
+        map(preceded(tag("DEC"), full_acc), Inherent::DEC),
+        map(preceded(tag("INC"), full_acc), Inherent::INC),
+        map(preceded(tag("TST"), full_acc), Inherent::TST),
         // Shift
-        map(pair(tag("LSR"), shift_acc), |(_, acc)| Inherent::LSR(acc)),
-        map(pair(tag("ROL"), shift_acc), |(_, acc)| Inherent::ROL(acc)),
-        map(pair(tag("ROR"), shift_acc), |(_, acc)| Inherent::ROR(acc)),
+        map(preceded(tag("LSR"), shift_acc), Inherent::LSR),
+        map(preceded(tag("ROL"), shift_acc), Inherent::ROL),
+        map(preceded(tag("ROR"), shift_acc), Inherent::ROR),
     )).parse(input)
 }
 
@@ -260,29 +265,41 @@ enum Imm8 {
 fn imm8(input: &str) -> IResult<&str, (Imm8, u8)> {
     alt((
         // Reg to Reg
-        pair(value(Imm8::ADCR,  tag("ADCR")), preceded(space1, reg_to_reg)),
-        pair(value(Imm8::ADDR,  tag("ADDR")), preceded(space1, reg_to_reg)),
-        pair(value(Imm8::ANDR,  tag("ANDR")), preceded(space1, reg_to_reg)),
-        pair(value(Imm8::CMPR,  tag("CMPR")), preceded(space1, reg_to_reg)),
-        pair(value(Imm8::EORR,  tag("EORR")), preceded(space1, reg_to_reg)),
-        pair(value(Imm8::ORR,   tag("ORR")),  preceded(space1, reg_to_reg)),
-        pair(value(Imm8::SBCR,  tag("SBCR")), preceded(space1, reg_to_reg)),
-        pair(value(Imm8::SUBR,  tag("SUBR")), preceded(space1, reg_to_reg)),
-        pair(value(Imm8::EXG,   tag("EXG")),  preceded(space1, reg_to_reg)),
-        pair(value(Imm8::TFR,   tag("TFR")),  preceded(space1, reg_to_reg)),
+        pair(alt((
+                value(Imm8::ADCR, tag("ADCR")),
+                value(Imm8::ADDR, tag("ADDR")),
+                value(Imm8::ANDR, tag("ANDR")),
+                value(Imm8::CMPR, tag("CMPR")),
+                value(Imm8::EORR, tag("EORR")),
+                value(Imm8::ORR, tag("ORR")),
+                value(Imm8::SBCR, tag("SBCR")),
+                value(Imm8::SUBR, tag("SUBR")),
+                value(Imm8::EXG, tag("EXG")),
+                value(Imm8::TFR, tag("TFR")),
+            )),
+            preceded(space1, reg_to_reg),
+        ),
         // Stack PostByte
-        pair(value(Imm8::PSHS,  tag("PSHS")), preceded(space1, stack_postbyte)),
-        pair(value(Imm8::PSHU,  tag("PSHU")), preceded(space1, stack_postbyte)),
-        pair(value(Imm8::PULS,  tag("PULS")), preceded(space1, stack_postbyte)),
-        pair(value(Imm8::PULU,  tag("PULU")), preceded(space1, stack_postbyte)),
+        pair(alt((
+                value(Imm8::PSHS, tag("PSHS")),
+                value(Imm8::PSHU, tag("PSHU")),
+                value(Imm8::PULS, tag("PULS")),
+                value(Imm8::PULU, tag("PULU")),
+            )),
+            preceded(space1, stack_postbyte),
+        ),
         // Condition Code Flags
-        pair(value(Imm8::ANDCC, tag("ANDCC")), preceded(space1, condition_code)),
-        pair(value(Imm8::ORCC,  tag("ORCC")),  preceded(space1, condition_code)),
-        pair(value(Imm8::CWAI,  tag("CWAI")),  preceded(space1, condition_code)),
+        pair(alt((
+                value(Imm8::ANDCC, tag("ANDCC")),
+                value(Imm8::ORCC,  tag("ORCC")),
+                value(Imm8::CWAI,  tag("CWAI")),
+            )),
+            preceded(space1, condition_code),
+        ),
         // Weird
         pair(value(Imm8::BITMD, tag("BITMD")), preceded(space1, bitmd_imm8)),
         pair(value(Imm8::LDMD,  tag("LDMD")),  preceded(space1, ldmd_imm8)),
-        map(pair(tag("TFM"), preceded(space1, tfm_reg)), |(_, (mode, reg))| (Imm8::TFM(mode), reg)),
+        map(preceded(tag("TFM"), preceded(space1, tfm_reg)), |(mode, reg)| (Imm8::TFM(mode), reg)),
     )).parse(input)
 }
 
@@ -417,9 +434,12 @@ enum DirectBit {
 fn direct_bit(input: &str) -> IResult<&str, (DirectBit, (u8, u8))> {
     alt((
         // Load/Store
-        pair(value(DirectBit::LDBT, tag("LDBT")), preceded(space1, bit_arg)),
-        pair(value(DirectBit::STBT, tag("STBT")), preceded(space1, bit_arg)),
-
+        pair(alt((
+                value(DirectBit::LDBT, tag("LDBT")),
+                value(DirectBit::STBT, tag("STBT")),
+            )),
+            preceded(space1, bit_arg),
+        ),
         // Bit Mutation
         map(
             pair(pair(bit_inv, bit_mode), preceded(space1, bit_arg)),
@@ -431,11 +451,11 @@ fn direct_bit(input: &str) -> IResult<&str, (DirectBit, (u8, u8))> {
 fn bit_arg(input: &str) -> IResult<&str, (u8, u8)> {
     // BIAND r, sBit, dBit, addr
     map((
-        // r == CC = 0b00, A = 0b01, B = 0b10, invalid = 0b11
-        terminated(bit_reg, tag(",")),
-        // sBit/dBit == 0-7 -> 3bit
-        terminated(bit_sel, tag(",")),
-        terminated(bit_sel, tag(",")),
+            // r == CC = 0b00, A = 0b01, B = 0b10, invalid = 0b11
+            terminated(bit_reg, tag(",")),
+            // sBit/dBit == 0-7 -> 3bit
+            terminated(bit_sel, tag(",")),
+            terminated(bit_sel, tag(",")),
         ),
         |(reg, s_bit, d_bit)| {
             reg << 6 | s_bit << 3 | d_bit
@@ -656,17 +676,17 @@ fn zero_offset_parse(input: &str) -> IResult<&str, (IndexArg, WStack)> {
         pair(opt(tag("0")), tag(",")),
         alt((
             // 0,--R ~= ,--R
-            map(pair(tag("--"), stack_reg), |(_, s)| (IndexArg::IncDec(IncDec::DecDec), WStack::Stack(s))),
+            map(preceded(tag("--"), stack_reg), |s| (IndexArg::IncDec(IncDec::DecDec), WStack::Stack(s))),
             // 0,--W ~= ,--W
             value((IndexArg::IncDec(IncDec::DecDec), WStack::W), tag("--W")),
             // 0,R++ ~= ,R++
-            map(pair(stack_reg, tag("++")), |(s, _)| (IndexArg::IncDec(IncDec::IncInc), WStack::Stack(s))),
+            map(terminated(stack_reg, tag("++")), |s| (IndexArg::IncDec(IncDec::IncInc), WStack::Stack(s))),
             // 0,W++ ~= ,W++
             value((IndexArg::IncDec(IncDec::IncInc), WStack::W), tag("W++")),
             // 0,-R ~= ,-R
-            map(pair(tag("-"), stack_reg), |(_, s)| (IndexArg::IncDec(IncDec::Dec), WStack::Stack(s))),
+            map(preceded(tag("-"), stack_reg), |s| (IndexArg::IncDec(IncDec::Dec), WStack::Stack(s))),
             // 0,R+ ~= ,R+
-            map(pair(stack_reg, tag("+")), |(s, _)| (IndexArg::IncDec(IncDec::Inc), WStack::Stack(s))),
+            map(terminated(stack_reg, tag("+")), |s| (IndexArg::IncDec(IncDec::Inc), WStack::Stack(s))),
             // 0,R ~= ,R
             map(stack_reg, |s| (IndexArg::IncDec(IncDec::None), WStack::Stack(s))),
             // 0,W ~= ,W
@@ -681,7 +701,7 @@ fn imm_parse(input: &str) -> IResult<&str, (IndexArg, WStack)> {
         tag(","),
         alt((
             // n,R   - n = imm5, imm8, imm16
-            map(stack_reg, |s| WStack::Stack(s)),
+            map(stack_reg, WStack::Stack),
             // n,W   - n = imm16
             value(WStack::W, tag("W")),
             // n,PCR - n = imm8, imm16
@@ -890,20 +910,24 @@ enum DirectMem {
 
 fn direct_mem(input: &str) -> IResult<&str, (DirectMem, MemAddrMode)> {
     alt((
-        pair(value(DirectMem::ASL, tag("ASL")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::ASL, tag("LSL")), preceded(space1, mem_addr_mode)), // ASL
-        pair(value(DirectMem::ASR, tag("ASR")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::CLR, tag("CLR")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::COM, tag("COM")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::DEC, tag("DEC")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::INC, tag("INC")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::JMP, tag("JMP")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::JSR, tag("JSR")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::LSR, tag("LSR")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::NEG, tag("NEG")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::ROL, tag("ROL")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::ROR, tag("ROR")), preceded(space1, mem_addr_mode)),
-        pair(value(DirectMem::TST, tag("TST")), preceded(space1, mem_addr_mode)),
+        pair(alt((
+                value(DirectMem::ASL, tag("ASL")),
+                value(DirectMem::ASL, tag("LSL")), // ASL
+                value(DirectMem::ASR, tag("ASR")),
+                value(DirectMem::CLR, tag("CLR")),
+                value(DirectMem::COM, tag("COM")),
+                value(DirectMem::DEC, tag("DEC")),
+                value(DirectMem::INC, tag("INC")),
+                value(DirectMem::JMP, tag("JMP")),
+                value(DirectMem::JSR, tag("JSR")),
+                value(DirectMem::LSR, tag("LSR")),
+                value(DirectMem::NEG, tag("NEG")),
+                value(DirectMem::ROL, tag("ROL")),
+                value(DirectMem::ROR, tag("ROR")),
+                value(DirectMem::TST, tag("TST")),
+            )),
+            preceded(space1, mem_addr_mode),
+        ),
         // Store
         preceded(tag("ST"), map(pair(store_load, preceded(space1, mem_addr_mode)), |(sl, mem)| (DirectMem::ST(sl), mem))),
     )).parse(input)
@@ -1019,13 +1043,31 @@ enum ImmMem {
 }
 
 fn imm_mem(input: &str) -> IResult<&str, (ImmMem, ImmMemBytes)> {
-
-    todo!()
+    pair(
+        alt((
+            // Special
+            value(ImmMem::DIVD, tag("DIVD")),
+            value(ImmMem::MULD, tag("MULD")),
+            value(ImmMem::DIVQ, tag("DIVQ")),
+            // Half - u8/u16
+            map(preceded(tag("ADC"), half_acc), ImmMem::ADC),
+            map(preceded(tag("AND"), half_acc), ImmMem::AND),
+            map(preceded(tag("BIT"), half_acc), ImmMem::BIT),
+            map(preceded(tag("EOR"), half_acc), ImmMem::EOR),
+            map(preceded(tag("OR"),  half_acc), ImmMem::OR),
+            map(preceded(tag("SBC"), half_acc), ImmMem::SBC),
+            // Full - u8/u16
+            map(preceded(tag("ADD"), full_acc), ImmMem::ADD),
+            map(preceded(tag("SUB"), full_acc), ImmMem::SUB),
+            // Cmp-special (u8/u16 + u16)
+            map(preceded(tag("CMP"), full_acc),  ImmMem::CmpAcc),
+            map(preceded(tag("CMP"), stack_reg), ImmMem::CmpStack),
+            // StoreLoad - u8/u16/u32
+            map(preceded(tag("LD"), store_load), ImmMem::LD),
+        )),
+        preceded(space1, imm_mem_bytes),
+    ).parse(input)
 }
-
-
-
-
 
 fn radix(input: &str) -> IResult<&str, u32> {
     alt((
@@ -1060,6 +1102,43 @@ fn number<T: Num<FromStrRadixErr = std::num::ParseIntError>>(input: &str) -> IRe
         Ok(n)  => Ok((input, n)),
         Err(_) => Err(nom::Err::Error(Error::new("ParseIntError", nom::error::ErrorKind::Fail))),
     }
+}
+
+// Exhaustive Parser for handling:
+// - Comments
+// - Assembly instruction per line
+// - Labels
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum AsmInst {
+    Inherent(Inherent),
+    Imm8(Imm8, u8),
+    DirectBit(DirectBit, u8, u8),
+    Indexed(Indexed, u8, IndexBytes),
+    DirectMem(DirectMem, MemAddrMode),
+    LogicalMem(LogicalMem, u8, MemAddrMode),
+    Branch(Branch, BranchMode),
+    ImmMem(ImmMem, ImmMemBytes),
+}
+
+pub fn parse_asm_inst(input: &str) -> IResult<&str, Vec<AsmInst>> {
+    all_consuming(
+        many1(
+            delimited(
+                multispace0,
+                alt((
+                    map(inherent,    |i|           AsmInst::Inherent(i)),
+                    map(imm8,        |(i, n)|      AsmInst::Imm8(i, n)),
+                    map(direct_bit,  |(i, (a, b))| AsmInst::DirectBit(i, a, b)),
+                    map(indexed,     |(i, n, ib)|  AsmInst::Indexed(i, n, ib)),
+                    map(direct_mem,  |(i, mm)|     AsmInst::DirectMem(i, mm)),
+                    map(logical_mem, |(i, n, mm)|  AsmInst::LogicalMem(i, n, mm)),
+                    map(branch,      |(i, bm)|     AsmInst::Branch(i, bm)),
+                    map(imm_mem,     |(i, imm)|    AsmInst::ImmMem(i, imm)),
+                )),
+                multispace1,
+            )
+        )
+    ).parse(input)
 }
 
 #[cfg(test)]
@@ -1472,6 +1551,47 @@ mod test_parser {
     }
 
     #[test]
+    fn test_imm_mem_bytes() {
+        assert_eq!(
+            imm_mem_bytes("128"),
+            Ok(("", ImmMemBytes::Imm8(128))),
+        );
+        assert_eq!(
+            imm_mem_bytes("512"),
+            Ok(("", ImmMemBytes::Imm16(512))),
+        );
+        assert_eq!(
+            imm_mem_bytes("128_000"),
+            Ok(("", ImmMemBytes::Imm32(128_000))),
+        );
+        assert_eq!(
+            imm_mem_bytes("[64,W]"),
+            Ok(("", ImmMemBytes::Mem(MemAddrMode::Indexed(0b10110000, IndexBytes::Two(64))))),
+        );
+    }
+
+    #[test]
+    fn test_imm_mem() {
+        let data = vec![
+            ("ADCA 128", (ImmMem::ADC(HalfAcc::A), ImmMemBytes::Imm8(128))),
+            ("SBCD 512", (ImmMem::SBC(HalfAcc::D), ImmMemBytes::Imm16(512))),
+            ("ADDE 128", (ImmMem::ADD(FullAcc::E), ImmMemBytes::Imm8(128))),
+            ("SUBW 512", (ImmMem::SUB(FullAcc::W), ImmMemBytes::Imm16(512))),
+            ("CMPE 128", (ImmMem::CmpAcc(FullAcc::E), ImmMemBytes::Imm8(128))),
+            ("CMPW 512", (ImmMem::CmpAcc(FullAcc::W), ImmMemBytes::Imm16(512))),
+            ("CMPX 512", (ImmMem::CmpStack(StackReg::X), ImmMemBytes::Imm16(512))),
+            ("LDE 128", (ImmMem::LD(StoreLoad::E), ImmMemBytes::Imm8(128))),
+            ("LDW 512", (ImmMem::LD(StoreLoad::W), ImmMemBytes::Imm16(512))),
+            ("LDQ 128000", (ImmMem::LD(StoreLoad::Q), ImmMemBytes::Imm32(128000))),
+            ("DIVQ [64,W]", (ImmMem::DIVQ, ImmMemBytes::Mem(MemAddrMode::Indexed(0b10110000, IndexBytes::Two(64))))),
+        ];
+
+        for (s,e) in data {
+            assert_eq!(imm_mem(s), Ok(("", e)));
+        }
+    }
+
+    #[test]
     fn test_radix() {
         assert_eq!(radix("0xFF"), Ok(("FF", 16)));
         assert_eq!(radix("123"), Ok(("123", 10)));
@@ -1509,5 +1629,58 @@ mod test_parser {
             number::<u32>("0xFF_FF_FF_FF_FF_FF_FF_FF"),
             Err(nom::Err::Error(Error::new("ParseIntError", nom::error::ErrorKind::Fail))),
         );
+    }
+
+    #[test]
+    fn test_asm_inst() {
+        let input = r#"
+            SWI
+            ASLA
+            CLRA
+            ADCR A,B
+            PSHS PC
+            ORCC E,V
+            BITMD /0,IL
+            LDMD FM,NM
+            TFM X+,Y+
+            STBT B,7,0,<0x00
+            BAND B,7,0,<0xAF
+            LEAY [0xFFFF]
+            LSL <0xFF
+            INC >0xFFFF
+            AIM 0x43;[64,W]
+            BCC -16
+            LBHS -256
+            ADCA 128
+            CMPW 512
+            CMPX 512
+            LDQ 128000
+            DIVQ [64,W]
+        "#;
+        let output = vec![
+            AsmInst::Inherent(Inherent::SWI),
+            AsmInst::Inherent(Inherent::ASL(HalfAcc::A)),
+            AsmInst::Inherent(Inherent::CLR(FullAcc::A)),
+            AsmInst::Imm8(Imm8::ADCR, inter_reg_post_byte(InterReg::A, InterReg::B)),
+            AsmInst::Imm8(Imm8::PSHS, StackPostByte::new().with_pc(true).into()),
+            AsmInst::Imm8(Imm8::ORCC, ConditionCodeByte::new().with_e(true).with_v(true).into()),
+            AsmInst::Imm8(Imm8::BITMD, 0b1100_0000),
+            AsmInst::Imm8(Imm8::LDMD, 0b0000_0011),
+            AsmInst::Imm8(Imm8::TFM(TfmMode::PlusPlus), inter_reg_post_byte(InterReg::X, InterReg::Y)),
+            AsmInst::DirectBit(DirectBit::STBT, 0b10_111_000, 0x00),
+            AsmInst::DirectBit(DirectBit::BitMut(BitMode::AND, BitInv::AsIs), 0b10_111_000, 0xAF),
+            AsmInst::Indexed(Indexed::LEA(StackReg::Y), 0b10011111, IndexBytes::Two(0xFFFF)),
+            AsmInst::DirectMem(DirectMem::ASL, MemAddrMode::Direct(0xFF)),
+            AsmInst::DirectMem(DirectMem::INC, MemAddrMode::Extended(0xFFFF)),
+            AsmInst::LogicalMem(LogicalMem::AIM, 0x43, MemAddrMode::Indexed(0b10110000, IndexBytes::Two(64))),
+            AsmInst::Branch(Branch::BCC, BranchMode::Short(-16)),
+            AsmInst::Branch(Branch::BCC, BranchMode::Long(-256)),
+            AsmInst::ImmMem(ImmMem::ADC(HalfAcc::A), ImmMemBytes::Imm8(128)),
+            AsmInst::ImmMem(ImmMem::CmpAcc(FullAcc::W), ImmMemBytes::Imm16(512)),
+            AsmInst::ImmMem(ImmMem::CmpStack(StackReg::X), ImmMemBytes::Imm16(512)),
+            AsmInst::ImmMem(ImmMem::LD(StoreLoad::Q), ImmMemBytes::Imm32(128000)),
+            AsmInst::ImmMem(ImmMem::DIVQ, ImmMemBytes::Mem(MemAddrMode::Indexed(0b10110000, IndexBytes::Two(64)))),
+        ];
+        assert_eq!(parse_asm_inst(input), Ok(("", output)));
     }
 }
