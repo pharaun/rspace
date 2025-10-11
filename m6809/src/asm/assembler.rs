@@ -419,11 +419,7 @@ mod test_assembler {
     // To load up the external assembler file + object code for validation (LWTools assembler)
     const manifest: &str = env!("CARGO_MANIFEST_DIR");
 
-    fn test_assembly(asm_path: PathBuf, bin_path: PathBuf) {
-        let asm: String = fs::read_to_string(asm_path).unwrap();
-        let exp: Vec<u8> = fs::read(bin_path).unwrap();
-        let obj = generate_object_code(parse_asm_inst(&asm).unwrap().1);
-
+    fn assert_zip(exp: Vec<u8>, obj: Vec<u8>) {
         // compare
         let mut iter = exp.into_iter().zip(obj);
         println!("Expected - Observed");
@@ -433,11 +429,63 @@ mod test_assembler {
         }
     }
 
+    fn test_assembly(asm_path: PathBuf, bin_path: PathBuf) {
+        let asm: String = fs::read_to_string(asm_path).unwrap();
+        let exp: Vec<u8> = fs::read(bin_path).unwrap();
+        let obj = generate_object_code(parse_asm_inst(&asm).unwrap().1);
+        assert_zip(exp, obj);
+    }
+
+    fn test_assembly_str(asm_str: &str, bin_path: PathBuf) {
+        let exp: Vec<u8> = fs::read(bin_path).unwrap();
+        let obj = generate_object_code(parse_asm_inst(&asm_str).unwrap().1);
+        assert_zip(exp, obj);
+    }
+
     #[test]
     fn test_inherent() {
         test_assembly(
             Path::new(manifest).join("test_asm/inherent.asm"),
             Path::new(manifest).join("test_asm/inherent.bin"),
+        );
+    }
+
+    #[test]
+    fn test_imm8() {
+        test_assembly(
+            Path::new(manifest).join("test_asm/imm8.asm"),
+            Path::new(manifest).join("test_asm/imm8.bin"),
+        );
+    }
+
+    #[test]
+    fn test_special_imm8() {
+        let obj = generate_object_code(parse_asm_inst(r#"
+            BITMD /0
+            LDMD NM
+            ANDCC E,C
+            ORCC E,C
+            CWAI E,C
+            "#).unwrap().1);
+        let exp = vec![
+            0x11, 0x3C, 0b1000_0000,
+            0x11, 0x3D, 0b0000_0001,
+            0x1C, 0b1000_0001,
+            0x1A, 0b1000_0001,
+            0x3C, 0b1000_0001,
+        ];
+        assert_eq!(exp, obj);
+    }
+
+    #[test]
+    fn test_direct_bit() {
+        // Need to modify the $40 to <0x40 to match our syntax
+        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/direct_bit.asm")).unwrap();
+        let asm = asm.replace("$40", "<0x40");
+
+        test_assembly_str(
+            &asm,
+            Path::new(manifest).join("test_asm/direct_bit.bin"),
         );
     }
 }
