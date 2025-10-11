@@ -20,7 +20,7 @@ use crate::asm::parser::StackReg;
 use crate::asm::parser::StoreLoad;
 use crate::asm::parser::TfmMode;
 
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder, BigEndian};
 
 pub fn generate_object_code(input: Vec<AsmInst>) -> Vec<u8> {
     let mut result = Vec::new();
@@ -163,13 +163,13 @@ fn generate_direct_bit(inst: DirectBit, post: u8, direct_addr: u8) -> Vec<u8> {
 
 fn write_u16(imm: u16) -> Vec<u8> {
     let mut buf = vec![0; 2];
-    LittleEndian::write_u16(buf.as_mut_slice(), imm);
+    BigEndian::write_u16(buf.as_mut_slice(), imm);
     buf
 }
 
 fn write_u32(imm: u32) -> Vec<u8> {
     let mut buf = vec![0; 2];
-    LittleEndian::write_u32(buf.as_mut_slice(), imm);
+    BigEndian::write_u32(buf.as_mut_slice(), imm);
     buf
 }
 
@@ -479,8 +479,8 @@ mod test_assembler {
 
     #[test]
     fn test_direct_bit() {
-        // Need to modify the $40 to <0x40 to match our syntax
         let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/direct_bit.asm")).unwrap();
+        // Need to modify the $40 to <0x40 to match our syntax
         let asm = asm.replace("$40", "<0x40");
 
         test_assembly_str(
@@ -488,4 +488,77 @@ mod test_assembler {
             Path::new(manifest).join("test_asm/direct_bit.bin"),
         );
     }
+
+    #[test]
+    fn test_indexed() {
+        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/indexed.asm")).unwrap();
+        // Need to modify the $4040 to 0x4040 to match our syntax
+        let asm = asm.replace("$4040", "0x4040");
+        // TODO: We might need to figure out how to handle PC vs PCR
+        // PC in LWTools encodes the offset exactly, but PCR makes LWTool calculate the offset
+        let asm = asm.replace("PC", "PCR");
+
+        test_assembly_str(
+            &asm,
+            Path::new(manifest).join("test_asm/indexed.bin"),
+        );
+    }
+
+    #[test]
+    fn test_special_indexed() {
+        // LWTool treats below as 5bit/8bit indexed not 0bit indexed
+        // 6809.uk encodes the 0,Y and ,Y variant the same way
+        // LEAX 0,Y == LEA ,Y
+        // LEAX 0,W == LEA ,W
+        // LEAX [0,Y] == LEA [,Y]
+        // LEAX [0,W] == LEA [,W]
+        let obj = generate_object_code(parse_asm_inst(r#"
+            LEAX 0,Y
+            LEAX 0,W
+            LEAX [0,Y]
+            LEAX [0,W]
+            "#).unwrap().1);
+        let exp = vec![
+            0x30, 0xA4,
+            0x30, 0x8F,
+            0x30, 0xB4,
+            0x30, 0x90,
+        ];
+        assert_eq!(exp, obj);
+    }
+
+    #[test]
+    fn test_direct_mem() {
+        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/direct_mem.asm")).unwrap();
+        // Need to modify the <$40 to <0x40 to match our syntax
+        let asm = asm.replace("<$40", "<0x40");
+        // Need to modify the >$4040 to >0x4040 to match our syntax
+        let asm = asm.replace(">$4040", ">0x4040");
+
+        test_assembly_str(
+            &asm,
+            Path::new(manifest).join("test_asm/direct_mem.bin"),
+        );
+    }
+
+    #[test]
+    fn test_logical_mem() {
+        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/logical_mem.asm")).unwrap();
+        // Need to modify the <$40 to <0x40 to match our syntax
+        let asm = asm.replace("<$40", "<0x40");
+        // Need to modify the >$4040 to >0x4040 to match our syntax
+        let asm = asm.replace(">$4040", ">0x4040");
+        // Need to modify the #$18 to 0x18 to match our syntax
+        let asm = asm.replace("#$18", "0x18");
+
+        test_assembly_str(
+            &asm,
+            Path::new(manifest).join("test_asm/logical_mem.bin"),
+        );
+    }
+
+
+    // branch + long branch
+    //
+    // imm mem
 }
