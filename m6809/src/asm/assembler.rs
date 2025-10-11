@@ -404,3 +404,25 @@ fn generate_imm_mem(inst: ImmMem, imm_addr: ImmMemBytes) -> Vec<u8> {
     }
     result
 }
+
+
+#[cfg(test)]
+mod test_assembler {
+    use super::*;
+
+    use std::fs;
+    use std::path::Path;
+
+    use crate::asm::parser::parse_asm_inst;
+
+    // To load up the external assembler file + object code for validation (LWTools assembler)
+    const manifest: &str = env!("CARGO_MANIFEST_DIR");
+
+    #[test]
+    fn test_inherent() {
+        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/inherent.asm")).unwrap();
+        let exp: Vec<u8> = fs::read(Path::new(manifest).join("test_asm/inherent.bin")).unwrap();
+        let obj = generate_object_code(parse_asm_inst(&asm).unwrap().1);
+        assert_eq!(obj, exp);
+    }
+}
