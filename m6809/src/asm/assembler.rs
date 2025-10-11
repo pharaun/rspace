@@ -557,8 +557,35 @@ mod test_assembler {
         );
     }
 
+    // TODO: make this and that branch test a bit better but this will do for now
+    fn fix_branch(asm: &str) -> String {
+        // Since there's no way to encode rel offset in LWTools, we instead did absolute
+        // address which LWTools then adjusted to relative addressing of 0, so this function
+        // is for fixing all of these back to 0x00 for our test code
+        let addr = vec![
+            "$64", "$60", "$5C", "$58", "$54", "$50", "$4C", "$48",
+            "$44", "$40", "$3C", "$38", "$34", "$30", "$2C", "$29",
+            "$25", "$22", "$20", "$1E", "$1C", "$1A", "$18", "$16",
+            "$14", "$12", "$10", "$E", "$C", "$A", "$8", "$6", "$4", "$2",
+        ];
 
-    // branch + long branch
-    //
+        let mut ret = asm.to_string();
+        for a in addr {
+            ret = ret.replace(a, "0x00");
+        }
+        ret
+    }
+
+    #[test]
+    fn test_branch() {
+        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/branch.asm")).unwrap();
+        let asm = fix_branch(&asm);
+
+        test_assembly_str(
+            &asm,
+            Path::new(manifest).join("test_asm/branch.bin"),
+        );
+    }
+
     // imm mem
 }
