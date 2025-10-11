@@ -63,7 +63,7 @@ fn generate_inherent(inst: Inherent) -> Vec<u8> {
         Inherent::SWI3  => vec![0x11, 0x3F],
         Inherent::ASL(HalfAcc::A) => vec![0x48], // LSL
         Inherent::ASL(HalfAcc::B) => vec![0x58], // LSL
-        Inherent::ASL(HalfAcc::D) => vec![0x10, 0x47], // LSL
+        Inherent::ASL(HalfAcc::D) => vec![0x10, 0x48], // LSL
         Inherent::ASR(HalfAcc::A) => vec![0x47],
         Inherent::ASR(HalfAcc::B) => vec![0x57],
         Inherent::ASR(HalfAcc::D) => vec![0x10, 0x47],
@@ -412,17 +412,32 @@ mod test_assembler {
 
     use std::fs;
     use std::path::Path;
+    use std::path::PathBuf;
 
     use crate::asm::parser::parse_asm_inst;
 
     // To load up the external assembler file + object code for validation (LWTools assembler)
     const manifest: &str = env!("CARGO_MANIFEST_DIR");
 
+    fn test_assembly(asm_path: PathBuf, bin_path: PathBuf) {
+        let asm: String = fs::read_to_string(asm_path).unwrap();
+        let exp: Vec<u8> = fs::read(bin_path).unwrap();
+        let obj = generate_object_code(parse_asm_inst(&asm).unwrap().1);
+
+        // compare
+        let mut iter = exp.into_iter().zip(obj);
+        println!("Expected - Observed");
+        for (e, o) in iter {
+            println!("{:02x} - {:02x}", e, o);
+            assert_eq!(e, o);
+        }
+    }
+
     #[test]
     fn test_inherent() {
-        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/inherent.asm")).unwrap();
-        let exp: Vec<u8> = fs::read(Path::new(manifest).join("test_asm/inherent.bin")).unwrap();
-        let obj = generate_object_code(parse_asm_inst(&asm).unwrap().1);
-        assert_eq!(obj, exp);
+        test_assembly(
+            Path::new(manifest).join("test_asm/inherent.asm"),
+            Path::new(manifest).join("test_asm/inherent.bin"),
+        );
     }
 }
