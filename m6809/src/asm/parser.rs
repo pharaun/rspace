@@ -131,6 +131,7 @@ fn inherent(input: &str) -> IResult<&str, Inherent> {
     )).parse(input)
 }
 
+#[allow(dead_code)]
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum InterReg {

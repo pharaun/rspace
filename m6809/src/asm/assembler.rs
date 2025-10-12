@@ -433,23 +433,16 @@ mod test_assembler {
     use crate::asm::parser::parse_asm_inst;
 
     // To load up the external assembler file + object code for validation (LWTools assembler)
-    const manifest: &str = env!("CARGO_MANIFEST_DIR");
+    const MANIFEST: &str = env!("CARGO_MANIFEST_DIR");
 
     fn assert_zip(exp: Vec<u8>, obj: Vec<u8>) {
         // compare
-        let mut iter = exp.into_iter().zip(obj);
+        let iter = exp.into_iter().zip(obj);
         println!("Expected - Observed");
         for (e, o) in iter {
             println!("{:02x} - {:02x}", e, o);
             assert_eq!(e, o);
         }
-    }
-
-    fn test_assembly(asm_path: PathBuf, bin_path: PathBuf) {
-        let asm: String = fs::read_to_string(asm_path).unwrap();
-        let exp: Vec<u8> = fs::read(bin_path).unwrap();
-        let obj = generate_object_code(parse_asm_inst(&asm).unwrap().1);
-        assert_zip(exp, obj);
     }
 
     fn test_assembly_str(asm_str: &str, bin_path: PathBuf) {
@@ -460,17 +453,17 @@ mod test_assembler {
 
     #[test]
     fn test_inherent() {
-        test_assembly(
-            Path::new(manifest).join("test_asm/inherent.asm"),
-            Path::new(manifest).join("test_asm/inherent.bin"),
+        test_assembly_str(
+            &fs::read_to_string(Path::new(MANIFEST).join("test_asm/inherent.asm")).unwrap(),
+            Path::new(MANIFEST).join("test_asm/inherent.bin"),
         );
     }
 
     #[test]
     fn test_imm8() {
-        test_assembly(
-            Path::new(manifest).join("test_asm/imm8.asm"),
-            Path::new(manifest).join("test_asm/imm8.bin"),
+        test_assembly_str(
+            &fs::read_to_string(Path::new(MANIFEST).join("test_asm/imm8.asm")).unwrap(),
+            Path::new(MANIFEST).join("test_asm/imm8.bin"),
         );
     }
 
@@ -495,19 +488,19 @@ mod test_assembler {
 
     #[test]
     fn test_direct_bit() {
-        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/direct_bit.asm")).unwrap();
+        let asm: String = fs::read_to_string(Path::new(MANIFEST).join("test_asm/direct_bit.asm")).unwrap();
         // Need to modify the $40 to <0x40 to match our syntax
         let asm = asm.replace("$40", "<0x40");
 
         test_assembly_str(
             &asm,
-            Path::new(manifest).join("test_asm/direct_bit.bin"),
+            Path::new(MANIFEST).join("test_asm/direct_bit.bin"),
         );
     }
 
     #[test]
     fn test_indexed() {
-        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/indexed.asm")).unwrap();
+        let asm: String = fs::read_to_string(Path::new(MANIFEST).join("test_asm/indexed.asm")).unwrap();
         // Need to modify the $4040 to 0x4040 to match our syntax
         let asm = asm.replace("$4040", "0x4040");
         // TODO: We might need to figure out how to handle PC vs PCR
@@ -516,7 +509,7 @@ mod test_assembler {
 
         test_assembly_str(
             &asm,
-            Path::new(manifest).join("test_asm/indexed.bin"),
+            Path::new(MANIFEST).join("test_asm/indexed.bin"),
         );
     }
 
@@ -545,7 +538,7 @@ mod test_assembler {
 
     #[test]
     fn test_direct_mem() {
-        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/direct_mem.asm")).unwrap();
+        let asm: String = fs::read_to_string(Path::new(MANIFEST).join("test_asm/direct_mem.asm")).unwrap();
         // Need to modify the <$40 to <0x40 to match our syntax
         let asm = asm.replace("<$40", "<0x40");
         // Need to modify the >$4040 to >0x4040 to match our syntax
@@ -553,13 +546,13 @@ mod test_assembler {
 
         test_assembly_str(
             &asm,
-            Path::new(manifest).join("test_asm/direct_mem.bin"),
+            Path::new(MANIFEST).join("test_asm/direct_mem.bin"),
         );
     }
 
     #[test]
     fn test_logical_mem() {
-        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/logical_mem.asm")).unwrap();
+        let asm: String = fs::read_to_string(Path::new(MANIFEST).join("test_asm/logical_mem.asm")).unwrap();
         // Need to modify the <$40 to <0x40 to match our syntax
         let asm = asm.replace("<$40", "<0x40");
         // Need to modify the >$4040 to >0x4040 to match our syntax
@@ -569,7 +562,7 @@ mod test_assembler {
 
         test_assembly_str(
             &asm,
-            Path::new(manifest).join("test_asm/logical_mem.bin"),
+            Path::new(MANIFEST).join("test_asm/logical_mem.bin"),
         );
     }
 
@@ -594,18 +587,18 @@ mod test_assembler {
 
     #[test]
     fn test_branch() {
-        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/branch.asm")).unwrap();
+        let asm: String = fs::read_to_string(Path::new(MANIFEST).join("test_asm/branch.asm")).unwrap();
         let asm = fix_branch(&asm);
 
         test_assembly_str(
             &asm,
-            Path::new(manifest).join("test_asm/branch.bin"),
+            Path::new(MANIFEST).join("test_asm/branch.bin"),
         );
     }
 
     #[test]
     fn test_imm_mem() {
-        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/imm_mem.asm")).unwrap();
+        let asm: String = fs::read_to_string(Path::new(MANIFEST).join("test_asm/imm_mem.asm")).unwrap();
         // Need to modify the <$40 to <0x40 to match our syntax
         let asm = asm.replace("<$40", "<0x40");
         // Need to modify the >$4040 to >0x4040 to match our syntax
@@ -615,7 +608,7 @@ mod test_assembler {
 
         test_assembly_str(
             &asm,
-            Path::new(manifest).join("test_asm/imm_mem.bin"),
+            Path::new(MANIFEST).join("test_asm/imm_mem.bin"),
         );
     }
 }
