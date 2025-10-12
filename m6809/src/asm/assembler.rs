@@ -168,7 +168,7 @@ fn write_u16(imm: u16) -> Vec<u8> {
 }
 
 fn write_u32(imm: u32) -> Vec<u8> {
-    let mut buf = vec![0; 2];
+    let mut buf = vec![0; 4];
     BigEndian::write_u32(buf.as_mut_slice(), imm);
     buf
 }
@@ -383,14 +383,30 @@ fn generate_imm_mem(inst: ImmMem, imm_addr: ImmMemBytes) -> Vec<u8> {
     let mut result = Vec::new();
 
     // Make sure the Imm addr matches the ExpImm
+    // TODO: The imm promotion only works for unsigned imm, it will break for signed imm
     match (opcode.0, imm_addr) {
         (ExpImm::Imm8, ImmMemBytes::Imm8(imm)) => {
             result.extend(opcode.1);
             result.push(imm);
         },
+        // Promote an imm8 to imm16
+        (ExpImm::Imm16, ImmMemBytes::Imm8(imm)) => {
+            result.extend(opcode.1);
+            result.extend(write_u16(imm as u16));
+        },
         (ExpImm::Imm16, ImmMemBytes::Imm16(imm)) => {
             result.extend(opcode.1);
             result.extend(write_u16(imm));
+        },
+        // Promote an imm8 to imm32
+        (ExpImm::Imm32, ImmMemBytes::Imm8(imm)) => {
+            result.extend(opcode.1);
+            result.extend(write_u32(imm as u32));
+        },
+        // Promote an imm16 to imm32
+        (ExpImm::Imm32, ImmMemBytes::Imm16(imm)) => {
+            result.extend(opcode.1);
+            result.extend(write_u32(imm as u32));
         },
         (ExpImm::Imm32, ImmMemBytes::Imm32(imm)) => {
             result.extend(opcode.1);
@@ -587,5 +603,19 @@ mod test_assembler {
         );
     }
 
-    // imm mem
+    #[test]
+    fn test_imm_mem() {
+        let asm: String = fs::read_to_string(Path::new(manifest).join("test_asm/imm_mem.asm")).unwrap();
+        // Need to modify the <$40 to <0x40 to match our syntax
+        let asm = asm.replace("<$40", "<0x40");
+        // Need to modify the >$4040 to >0x4040 to match our syntax
+        let asm = asm.replace(">$4040", ">0x4040");
+        // Need to modify the #$18 to 0x18 to match our syntax
+        let asm = asm.replace("#$AA", "0xAA");
+
+        test_assembly_str(
+            &asm,
+            Path::new(manifest).join("test_asm/imm_mem.bin"),
+        );
+    }
 }

@@ -1004,9 +1004,12 @@ pub enum ImmMemBytes{
     Mem(MemAddrMode),
 }
 
+// TODO: This automatically picks the smallest Imm, but we might need to extend it in the
+// instruction generation, this is fine now but might be worth having this take an "expected imm
+// size" for parsing
 fn imm_mem_bytes(input: &str) -> IResult<&str, ImmMemBytes> {
     alt((
-        map(number::<u8>, ImmMemBytes::Imm8),
+        map(number::<u8>,  ImmMemBytes::Imm8),
         map(number::<u16>, ImmMemBytes::Imm16),
         map(number::<u32>, ImmMemBytes::Imm32),
         map(mem_addr_mode, ImmMemBytes::Mem),
@@ -1116,7 +1119,6 @@ pub fn parse_asm_inst(input: &str) -> IResult<&str, Vec<AsmInst>> {
             delimited(
                 multispace0,
                 alt((
-                    map(inherent,    |i|           AsmInst::Inherent(i)),
                     map(imm8,        |(i, n)|      AsmInst::Imm8(i, n)),
                     map(direct_bit,  |(i, (a, b))| AsmInst::DirectBit(i, a, b)),
                     map(indexed,     |(i, n, ib)|  AsmInst::Indexed(i, n, ib)),
@@ -1124,6 +1126,7 @@ pub fn parse_asm_inst(input: &str) -> IResult<&str, Vec<AsmInst>> {
                     map(logical_mem, |(i, n, mm)|  AsmInst::LogicalMem(i, n, mm)),
                     map(branch,      |(i, bm)|     AsmInst::Branch(i, bm)),
                     map(imm_mem,     |(i, imm)|    AsmInst::ImmMem(i, imm)),
+                    map(inherent,    |i|           AsmInst::Inherent(i)),
                 )),
                 multispace1,
             )
