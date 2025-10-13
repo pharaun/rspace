@@ -94,12 +94,8 @@ impl fmt::Debug for QuadAcc {
         write!(
             f,
             "QuadAcc {{ ABEF: [A: {:02X} B: {:02X} E: {:02X} F: {:02X}], DW: [D: {:04X} W: {:04X}], Q: {:08X} }}",
-            self[Acc8::A],
-            self[Acc8::B],
-            self[Acc8::E],
-            self[Acc8::F],
-            self[Acc16::D],
-            self[Acc16::W],
+            self[Acc8::A], self[Acc8::B], self[Acc8::E], self[Acc8::F],
+            self[Acc16::D], self[Acc16::W],
             self[Acc32::Q],
         )
     }
@@ -176,8 +172,21 @@ mod test_quad_acc {
         assert_eq!(acc[Acc8::E], 0x20);
         assert_eq!(acc[Acc8::F], 0x10);
     }
+
+    #[test]
+    fn test_copy_acc8() {
+        let mut acc = QuadAcc::default();
+
+        acc[Acc8::E] = 0x80;
+        acc[Acc8::A] = acc[Acc8::E] + 0x08;
+
+        assert_eq!(acc[Acc8::E], 0x80);
+        assert_eq!(acc[Acc8::A], 0x88);
+    }
 }
 
+// TODO: figure out if Index/IndexMut will help the ergonomics of this regfile but for now
+// let's treat it as a regular structure since there's no overlapping fields or anything
 #[derive(Debug)]
 pub struct RegFile {
     acc: QuadAcc,
