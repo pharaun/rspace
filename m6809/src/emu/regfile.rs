@@ -4,7 +4,26 @@ use std::ops::{Index, IndexMut};
 use bitfield_struct::bitfield;
 use bytemuck::{must_cast_slice, must_cast_slice_mut, Pod, Zeroable};
 
-#[derive(Debug)]
+// Macro for provisioning an Index+Mut impl for more than 1 Idx type
+// such as: Acc8/Acc16/Acc32 for QuadAcc
+macro_rules! acc_index {
+    ($acc:ty, $idx:ty, $out:ty) => {
+        impl Index<$idx> for $acc {
+            type Output = $out;
+
+            fn index(&self, idx: $idx) -> &Self::Output {
+                &must_cast_slice(&self.0)[idx as usize]
+            }
+        }
+
+        impl IndexMut<$idx> for $acc {
+            fn index_mut(&mut self, idx: $idx) -> &mut Self::Output {
+                &mut must_cast_slice_mut(&mut self.0)[idx as usize]
+            }
+        }
+    }
+}
+
 enum Acc8 {
     A = 3,
     B = 2,
@@ -12,13 +31,11 @@ enum Acc8 {
     F = 0,
 }
 
-#[derive(Debug)]
 enum Acc16 {
     D = 1,
     W = 0,
 }
 
-#[derive(Debug)]
 enum Acc32 {
     Q = 0,
 }
@@ -27,47 +44,9 @@ enum Acc32 {
 #[repr(transparent)]
 struct QuadAcc([u32; 1]);
 
-impl Index<Acc8> for QuadAcc {
-    type Output = u8;
-
-    fn index(&self, idx: Acc8) -> &Self::Output {
-        &must_cast_slice(&self.0)[idx as usize]
-    }
-}
-
-impl IndexMut<Acc8> for QuadAcc {
-    fn index_mut(&mut self, idx: Acc8) -> &mut Self::Output {
-        &mut must_cast_slice_mut(&mut self.0)[idx as usize]
-    }
-}
-
-impl Index<Acc16> for QuadAcc {
-    type Output = u16;
-
-    fn index(&self, idx: Acc16) -> &Self::Output {
-        &must_cast_slice(&self.0)[idx as usize]
-    }
-}
-
-impl IndexMut<Acc16> for QuadAcc {
-    fn index_mut(&mut self, idx: Acc16) -> &mut Self::Output {
-        &mut must_cast_slice_mut(&mut self.0)[idx as usize]
-    }
-}
-
-impl Index<Acc32> for QuadAcc {
-    type Output = u32;
-
-    fn index(&self, idx: Acc32) -> &Self::Output {
-        &must_cast_slice(&self.0)[idx as usize]
-    }
-}
-
-impl IndexMut<Acc32> for QuadAcc {
-    fn index_mut(&mut self, idx: Acc32) -> &mut Self::Output {
-        &mut must_cast_slice_mut(&mut self.0)[idx as usize]
-    }
-}
+acc_index!(QuadAcc, Acc8, u8);
+acc_index!(QuadAcc, Acc16, u16);
+acc_index!(QuadAcc, Acc32, u32);
 
 impl fmt::Debug for QuadAcc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
