@@ -2,6 +2,7 @@ use std::fmt;
 use std::ops::{Index, IndexMut};
 
 use bitfield_struct::bitfield;
+use bytemuck::{must_cast_slice, must_cast_slice_mut, Pod, Zeroable};
 
 #[derive(Debug)]
 enum Acc8 {
@@ -22,34 +23,21 @@ enum Acc32 {
     Q = 0,
 }
 
-union QuadAcc {
-    // A / B / E / F
-    acc8: [u8; 4],
-    // D / W
-    acc16: [u16; 2],
-    // Q
-    acc32: [u32; 1],
-}
-
-impl Default for QuadAcc {
-    fn default() -> Self { QuadAcc { acc32: [0; 1] } }
-}
+#[derive(Copy, Clone, Pod, Zeroable)]
+#[repr(transparent)]
+struct QuadAcc([u32; 1]);
 
 impl Index<Acc8> for QuadAcc {
     type Output = u8;
 
     fn index(&self, idx: Acc8) -> &Self::Output {
-        unsafe {
-            &self.acc8[idx as usize]
-        }
+        &must_cast_slice(&self.0)[idx as usize]
     }
 }
 
 impl IndexMut<Acc8> for QuadAcc {
     fn index_mut(&mut self, idx: Acc8) -> &mut Self::Output {
-        unsafe {
-            &mut self.acc8[idx as usize]
-        }
+        &mut must_cast_slice_mut(&mut self.0)[idx as usize]
     }
 }
 
@@ -57,17 +45,13 @@ impl Index<Acc16> for QuadAcc {
     type Output = u16;
 
     fn index(&self, idx: Acc16) -> &Self::Output {
-        unsafe {
-            &self.acc16[idx as usize]
-        }
+        &must_cast_slice(&self.0)[idx as usize]
     }
 }
 
 impl IndexMut<Acc16> for QuadAcc {
     fn index_mut(&mut self, idx: Acc16) -> &mut Self::Output {
-        unsafe {
-            &mut self.acc16[idx as usize]
-        }
+        &mut must_cast_slice_mut(&mut self.0)[idx as usize]
     }
 }
 
@@ -75,17 +59,13 @@ impl Index<Acc32> for QuadAcc {
     type Output = u32;
 
     fn index(&self, idx: Acc32) -> &Self::Output {
-        unsafe {
-            &self.acc32[idx as usize]
-        }
+        &must_cast_slice(&self.0)[idx as usize]
     }
 }
 
 impl IndexMut<Acc32> for QuadAcc {
     fn index_mut(&mut self, idx: Acc32) -> &mut Self::Output {
-        unsafe {
-            &mut self.acc32[idx as usize]
-        }
+        &mut must_cast_slice_mut(&mut self.0)[idx as usize]
     }
 }
 
@@ -107,7 +87,7 @@ mod test_quad_acc {
 
     #[test]
     fn test_acc8() {
-        let mut acc = QuadAcc::default();
+        let mut acc = QuadAcc::zeroed();
 
         acc[Acc8::A] = 0b1000_0001;
         acc[Acc8::B] = 0b0100_0010;
@@ -122,7 +102,7 @@ mod test_quad_acc {
 
     #[test]
     fn test_acc16() {
-        let mut acc = QuadAcc::default();
+        let mut acc = QuadAcc::zeroed();
 
         acc[Acc16::D] = 0x01_01;
         acc[Acc16::W] = 0x80_80;
@@ -133,14 +113,14 @@ mod test_quad_acc {
 
     #[test]
     fn test_acc32() {
-        let mut acc = QuadAcc::default();
+        let mut acc = QuadAcc::zeroed();
         acc[Acc32::Q] = 0x80_80_01_01;
         assert_eq!(acc[Acc32::Q], 0x80_80_01_01);
     }
 
     #[test]
     fn test_acc8_acc16_acc32() {
-        let mut acc = QuadAcc::default();
+        let mut acc = QuadAcc::zeroed();
 
         // A/B
         acc[Acc8::A] = 0b1000_0001;
@@ -158,7 +138,7 @@ mod test_quad_acc {
 
     #[test]
     fn test_acc32_acc16_acc8() {
-        let mut acc = QuadAcc::default();
+        let mut acc = QuadAcc::zeroed();
 
         acc[Acc32::Q] = 0x80_40_20_10;
 
@@ -175,7 +155,7 @@ mod test_quad_acc {
 
     #[test]
     fn test_copy_acc8() {
-        let mut acc = QuadAcc::default();
+        let mut acc = QuadAcc::zeroed();
 
         acc[Acc8::E] = 0x80;
         acc[Acc8::A] = acc[Acc8::E] + 0x08;

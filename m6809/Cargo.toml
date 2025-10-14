@@ -11,7 +11,8 @@ arbitrary-int = "2"
 bitfield-struct = "0.11"
 
 # Reading bits from memory
-byteorder = "1.3.2"
+byteorder = "1.3"
+bytemuck = { version = "1.24", features = ["derive", "must_cast"] }
 
 # Parsing
 nom = "8"
