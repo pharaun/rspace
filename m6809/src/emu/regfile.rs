@@ -42,11 +42,17 @@ enum Acc32 {
 
 #[derive(Copy, Clone, Pod, Zeroable)]
 #[repr(transparent)]
-struct QuadAcc([u32; 1]);
+pub struct QuadAcc([u32; 1]);
 
 acc_index!(QuadAcc, Acc8, u8);
 acc_index!(QuadAcc, Acc16, u16);
 acc_index!(QuadAcc, Acc32, u32);
+
+impl Default for QuadAcc {
+    fn default() -> Self {
+        QuadAcc::zeroed()
+    }
+}
 
 impl fmt::Debug for QuadAcc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -144,28 +150,27 @@ mod test_quad_acc {
     }
 }
 
-// TODO: figure out if Index/IndexMut will help the ergonomics of this regfile but for now
-// let's treat it as a regular structure since there's no overlapping fields or anything
-#[derive(Debug)]
+// TODO: how to handle the 0 register (zero)
+#[derive(Debug, Default)]
 pub struct RegFile {
-    acc: QuadAcc,
+    pub acc: QuadAcc,
     // Index
-    x: u16, y: u16,
+    pub x: u16,
+    pub y: u16,
     // Stack
-    u: u16, s: u16,
+    pub u: u16,
+    pub s: u16,
     // Program Counter
-    pc: u16,
+    pub pc: u16,
     //Transfer
-    v: u16,
-    // Zero register?
-
+    pub v: u16,
     // Direct Page
-    dp: u8,
-
+    pub dp: u8,
     // Flags
-    cc: ConditionCode,
-    md: CpuMode,
+    pub cc: ConditionCode,
+    pub md: CpuMode,
 }
+
 
 #[bitfield(u8, order=Msb)]
 #[derive(PartialEq)]
