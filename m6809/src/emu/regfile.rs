@@ -160,8 +160,6 @@ pub struct RegFile {
     // Stack
     pub u: u16,
     pub s: u16,
-    // Program Counter
-    pub pc: u16,
     //Transfer
     pub v: u16,
     // Direct Page
