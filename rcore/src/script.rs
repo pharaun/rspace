@@ -10,12 +10,12 @@ use crate::movement::Position;
 use crate::rotation::TargetRotation;
 use crate::rotation::Rotation;
 
-use crate::radar::ContactEvent;
+use crate::radar::ContactMessage;
 use crate::radar::Radar;
 use crate::radar::Arc as CompArc;
-use crate::weapon::FireDebugWeaponEvent;
-use crate::weapon::FireDebugWarheadEvent;
-use crate::weapon::FireDebugMissileEvent;
+use crate::weapon::FireDebugWeaponMessage;
+use crate::weapon::FireDebugWarheadMessage;
+use crate::weapon::FireDebugMissileMessage;
 
 use crate::FixedGameSystem;
 use crate::math::AbsRot;
@@ -143,36 +143,36 @@ impl Plugin for ScriptPlugins {
 }
 
 fn process_on_collision(
-    mut collision_events: EventReader<CollisionStarted>,
+    mut collision_events: MessageReader<CollisionStart>,
     mut query: Query<(Entity, &mut Script)>,
 ) {
     // Handle collision events first
-    for CollisionStarted(e1, e2) in collision_events.read() {
-        if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([*e1, *e2]) {
+    for event in collision_events.read() {
+        if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([event.collider1, event.collider2]) {
             for mut ship_script in [e1_script, e2_script] {
                 // Invoke collision handler
                 ship_script.script.on_collision();
             }
         } else {
-            println!("ERROR - SCRIPT - CollisionStarted({:?}, {:?})", e1, e2);
+            println!("ERROR - SCRIPT - CollisionStart({:?}, {:?})", event.collider1, event.collider2);
         }
     }
 }
 
 fn process_on_contact(
-    mut contact_events: EventReader<ContactEvent>,
+    mut contact_messages: MessageReader<ContactMessage>,
     mut query: Query<(Entity, &Position, &mut Script)>,
 ) {
     // Invoke the script for contact
-    for contact_event in contact_events.read() {
-        let ContactEvent(e1, e2) = contact_event;
+    for contact_message in contact_messages.read() {
+        let ContactMessage(e1, e2) = contact_message;
         // TODO: right now with the ContactEvent being copies it leads to aliased query here,
         // This should be fixed once we have proper contact event that does not refer to self
         if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2]) {
             // E1 knows where e2 is
             e1_script.script.on_contact(e2_pos.0, e2_entity);
         } else {
-            println!("ERROR - SCRIPT - {:?}", contact_event);
+            println!("ERROR - SCRIPT - {:?}", contact_message);
         }
     }
 }
@@ -203,9 +203,9 @@ fn process_on_update(
     )>,
     target_query: Query<Entity>,
     mut radar_query: Query<&mut CompArc, With<Radar>>,
-    mut events: EventWriter<FireDebugWeaponEvent>,
-    mut w_events: EventWriter<FireDebugWarheadEvent>,
-    mut m_events: EventWriter<FireDebugMissileEvent>,
+    mut l_message: MessageWriter<FireDebugWeaponMessage>,
+    mut w_message: MessageWriter<FireDebugWarheadMessage>,
+    mut m_message: MessageWriter<FireDebugMissileMessage>,
 ) {
     // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
@@ -239,14 +239,14 @@ fn process_on_update(
             // For now emit a fire event
             if let Some(target) = res.target_entity {
                 if let Ok(target_entity) = target_query.get(target) {
-                    events.write(FireDebugWeaponEvent(entity, target_entity));
+                    l_message.write(FireDebugWeaponMessage(entity, target_entity));
                 }
             }
 
             // For now spam the warhead fire event
             if let Some(_) = res.target_entity {
-                w_events.write(FireDebugWarheadEvent(entity));
-                m_events.write(FireDebugMissileEvent(entity));
+                w_message.write(FireDebugWarheadMessage(entity));
+                m_message.write(FireDebugMissileMessage(entity));
             }
         }
     }

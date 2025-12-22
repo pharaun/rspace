@@ -10,7 +10,7 @@ use crate::ARENA_SCALE;
 use crate::ship::ShipBuilder;
 use crate::script::Script;
 use crate::rotation::Rotation;
-use crate::spawner::SpawnEvent;
+use crate::spawner::SpawnMessage;
 use crate::radar::Arc;
 use crate::radar::ArcCheck;
 use crate::radar::within_arc;
@@ -25,27 +25,26 @@ const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
 pub struct WeaponPlugin;
 impl Plugin for WeaponPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<DamageEvent>()
-            .add_observer(process_damage_event)
-            .add_event::<FireDebugWeaponEvent>()
-            .add_event::<FireDebugWarheadEvent>()
-            .add_event::<FireDebugMissileEvent>()
+        app.add_observer(process_damage_event)
+            .add_message::<FireDebugWeaponMessage>()
+            .add_message::<FireDebugWarheadMessage>()
+            .add_message::<FireDebugMissileMessage>()
             .add_systems(FixedUpdate, (
                 apply_debug_weapon_cooldown.in_set(FixedGameSystem::GameLogic),
-                process_fire_debug_weapon_event.in_set(FixedGameSystem::Weapon).after(apply_debug_weapon_cooldown),
+                process_fire_debug_weapon_message.in_set(FixedGameSystem::Weapon).after(apply_debug_weapon_cooldown),
             ))
             .add_systems(FixedUpdate, (
                 apply_debug_missile_cooldown.in_set(FixedGameSystem::GameLogic),
                 // Missile will spawn the next frame
                 // TODO: do we want a post-shiplogic set -> missile -> spawn -> weapon sequencing
-                process_fire_debug_missile_event.in_set(FixedGameSystem::Weapon).after(apply_debug_missile_cooldown),
+                process_fire_debug_missile_message.in_set(FixedGameSystem::Weapon).after(apply_debug_missile_cooldown),
             ))
             .add_systems(FixedUpdate, (
-                process_fire_debug_warhead_event.in_set(FixedGameSystem::Weapon),
+                process_fire_debug_warhead_message.in_set(FixedGameSystem::Weapon),
             ))
             .add_systems(RunFixedMainLoop, (
-                render_debug_weapon.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
-                render_debug_warhead.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+                render_debug_weapon.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
+                render_debug_warhead.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
             ))
             .add_systems(Update, (
                 debug_health_gitzmos,
@@ -68,8 +67,13 @@ pub struct HealthDebug;
 
 // 0 - Origin of the damage (for shield coverage check)
 // 1 - health to deduce
-#[derive(Event, Copy, Clone, Debug)]
-pub struct DamageEvent (pub IVec2, pub u16);
+#[derive(EntityEvent, Copy, Clone, Debug)]
+pub struct DamageEvent {
+    #[event_target]
+    pub target: Entity,
+    pub pos: IVec2,
+    pub dmg: u16,
+}
 
 // Basic 360 no scope test weapon, it can zap anything when told to fire
 #[derive(Component, Clone)]
@@ -127,18 +131,18 @@ pub struct RenderDebugWarhead {
 // TODO: probs want to look at some other option but for now we can use an event to fire
 // the weapon
 // 0 - self, 1 - target
-#[derive(Event, Copy, Clone, Debug)]
-pub struct FireDebugWeaponEvent (pub Entity, pub Entity);
+#[derive(Message, Copy, Clone, Debug)]
+pub struct FireDebugWeaponMessage (pub Entity, pub Entity);
 
 // Just blow up the missile upon trigger
 // 0 - self
-#[derive(Event, Copy, Clone, Debug)]
-pub struct FireDebugWarheadEvent (pub Entity);
+#[derive(Message, Copy, Clone, Debug)]
+pub struct FireDebugWarheadMessage (pub Entity);
 
 // Fire the missile
 // 0 - self
-#[derive(Event, Copy, Clone, Debug)]
-pub struct FireDebugMissileEvent (pub Entity);
+#[derive(Message, Copy, Clone, Debug)]
+pub struct FireDebugMissileMessage (pub Entity);
 
 // TODO: add logic to query for shield on the ship, and check
 // if the shield covers where the damage is coming from, and then if so,
@@ -146,14 +150,14 @@ pub struct FireDebugMissileEvent (pub Entity);
 // from the shield health pool, once shield health pool is zero, then just pass full
 // damage through
 pub fn process_damage_event(
-    trigger: Trigger<DamageEvent>,
+    trigger: On<DamageEvent>,
     mut commands: Commands,
     mut query: Query<(&mut Health, &Position, &Children), Without<Shield>>,
     mut shield_query: Query<(&mut Health, &Shield, &Arc)>,
 ) {
-    let ship = trigger.target();
+    let ship = trigger.event().target;
     if let Ok((mut health, ship_pos, children)) = query.get_mut(ship) {
-        let mut ship_damage: u16 = trigger.event().1;
+        let mut ship_damage: u16 = trigger.event().dmg;
 
         // Scan through the children to find the shield if there is one.
         // TODO: support multiple shield, for now assume one.
@@ -162,35 +166,35 @@ pub fn process_damage_event(
                 // Check if the shield is not at 0 health
                 if shield_health.current == 0 {
                     // Pass on full damage
-                    ship_damage = trigger.event().1;
+                    ship_damage = trigger.event().dmg;
                     break;
                 }
 
                 // Check if the damage source is covered by the shield arc
-                match within_arc(ship_pos.0, trigger.event().0, arc.current, arc.current_arc) {
+                match within_arc(ship_pos.0, trigger.event().pos, arc.current, arc.current_arc) {
                     ArcCheck::InsideArc => {
                         // Split incoming damage into shield and ship damage
-                        let shield_damage: u16 = (trigger.event().1 as f32 * shield.damage_reduce).round() as u16;
+                        let shield_damage: u16 = (trigger.event().dmg as f32 * shield.damage_reduce).round() as u16;
 
                         // If shield can't cover full shield damage, deduce and pass on to ship
                         if let Some(new_shield_health) = shield_health.current.checked_sub(shield_damage) {
                             shield_health.current = new_shield_health;
-                            ship_damage = trigger.event().1 - shield_damage;
+                            ship_damage = trigger.event().dmg - shield_damage;
                         } else {
                             // Can't cover full damage, deduce what we can and pass it on
                             let carry_shield_damage = shield_damage - shield_health.current;
                             shield_health.current = 0;
-                            ship_damage = trigger.event().1 - shield_damage + carry_shield_damage;
+                            ship_damage = trigger.event().dmg - shield_damage + carry_shield_damage;
                         }
                     },
                     ArcCheck::OutsideArc => {
                         // Pass on full damage
-                        ship_damage = trigger.event().1;
+                        ship_damage = trigger.event().dmg;
                     },
                     ArcCheck::SamePosition => {
                         // Print warning & pass on full damage
                         println!("Warning self-damaging? - {:?}", ship_pos.0);
-                        ship_damage = trigger.event().1;
+                        ship_damage = trigger.event().dmg;
                     }
                 }
 
@@ -243,7 +247,7 @@ pub(crate) fn render_debug_weapon(
 
         // Check if fade has expired?
         // if so, despawn
-        if render.fade.finished() {
+        if render.fade.is_finished() {
             commands.entity(entity).despawn();
         }
     }
@@ -267,19 +271,19 @@ pub(crate) fn render_debug_warhead(
 
         // Check if fade has expired?
         // if so, despawn
-        if render.fade.finished() {
+        if render.fade.is_finished() {
             commands.entity(entity).despawn();
         }
     }
 }
 
-pub fn process_fire_debug_weapon_event(
+pub fn process_fire_debug_weapon_message(
     mut commands: Commands,
-    mut fire_debug_weapon_events: EventReader<FireDebugWeaponEvent>,
+    mut fire_debug_weapon_message: MessageReader<FireDebugWeaponMessage>,
     mut query: Query<(&mut DebugWeapon, &Position)>,
     position: Query<&Transform>,
 ) {
-    for FireDebugWeaponEvent(ship, target) in fire_debug_weapon_events.read() {
+    for FireDebugWeaponMessage(ship, target) in fire_debug_weapon_message.read() {
         if let Ok((mut weapon, ship_pos)) = query.get_mut(*ship) {
             if weapon.current == 0 {
                 weapon.current = weapon.cooldown;
@@ -295,20 +299,24 @@ pub fn process_fire_debug_weapon_event(
                 });
 
                 // emit damage event to the target
-                commands.trigger_targets(DamageEvent(ship_pos.0, weapon.damage), target.clone());
+                commands.trigger(DamageEvent {
+                    target: target.clone(),
+                    pos: ship_pos.0,
+                    dmg: weapon.damage,
+                });
             }
         }
     }
 }
 
-pub fn process_fire_debug_warhead_event(
+pub fn process_fire_debug_warhead_message(
     mut commands: Commands,
-    mut fire_debug_warhead_events: EventReader<FireDebugWarheadEvent>,
+    mut fire_debug_warhead_message: MessageReader<FireDebugWarheadMessage>,
     have_warhead: Query<&DebugWarhead>,
     render_position: Query<&Transform>,
     position: Query<(Entity, &Position)>,
 ) {
-    for FireDebugWarheadEvent(ship) in fire_debug_warhead_events.read() {
+    for FireDebugWarheadMessage(ship) in fire_debug_warhead_message.read() {
         // does this ship (self) have a warhead component?
         if let Ok(warhead) = have_warhead.get(*ship) {
             // Fetch the ship position
@@ -328,7 +336,11 @@ pub fn process_fire_debug_warhead_event(
                 }
 
                 if base_position.0.distance_squared(target_position.0) < DISTANCE_SQUARED {
-                    commands.trigger_targets(DamageEvent(base_position.0, warhead.damage), target_ship);
+                    commands.trigger(DamageEvent {
+                        target: target_ship,
+                        pos: base_position.0,
+                        dmg: warhead.damage,
+                    });
                 }
             }
 
@@ -341,13 +353,13 @@ pub fn process_fire_debug_warhead_event(
 
 // TODO: for now hardcore various things, but we need to pass in the script to the missile
 // That or yeet the script from parent ship and copy it over
-pub fn process_fire_debug_missile_event(
-    mut fire_debug_missile_events: EventReader<FireDebugMissileEvent>,
+pub fn process_fire_debug_missile_message(
+    mut fire_debug_missile_message: MessageReader<FireDebugMissileMessage>,
     mut parent_missile: Query<&mut DebugMissile>,
     parent_ship: Query<(&Position, &Rotation, &Script)>,
-    mut spawn_ship: EventWriter<SpawnEvent>,
+    mut spawn_ship: MessageWriter<SpawnMessage>,
 ) {
-    for FireDebugMissileEvent(ship) in fire_debug_missile_events.read() {
+    for FireDebugMissileMessage(ship) in fire_debug_missile_message.read() {
         // 1. does this have a missile component if so, check if we can fire
         if let Ok(mut weapon) = parent_missile.get_mut(*ship) {
             if weapon.current == 0 {
@@ -369,7 +381,7 @@ pub fn process_fire_debug_missile_event(
                     .warhead(100)
                     .build();
 
-                spawn_ship.write(SpawnEvent(missile));
+                spawn_ship.write(SpawnMessage(missile));
             }
         }
     }

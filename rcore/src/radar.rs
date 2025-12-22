@@ -15,13 +15,13 @@ const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
 pub struct RadarPlugin;
 impl Plugin for RadarPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<ContactEvent>()
+        app.add_message::<ContactMessage>()
             .add_systems(FixedUpdate, (
                 apply_arc.in_set(FixedGameSystem::GameLogic),
                 apply_radar.in_set(FixedGameSystem::GameLogic).after(apply_arc),
             ))
             .add_systems(RunFixedMainLoop, (
-                interpolate_arc.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+                interpolate_arc.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
             ))
             .add_systems(Update, (
                 debug_arc_gitzmos,
@@ -109,8 +109,8 @@ pub struct RadarDebug;
 
 // Radar contact event,
 // 0 - self, 1 - target
-#[derive(Event, Copy, Clone, Debug)]
-pub struct ContactEvent (pub Entity, pub Entity);
+#[derive(Message, Copy, Clone, Debug)]
+pub struct ContactMessage (pub Entity, pub Entity);
 
 // Radar Contact Result
 #[derive(Debug)]
@@ -160,7 +160,7 @@ pub(crate) fn apply_arc(
 
 // TODO: split this and setup system ordering but for now.
 pub(crate) fn apply_radar(
-    mut events: EventWriter<ContactEvent>,
+    mut message: MessageWriter<ContactMessage>,
     query: Query<(&Arc, &ChildOf), With<Radar>>,
     ship_query: Query<(Entity, &Position)>,
 ) {
@@ -200,7 +200,7 @@ pub(crate) fn apply_radar(
 
         // If there is a best_target, then emit a contact
         if let Some((target_ship, _)) = best_target {
-            events.write(ContactEvent(base_ship, target_ship));
+            message.write(ContactMessage(base_ship, target_ship));
         }
     }
 }

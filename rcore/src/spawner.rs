@@ -11,10 +11,10 @@ use crate::ship::add_ship;
 pub struct SpawnerPlugin;
 impl Plugin for SpawnerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<SpawnEvent>()
+        app.add_message::<SpawnMessage>()
             .add_systems(
                 FixedUpdate,
-                process_spawn_event.in_set(FixedGameSystem::Spawn),
+                process_spawn_message.in_set(FixedGameSystem::Spawn),
             );
     }
 }
@@ -28,14 +28,14 @@ impl Plugin for SpawnerPlugin {
 //
 // TODO: we have weird frame timing, where the ship spawns then rotate quickly, and sometime the
 // explosion doesn't work
-#[derive(Event)]
-pub struct SpawnEvent (pub StarterShip);
+#[derive(Message)]
+pub struct SpawnMessage (pub StarterShip);
 
-pub fn process_spawn_event(
+pub fn process_spawn_message(
     mut commands: Commands,
-    mut spawn_event: EventReader<SpawnEvent>,
+    mut spawn_message: MessageReader<SpawnMessage>,
 ) {
-    for SpawnEvent(ship) in spawn_event.read() {
+    for SpawnMessage(ship) in spawn_message.read() {
         add_ship(&mut commands, ship.clone());
     }
 }

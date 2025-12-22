@@ -15,7 +15,7 @@ impl Plugin for MovementPlugin {
                 wrap_position.in_set(FixedGameSystem::GameLogic).after(apply_movement),
             ))
             .add_systems(RunFixedMainLoop, (
-                interpolate_movement.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+                interpolate_movement.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
             ))
             .add_systems(Update, (
                 debug_movement_gitzmos,

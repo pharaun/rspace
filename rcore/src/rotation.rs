@@ -10,13 +10,13 @@ impl Plugin for RotationPlugin {
                 apply_rotation.in_set(FixedGameSystem::GameLogic),
             ))
             .add_systems(RunFixedMainLoop, (
-                interpolate_rotation.in_set(RunFixedMainLoopSystem::AfterFixedMainLoop),
+                interpolate_rotation.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
             ))
             .add_systems(Update, (
                 debug_rotation_gitzmos,
             ))
             .add_systems(PostUpdate, (
-                disable_rotation_propagation.after(TransformSystem::TransformPropagate),
+                disable_rotation_propagation.after(TransformSystems::Propagate),
             ));
     }
 }
