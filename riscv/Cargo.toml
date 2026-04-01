@@ -11,10 +11,10 @@ build = "build.rs"
 debug = []
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.8"
 
 [build-dependencies]
-phf_codegen = "0.7.24"
+phf_codegen = "0.13"
 
 [dependencies]
 # Bit twiddling
@@ -24,7 +24,7 @@ twiddle = "1.1.0"
 byteorder = "1.5.0"
 
 # phf runtime library:
-phf = "0.7.24"
+phf = "0.13"
 
 [lib]
 bench = false

@@ -12,7 +12,7 @@ bitfield-struct = "0.12"
 
 # Reading bits from memory
 byteorder = "1.5"
-bytemuck = { version = "1.24", features = ["derive", "must_cast"] }
+bytemuck = { version = "1.25", features = ["derive", "must_cast"] }
 
 # Parsing
 nom = "8"

@@ -4,16 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy_prototype_lyon = "0.15"
+bevy_prototype_lyon = "0.16"
 
 # To permit ship dyn object to be cloned (so that they all have their own memory region for data)
 dyn-clone = "1.0.20"
 
 # FPS dialog
-bevy_screen_diagnostics = { git = "https://github.com/GlennMacdonald/bevy_screen_diagnostics", branch = "0.17" }
+bevy_screen_diagnostics = { path = "../../bevy_screen_diagnostics" }
 
 [dependencies.avian2d]
-version = "0.4"
+version = "0.6"
 default-features = false
 features = [
 	"2d",
@@ -24,7 +24,7 @@ features = [
 ]
 
 [dependencies.bevy]
-version = "0.17"
+version = "0.18"
 default-features = false
 features = [
   # Bevy functionality:
@@ -43,7 +43,6 @@ features = [
   "bevy_ui",            # UI toolkit
   "bevy_winit",         # Window management (cross-platform Winit backend)
   "bevy_window",        # Winit dep
-  "animation",          # Animation support
   "default_font",       # Embed a minimal default font for text/UI
 
   # Bevy 0.16
