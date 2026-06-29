@@ -27,7 +27,7 @@ use bitfield_struct::bitfield;
 
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum HalfAcc {A, B, D}
+pub(super) enum HalfAcc {A, B, D}
 
 fn half_acc(input: &str) -> IResult<&str, HalfAcc> {
     alt((
@@ -39,7 +39,7 @@ fn half_acc(input: &str) -> IResult<&str, HalfAcc> {
 
 #[repr(u8)]
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum FullAcc {
+pub(super) enum FullAcc {
     A = 0b0110,
     B = 0b0101,
     D = 0b1011,
@@ -60,7 +60,7 @@ fn full_acc(input: &str) -> IResult<&str, FullAcc> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum ShiftAcc {A, B, D, W}
+pub(super) enum ShiftAcc {A, B, D, W}
 
 fn shift_acc(input: &str) -> IResult<&str, ShiftAcc> {
     alt((
@@ -72,7 +72,7 @@ fn shift_acc(input: &str) -> IResult<&str, ShiftAcc> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Inherent {
+pub(super) enum Inherent {
     // Simple Inherent instruction
     ABX, DAA, MUL, NOP, RTI, RTS, SYNC,
     PSHSW, PSHUW, PULSW, PULUW,
@@ -240,7 +240,7 @@ impl ConditionCodeByte {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum TfmMode {
+pub(super) enum TfmMode {
     PlusPlus, // TFM r0+, r1+
     MinusMinus, // TFM r0-, r1-
     PlusNone, // TFM r0+, r1
@@ -248,7 +248,7 @@ pub enum TfmMode {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Imm8 {
+pub(super) enum Imm8 {
     // Reg to Reg
     ADCR, ADDR, ANDR, CMPR, EORR, ORR, SBCR, SUBR, EXG, TFR,
 
@@ -399,7 +399,7 @@ fn tfm_reg(input: &str) -> IResult<&str, (TfmMode, u8)> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum BitMode { AND, EOR, OR }
+pub(super) enum BitMode { AND, EOR, OR }
 
 fn bit_mode(input: &str) -> IResult<&str, BitMode> {
     alt((
@@ -410,7 +410,7 @@ fn bit_mode(input: &str) -> IResult<&str, BitMode> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum BitInv { AsIs, Inverted }
+pub(super) enum BitInv { AsIs, Inverted }
 
 fn bit_inv(input: &str) -> IResult<&str, BitInv> {
     preceded(
@@ -423,7 +423,7 @@ fn bit_inv(input: &str) -> IResult<&str, BitInv> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum DirectBit {
+pub(super) enum DirectBit {
     // Load/Store
     LDBT, STBT,
 
@@ -497,7 +497,7 @@ fn direct_addr(input: &str) -> IResult<&str, u8> {
 
 #[repr(u8)]
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum StackReg {
+pub(super) enum StackReg {
     X = 0b00,
     Y = 0b01,
     U = 0b10,
@@ -634,14 +634,14 @@ fn index_post_byte(index: IndexPostByte) -> u8 {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum IndexBytes {
+pub(super) enum IndexBytes {
     None,
     One(u8),
     Two(u16),
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Indexed {
+pub(super) enum Indexed {
     LEA(StackReg),
 }
 
@@ -838,7 +838,7 @@ fn index_parse_to_post_byte(it: IndexType, ia: IndexArg, ws: WStack) -> (IndexPo
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum StoreLoad {A, B, D, E, F, W, Q, S, U, X, Y}
+pub(super) enum StoreLoad {A, B, D, E, F, W, Q, S, U, X, Y}
 
 fn store_load(input: &str) -> IResult<&str, StoreLoad> {
     alt((
@@ -858,7 +858,7 @@ fn store_load(input: &str) -> IResult<&str, StoreLoad> {
 
 // For now hard code < as direct > as extended sigils
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum MemAddrMode {
+pub(super) enum MemAddrMode {
     Direct(u8),
     Extended(u16),
     // PostByte + Additional Bytes
@@ -891,7 +891,7 @@ fn mem_addr_mode(input: &str) -> IResult<&str, MemAddrMode> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum DirectMem {
+pub(super) enum DirectMem {
     ASL, // LSL
     ASR, CLR, COM, DEC,
     INC, JMP, JSR, LSR,
@@ -925,7 +925,7 @@ fn direct_mem(input: &str) -> IResult<&str, (DirectMem, MemAddrMode)> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum LogicalMem {
+pub(super) enum LogicalMem {
     AIM,
     EIM,
     OIM,
@@ -950,13 +950,13 @@ fn logical_mem(input: &str) -> IResult<&str, (LogicalMem, u8, MemAddrMode)> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum BranchMode {
+pub(super) enum BranchMode {
     Short(i8),
     Long(i16),
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Branch {
+pub(super) enum Branch {
     BRA, BRN, BHI, BLS,
     BCC, //BHS
     BCS, //BLO
@@ -998,7 +998,7 @@ fn branch(input: &str) -> IResult<&str, (Branch, BranchMode)> {
 
 // Not the most type safe but at this point in time, whatever
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum ImmMemBytes{
+pub(super) enum ImmMemBytes{
     Imm8(u8),
     Imm16(u16),
     Imm32(u32),
@@ -1018,7 +1018,7 @@ fn imm_mem_bytes(input: &str) -> IResult<&str, ImmMemBytes> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum ImmMem {
+pub(super) enum ImmMem {
     // Half - u8/u16
     ADC(HalfAcc), AND(HalfAcc), BIT(HalfAcc), EOR(HalfAcc), OR(HalfAcc), SBC(HalfAcc),
 
@@ -1103,7 +1103,7 @@ fn number<T: Num<FromStrRadixErr = std::num::ParseIntError>>(input: &str) -> IRe
 // - Assembly instruction per line
 // - Labels
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum AsmInst {
+pub(super) enum AsmInst {
     Inherent(Inherent),
     Imm8(Imm8, u8),
     DirectBit(DirectBit, u8, u8),
@@ -1114,7 +1114,7 @@ pub enum AsmInst {
     ImmMem(ImmMem, ImmMemBytes),
 }
 
-pub fn parse_asm_inst(input: &str) -> IResult<&str, Vec<AsmInst>> {
+pub(super) fn parse_asm_inst(input: &str) -> IResult<&str, Vec<AsmInst>> {
     all_consuming(
         many1(
             delimited(

@@ -1,7 +1,11 @@
 [package]
 name = "rcore"
 version = "0.1.0"
+authors = ["Anja Berens <pharaun666@gmail.com>"]
 edition = "2024"
+
+[lints]
+workspace = true
 
 [dependencies]
 bevy_prototype_lyon = "0.17"

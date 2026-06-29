@@ -22,7 +22,7 @@ use crate::asm::parser::TfmMode;
 
 use byteorder::{ByteOrder, BigEndian};
 
-pub fn generate_object_code(input: Vec<AsmInst>) -> Vec<u8> {
+pub(super) fn generate_object_code(input: Vec<AsmInst>) -> Vec<u8> {
     let mut result = Vec::new();
     for inst in input {
         result.extend(generate_opcode(inst))

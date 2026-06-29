@@ -33,25 +33,25 @@ const MASK_31_0: u64  = const_u32_mask(31..0) as u64;
 
 
 
-pub struct Cpu {
+pub(super) struct Cpu {
     // TODO: make private when tests are broken up better
     pub reg: regfile::RegFile,
     pc: u32
 }
 
 impl Cpu {
-    pub fn new(reg: regfile::RegFile, pc: u32) -> Cpu {
+    pub(super) fn new(reg: regfile::RegFile, pc: u32) -> Cpu {
         Cpu {
             reg,
             pc
         }
     }
 
-    pub fn set_pc(&mut self, pc: u32) {
+    pub(super) fn set_pc(&mut self, pc: u32) {
         self.pc = pc;
     }
 
-    pub fn step(&mut self, memory: &mut impl Mem, csrfile: &mut csr::Csr) -> Result<(), Trap> {
+    pub(super) fn step(&mut self, memory: &mut impl Mem, csrfile: &mut csr::Csr) -> Result<(), Trap> {
         let inst = fetch_instruction(&*memory, self.pc)?;
 
         // Decode opcode

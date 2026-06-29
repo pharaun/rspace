@@ -11,7 +11,7 @@ use crate::asm::cleaner;
 // At this stage everything should be fully specified
 // (ie. ready to be encoded into bytecode)
 #[derive(Debug, PartialEq)]
-pub enum AToken {
+pub(super) enum AToken {
     RegRegReg(String, ast::Reg, ast::Reg, ast::Reg),
     RegImmCsr(String, ast::Reg, u32, ast::Csr),
     RegRegCsr(String, ast::Reg, ast::Reg, ast::Csr),
@@ -33,14 +33,14 @@ struct WordBuf {
 }
 
 impl WordBuf {
-    pub fn new() -> WordBuf {
+    pub(crate) fn new() -> WordBuf {
         WordBuf {
             buffer: [0x0, 0x0, 0x0, 0x0],
             buffer_idx: 0,
         }
     }
 
-    pub fn write_byte(&mut self, input: u8) -> Option<u32> {
+    pub(crate) fn write_byte(&mut self, input: u8) -> Option<u32> {
         self.buffer[self.buffer_idx] = input;
         self.buffer_idx += 1;
 
@@ -56,7 +56,7 @@ impl WordBuf {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.buffer_idx == 0
     }
 }
@@ -64,7 +64,7 @@ impl WordBuf {
 // TODO: support labeled memory location, for now only branches + jumps (need more support)
 // Don't know how to figure out if i should generate a relative or an absolute address, branches are always relative to the inst
 // supporting those for now, the jalr/auipc/lui/jal i can't figure out yet
-pub fn symbol_table_expansion(input: cleaner::Cleaner) -> Vec<AToken> {
+pub(super) fn symbol_table_expansion(input: cleaner::Cleaner) -> Vec<AToken> {
     // First pass caches the output from cleaner
     let mut first_pass: Vec<cleaner::CToken> = Vec::new();
 

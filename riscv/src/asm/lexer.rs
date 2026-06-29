@@ -2,12 +2,12 @@ use std::str::Chars;
 use std::iter::Peekable;
 
 #[derive(Debug, PartialEq)]
-pub enum LocalAddrRefType { Forward, Backward }
+pub(super) enum LocalAddrRefType { Forward, Backward }
 
 // Plain label == AddrRef
 // [label] == MemRef
 #[derive(Debug, PartialEq)]
-pub enum Token {
+pub(super) enum Token {
     Str(String),
     Num(u32), // Only decimals or hex
     Colon,
@@ -18,13 +18,13 @@ pub enum Token {
 }
 
 // Lexer
-pub struct Lexer<'a> {
+pub(super) struct Lexer<'a> {
     input_iter: Peekable<Chars<'a>>,
     emit_newline: bool,
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(input: &'a str) -> Lexer<'a> {
+    pub(super) fn new(input: &'a str) -> Lexer<'a> {
         Lexer { input_iter: input.chars().peekable(), emit_newline: false}
     }
 
@@ -144,7 +144,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn next_token(&mut self) -> Option<Token> {
+    pub(super) fn next_token(&mut self) -> Option<Token> {
         #![allow(clippy::neg_multiply)]
         self.skip_whitespace();
         if let Some(c) = self.read_char() {

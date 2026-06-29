@@ -1,6 +1,4 @@
-extern crate phf;
-extern crate twiddle;
-extern crate byteorder;
+use phf;
 
 pub mod asm;
 pub mod vm;

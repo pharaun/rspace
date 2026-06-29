@@ -1,1 +1,1 @@
-pub mod timer;
+pub(super) mod timer;

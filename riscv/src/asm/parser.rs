@@ -6,7 +6,7 @@ use crate::asm::lexer;
 
 // TODO: parse macro definition and usage here
 #[derive(Debug, PartialEq)]
-pub enum Arg {
+pub(super) enum Arg {
     Num(u32),
     Reg(ast::Reg),
     Csr(ast::Csr),
@@ -15,7 +15,7 @@ pub enum Arg {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum PToken {
+pub(super) enum PToken {
     Label(String, ast::LabelType),
     Inst(String, Vec<Arg>),
     // Clean up the actual bytes at a later stage
@@ -24,13 +24,13 @@ pub enum PToken {
 
 
 // Parser
-pub struct Parser<'a> {
+pub(super) struct Parser<'a> {
     input_iter: Peekable<lexer::Lexer<'a>>,
 }
 
 
 impl<'a> Parser<'a> {
-    pub fn new(input: lexer::Lexer<'a>) -> Parser<'a> {
+    pub(super) fn new(input: lexer::Lexer<'a>) -> Parser<'a> {
         Parser { input_iter: input.peekable() }
     }
 
@@ -57,7 +57,7 @@ impl<'a> Parser<'a> {
         args
     }
 
-    pub fn next_token(&mut self) -> Option<PToken> {
+    pub(super) fn next_token(&mut self) -> Option<PToken> {
         if let Some(t) = self.read_token() {
             // Check if its a label
             if let Some(&lexer::Token::Colon) = self.peek_token() {
@@ -88,9 +88,9 @@ impl<'a> Parser<'a> {
                             match t {
                                 lexer::Token::Str(s) => {
                                     // Check if CSRR or registers
-                                    if let Result::Ok(c) = ast::Csr::from_str(&s) {
+                                    if let Ok(c) = ast::Csr::from_str(&s) {
                                         args.push(Arg::Csr(c));
-                                    } else if let Result::Ok(r) = ast::Reg::from_str(&s) {
+                                    } else if let Ok(r) = ast::Reg::from_str(&s) {
                                         args.push(Arg::Reg(r));
                                     } else {
                                         // Global Label
@@ -126,7 +126,7 @@ impl<'a> Parser<'a> {
                     // then collect to end of line Num into a vec
                     lexer::Token::Dot => {
                         if let Some(lexer::Token::Str(s)) = self.read_token() {
-                            if let Result::Ok(dt) = ast::DataType::from_str(&s.to_ascii_uppercase()) {
+                            if let Ok(dt) = ast::DataType::from_str(&s.to_ascii_uppercase()) {
                                 let mut dat = Vec::new();
 
                                 for t in self.collect_till_eol() {

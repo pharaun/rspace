@@ -42,7 +42,7 @@ enum Acc32 {
 
 #[derive(Copy, Clone, Pod, Zeroable)]
 #[repr(transparent)]
-pub struct QuadAcc([u32; 1]);
+pub(super) struct QuadAcc([u32; 1]);
 
 acc_index!(QuadAcc, Acc8, u8);
 acc_index!(QuadAcc, Acc16, u16);
@@ -152,7 +152,7 @@ mod test_quad_acc {
 
 // TODO: how to handle the 0 register (zero)
 #[derive(Debug, Default)]
-pub struct RegFile {
+pub(super) struct RegFile {
     pub acc: QuadAcc,
     // Index
     pub x: u16,

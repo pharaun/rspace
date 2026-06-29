@@ -16,7 +16,7 @@ use crate::asm::parser;
 // 3. absolute addressing
 // 4. memref (content of what was at that address at assembly time) (Restricted to only data label?)
 #[derive(Debug, PartialEq)]
-pub enum CImmRef {
+pub(super) enum CImmRef {
     // TODO: MemRef(String),
     AddrRef(String, ast::AddrRefType),
     Imm(u32),
@@ -24,7 +24,7 @@ pub enum CImmRef {
 
 // TODO: implement support for MemRef here onward
 #[derive(Debug, PartialEq)]
-pub enum CToken {
+pub(super) enum CToken {
     Label(String, ast::LabelType),
 
     // Padding (number of u8 padding bits needed to align to nearest u32 boundary)
@@ -85,7 +85,7 @@ pub enum CToken {
 // the buffer.
 //
 // Then resume iteration by reading out of the buffer till empty.
-pub struct Cleaner<'a> {
+pub(super) struct Cleaner<'a> {
     input_iter: parser::Parser<'a>,
     buffer: VecDeque<CToken>,
     buffer_idx: usize,
@@ -93,7 +93,7 @@ pub struct Cleaner<'a> {
 }
 
 impl<'a> Cleaner<'a> {
-    pub fn new(input: parser::Parser<'a>) -> Cleaner<'a> {
+    pub(super) fn new(input: parser::Parser<'a>) -> Cleaner<'a> {
         Cleaner {
             input_iter: input,
             buffer: VecDeque::new(),
@@ -106,7 +106,7 @@ impl<'a> Cleaner<'a> {
         self.input_iter.next()
     }
 
-    pub fn next_token(&mut self) -> Option<CToken> {
+    pub(super) fn next_token(&mut self) -> Option<CToken> {
         // 1. remove first element from buffer (pop_front)
         if let Some(t) = self.buffer.pop_front() {
             // 2. if Some(x), return the some x

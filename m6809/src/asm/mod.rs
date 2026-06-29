@@ -8,7 +8,7 @@ pub fn parse_asm(input: &str) -> Vec<u8> {
     ).unwrap().1;
 
     // First pass scan to extract the labels + usage
-    let symbol_table = labeler::extract(&inst);
+    let _symbol_table = labeler::extract(&inst);
 
     // TODO:
     //  - A pass to handle symbol table expansion (ie constants being inserted into the instruction stream

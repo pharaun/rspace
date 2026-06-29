@@ -11,7 +11,7 @@ use crate::asm::labeler;
 // 3. Third pass: Collect up the label and symbols
 // 4. Fourth pass: rectify the inst into u32 + attribute memory location for labels
 // 5. Fifth pass: Find where to put data, and then rectify reference to data/memory locations.
-pub fn generate_object_code(mut input: Vec<labeler::AToken>) -> Vec<u32> {
+pub(super) fn generate_object_code(mut input: Vec<labeler::AToken>) -> Vec<u32> {
     // Bytecode output
     let mut bytecode: Vec<u32> = Vec::new();
 
@@ -192,7 +192,7 @@ fn select_and_shift(imm: u32, hi: usize, lo: usize, shift: usize) -> u32 {
     ((imm & u32::mask(hi..=lo)) >> lo) << shift
 }
 
-fn extract_and_shift<T: std::convert::Into<u32>>(arg: T, shift: usize) -> u32 {
+fn extract_and_shift<T: Into<u32>>(arg: T, shift: usize) -> u32 {
     let val: u32 = arg.into();
     val << shift
 }

@@ -145,7 +145,7 @@ struct MachineStatus {
 }
 
 impl MachineStatus {
-    pub fn new() -> MachineStatus {
+    pub(crate) fn new() -> MachineStatus {
         MachineStatus {
             mie: true,
             mpie: false,
@@ -195,7 +195,7 @@ enum VecMode {
 }
 
 impl TrapVec {
-    pub fn new() -> TrapVec {
+    pub(crate) fn new() -> TrapVec {
         TrapVec {
             mode: VecMode::Direct,
             base: 0x200,
@@ -261,7 +261,7 @@ struct MachineInterrupt {
 }
 
 impl MachineInterrupt {
-    pub fn new() -> MachineInterrupt {
+    pub(crate) fn new() -> MachineInterrupt {
         MachineInterrupt {
             msi: false,
             mti: false,

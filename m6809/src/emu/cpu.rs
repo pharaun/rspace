@@ -14,7 +14,7 @@ impl Cpu {
         self.pc = pc;
     }
 
-    fn step<M: Memory>(&mut self, reg: &mut RegFile, mem: &mut M) {
+    fn step<M: Memory>(&mut self, _reg: &mut RegFile, _mem: &mut M) {
 
     }
 }

@@ -2,15 +2,15 @@ use std::str::FromStr;
 
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum LabelType { Global, Local }
+pub(super) enum LabelType { Global, Local }
 
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum AddrRefType { Global, LocalBackward, LocalForward }
+pub(super) enum AddrRefType { Global, LocalBackward, LocalForward }
 
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum DataType { Byte, Half, Word }
+pub(super) enum DataType { Byte, Half, Word }
 
 impl FromStr for DataType {
     type Err = ParseDataTypeError;
@@ -26,7 +26,7 @@ impl FromStr for DataType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseDataTypeError { _priv: () }
+pub(super) struct ParseDataTypeError { _priv: () }
 
 
 #[derive(Debug, Clone, PartialEq)]

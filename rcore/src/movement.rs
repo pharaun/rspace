@@ -128,7 +128,7 @@ fn calculate_lorentz_factor<T>(
     time: &Time<T>,
 ) -> f32
 where
-    T: std::default::Default
+    T: Default
 {
     // Apply Lorentz factor only if it will increase the velocity,
     // this is not realistic but permits easy deceleration for the ship
