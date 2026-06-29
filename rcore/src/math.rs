@@ -134,6 +134,7 @@ impl RelRot {
     }
 }
 
+#[rustfmt::skip]
 #[test]
 fn test_to_quat() {
     // Hacky test to at least verify the fixed quat math, you shouldn't compare floats directly
@@ -150,6 +151,7 @@ fn test_to_quat() {
     assert_eq!(Quat::from_rotation_z(-PI + -PI + PI/128.), AbsRot(255).to_quat());
 }
 
+#[rustfmt::skip]
 #[test]
 fn test_from_quat() {
     assert_eq!(AbsRot::from_quat(Quat::from_rotation_z(0.)),       AbsRot(0));
@@ -199,6 +201,7 @@ fn test_add_rel_to_abs() {
     assert_eq!(AbsRot(0) + RelRot(-1), AbsRot(255));
 }
 
+#[rustfmt::skip]
 #[test]
 fn test_from_vec2_angle() {
     assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, 0)), None);
