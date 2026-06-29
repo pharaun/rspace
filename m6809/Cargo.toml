@@ -8,7 +8,7 @@ edition = "2024"
 # Bit twiddling
 twiddle = "1.1.0"
 arbitrary-int = "2"
-bitfield-struct = "0.12"
+bitfield-struct = "0.13"
 
 # Reading bits from memory
 byteorder = "1.5"
