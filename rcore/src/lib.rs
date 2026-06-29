@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
 pub mod class;
-pub mod weapon;
 pub mod math;
 pub mod movement;
 pub mod radar;
@@ -10,6 +9,7 @@ pub mod rotation;
 pub mod script;
 pub mod ship;
 pub mod spawner;
+pub mod weapon;
 
 use crate::math::AbsRot;
 
@@ -26,7 +26,7 @@ const ARENA: IVec2 = IVec2::new(10240, 6400);
 // TODO: figure out how to integrate collision, it probs should be post GameLogic but avian is
 // in the FixedPostUpdate stage. Need to ensure it happens post interpolation, so collision events
 // are going to be 1-frame delayed for now
-#[derive(SystemSet, Debug, Hash, Eq, PartialEq,  Clone)]
+#[derive(SystemSet, Debug, Hash, Eq, PartialEq, Clone)]
 pub enum FixedGameSystem {
     // Motion, Rotation, Radar, Turret, etc...
     GameLogic,
@@ -59,7 +59,10 @@ pub fn arena_bounds_setup(mut commands: Commands) {
     commands.spawn((
         ShapeBuilder::with(&path)
             .fill(Fill::color(Color::srgb(0.15, 0.15, 0.15)))
-            .stroke(Stroke::new(Color::Srgba(bevy::color::palettes::css::RED), 1.0))
+            .stroke(Stroke::new(
+                Color::Srgba(bevy::color::palettes::css::RED),
+                1.0,
+            ))
             .build(),
         Transform::from_xyz(0., 0., -1.),
         ArenaMarker,
@@ -110,21 +113,23 @@ pub fn arena_bounds_setup(mut commands: Commands) {
         .line_to(Vec2::new(0.0, 20.));
 
     let base = Vec3::new(425., 225., -0.8);
-    commands.spawn((
-        ShapeBuilder::with(&compass)
-            .stroke(Stroke::new(Color::srgb(0.80, 0.80, 0.80), 0.5))
-            .build(),
-        Transform::from_translation(base),
-        ArenaMarker,
-    )).with_children(|parent| {
-        for angle in [0, 64, 128, 192] {
-            let hdr = AbsRot(angle).to_quat().mul_vec3(Vec3::Y * 40.);
+    commands
+        .spawn((
+            ShapeBuilder::with(&compass)
+                .stroke(Stroke::new(Color::srgb(0.80, 0.80, 0.80), 0.5))
+                .build(),
+            Transform::from_translation(base),
+            ArenaMarker,
+        ))
+        .with_children(|parent| {
+            for angle in [0, 64, 128, 192] {
+                let hdr = AbsRot(angle).to_quat().mul_vec3(Vec3::Y * 40.);
 
-            parent.spawn((
-                Text2d::new(format!("{angle}")),
-                Transform::from_translation(hdr),
-                ArenaMarker,
-            ));
-        }
-    });
+                parent.spawn((
+                    Text2d::new(format!("{angle}")),
+                    Transform::from_translation(hdr),
+                    ArenaMarker,
+                ));
+            }
+        });
 }

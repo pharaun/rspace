@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 
-use crate::math::RelRot;
 use crate::math::AbsRot;
+use crate::math::RelRot;
 use crate::movement::Position;
 use crate::rotation::NoRotationPropagation;
 
-use crate::FixedGameSystem;
 use crate::ARENA_SCALE;
+use crate::FixedGameSystem;
 
 // TODO: dynamic radar distance, for now fixed
 const DISTANCE: i32 = 4000;
@@ -16,17 +16,20 @@ pub struct RadarPlugin;
 impl Plugin for RadarPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<ContactMessage>()
-            .add_systems(FixedUpdate, (
-                apply_arc.in_set(FixedGameSystem::GameLogic),
-                apply_radar.in_set(FixedGameSystem::GameLogic).after(apply_arc),
-            ))
-            .add_systems(RunFixedMainLoop, (
-                interpolate_arc.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
-            ))
-            .add_systems(Update, (
-                debug_arc_gitzmos,
-                debug_radar_gitzmos,
-            ));
+            .add_systems(
+                FixedUpdate,
+                (
+                    apply_arc.in_set(FixedGameSystem::GameLogic),
+                    apply_radar
+                        .in_set(FixedGameSystem::GameLogic)
+                        .after(apply_arc),
+                ),
+            )
+            .add_systems(
+                RunFixedMainLoop,
+                (interpolate_arc.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),),
+            )
+            .add_systems(Update, (debug_arc_gitzmos, debug_radar_gitzmos));
     }
 }
 
@@ -110,7 +113,7 @@ pub struct RadarDebug;
 // Radar contact event,
 // 0 - self, 1 - target
 #[derive(Message, Copy, Clone, Debug)]
-pub struct ContactMessage (pub Entity, pub Entity);
+pub struct ContactMessage(pub Entity, pub Entity);
 
 // Radar Contact Result
 #[derive(Debug)]
@@ -135,7 +138,7 @@ pub enum ArcCheck {
 #[expect(clippy::needless_pass_by_value)]
 pub(crate) fn interpolate_arc(
     mut query: Query<(&mut Transform, &Arc)>,
-    fixed_time: Res<Time<Fixed>>
+    fixed_time: Res<Time<Fixed>>,
 ) {
     // How much of a "partial timestep" has accumulated since the last fixed timestep run.
     // Between `0.0` and `1.0`.
@@ -149,9 +152,7 @@ pub(crate) fn interpolate_arc(
 }
 
 // Handle arc
-pub(crate) fn apply_arc(
-    mut query: Query<&mut Arc>
-) {
+pub(crate) fn apply_arc(mut query: Query<&mut Arc>) {
     for mut arc in query.iter_mut() {
         // Update arc rotation & arc width
         arc.current = arc.target;
@@ -178,10 +179,16 @@ pub(crate) fn apply_radar(
                 continue;
             }
 
-            if matches!(within_radar(
-                base_position.0, target_position.0,
-                arc.current, arc.current_arc, DISTANCE_SQUARED
-            ), RadarContact::Contact) {
+            if matches!(
+                within_radar(
+                    base_position.0,
+                    target_position.0,
+                    arc.current,
+                    arc.current_arc,
+                    DISTANCE_SQUARED
+                ),
+                RadarContact::Contact
+            ) {
                 // Is this contact better than current winner?
                 if let Some((_, best_position)) = best_target {
                     let target_distance = base_position.0.distance_squared(target_position.0);
@@ -204,8 +211,11 @@ pub(crate) fn apply_radar(
 }
 
 fn within_radar(
-    base: IVec2, target: IVec2,
-    radar_heading: AbsRot, radar_arc: u8, distance_squared: i32,
+    base: IVec2,
+    target: IVec2,
+    radar_heading: AbsRot,
+    radar_arc: u8,
+    distance_squared: i32,
 ) -> RadarContact {
     if base.distance_squared(target) > distance_squared {
         return RadarContact::TooFar;
@@ -217,16 +227,15 @@ fn within_radar(
     }
 }
 
-pub fn within_arc(
-    base: IVec2, target: IVec2,
-    heading: AbsRot, arc: u8
-) -> ArcCheck {
+pub fn within_arc(base: IVec2, target: IVec2, heading: AbsRot, arc: u8) -> ArcCheck {
     match AbsRot::from_vec2_angle(base, target) {
-        Some(rot) => if heading.between(arc, rot) {
-            ArcCheck::InsideArc
-        } else {
-            ArcCheck::OutsideArc
-        },
+        Some(rot) => {
+            if heading.between(arc, rot) {
+                ArcCheck::InsideArc
+            } else {
+                ArcCheck::OutsideArc
+            }
+        }
         None => ArcCheck::SamePosition,
     }
 }
@@ -235,11 +244,15 @@ pub fn within_arc(
 pub(crate) fn debug_arc_gitzmos(
     mut gizmos: Gizmos,
     query: Query<(&Arc, &ChildOf), With<ArcDebug>>,
-    parent_query: Query<&Transform>
+    parent_query: Query<&Transform>,
 ) {
     for (arc, child_of) in query.iter() {
         // Need the ship translation to position the arc gizmo right
-        let base = parent_query.get(child_of.parent()).expect("child").translation.truncate();
+        let base = parent_query
+            .get(child_of.parent())
+            .expect("child")
+            .translation
+            .truncate();
         let heading = arc.current;
         let target = arc.target;
 
@@ -317,8 +330,11 @@ pub(crate) fn debug_radar_gitzmos(
 
             // Find out if its a contact, if so color the lines
             let color = match within_radar(
-                base_pos.0, target_pos.0,
-                arc.current, arc.current_arc, DISTANCE_SQUARED
+                base_pos.0,
+                target_pos.0,
+                arc.current,
+                arc.current_arc,
+                DISTANCE_SQUARED,
             ) {
                 RadarContact::Contact => bevy::color::palettes::css::GREEN,
                 RadarContact::OutsideArc => bevy::color::palettes::css::YELLOW,

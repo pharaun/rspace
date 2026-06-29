@@ -41,13 +41,21 @@ pub fn get_ship(class: ShipClass, fill: Fill, stroke: Stroke) -> Shape {
         ShipClass::Tiny => todo!(),
     };
 
-    ShapeBuilder::with(&ship_path).fill(fill).stroke(stroke).build()
+    ShapeBuilder::with(&ship_path)
+        .fill(fill)
+        .stroke(stroke)
+        .build()
 }
 
 pub fn get_radar(stroke: Stroke) -> Shape {
     let radar_path = ShapePath::new()
         .move_to(Vec2::new(5.0, 0.0))
-        .arc(Vec2::new(0.0, 0.0), Vec2::new(5.0, 4.5), f32::to_radians(-180.0), f32::to_radians(0.0))
+        .arc(
+            Vec2::new(0.0, 0.0),
+            Vec2::new(5.0, 4.5),
+            f32::to_radians(-180.0),
+            f32::to_radians(0.0),
+        )
         .move_to(Vec2::new(0.0, 2.0))
         .line_to(Vec2::new(0.0, -4.5));
 

@@ -4,19 +4,18 @@ use bevy::prelude::*;
 
 use crate::FixedGameSystem;
 
-use crate::movement::Position;
 use crate::ARENA_SCALE;
+use crate::movement::Position;
 
-use crate::ship::ShipBuilder;
-use crate::script::Script;
-use crate::rotation::Rotation;
-use crate::spawner::SpawnMessage;
 use crate::radar::Arc;
 use crate::radar::ArcCheck;
 use crate::radar::within_arc;
+use crate::rotation::Rotation;
+use crate::script::Script;
+use crate::ship::ShipBuilder;
+use crate::spawner::SpawnMessage;
 
 use crate::AbsRot;
-
 
 // TODO: dynamic warhead distance, for now fixed
 const DISTANCE: i32 = 500;
@@ -29,27 +28,38 @@ impl Plugin for WeaponPlugin {
             .add_message::<FireDebugWeaponMessage>()
             .add_message::<FireDebugWarheadMessage>()
             .add_message::<FireDebugMissileMessage>()
-            .add_systems(FixedUpdate, (
-                apply_debug_weapon_cooldown.in_set(FixedGameSystem::GameLogic),
-                process_fire_debug_weapon_message.in_set(FixedGameSystem::Weapon).after(apply_debug_weapon_cooldown),
-            ))
-            .add_systems(FixedUpdate, (
-                apply_debug_missile_cooldown.in_set(FixedGameSystem::GameLogic),
-                // Missile will spawn the next frame
-                // TODO: do we want a post-shiplogic set -> missile -> spawn -> weapon sequencing
-                process_fire_debug_missile_message.in_set(FixedGameSystem::Weapon).after(apply_debug_missile_cooldown),
-            ))
-            .add_systems(FixedUpdate, (
-                process_fire_debug_warhead_message.in_set(FixedGameSystem::Weapon),
-            ))
-            .add_systems(RunFixedMainLoop, (
-                render_debug_weapon.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
-                render_debug_warhead.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
-            ))
-            .add_systems(Update, (
-                debug_health_gitzmos,
-                debug_shield_health_gitzmos,
-            ));
+            .add_systems(
+                FixedUpdate,
+                (
+                    apply_debug_weapon_cooldown.in_set(FixedGameSystem::GameLogic),
+                    process_fire_debug_weapon_message
+                        .in_set(FixedGameSystem::Weapon)
+                        .after(apply_debug_weapon_cooldown),
+                ),
+            )
+            .add_systems(
+                FixedUpdate,
+                (
+                    apply_debug_missile_cooldown.in_set(FixedGameSystem::GameLogic),
+                    // Missile will spawn the next frame
+                    // TODO: do we want a post-shiplogic set -> missile -> spawn -> weapon sequencing
+                    process_fire_debug_missile_message
+                        .in_set(FixedGameSystem::Weapon)
+                        .after(apply_debug_missile_cooldown),
+                ),
+            )
+            .add_systems(
+                FixedUpdate,
+                (process_fire_debug_warhead_message.in_set(FixedGameSystem::Weapon),),
+            )
+            .add_systems(
+                RunFixedMainLoop,
+                (
+                    render_debug_weapon.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
+                    render_debug_warhead.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
+                ),
+            )
+            .add_systems(Update, (debug_health_gitzmos, debug_shield_health_gitzmos));
     }
 }
 
@@ -132,17 +142,17 @@ pub struct RenderDebugWarhead {
 // the weapon
 // 0 - self, 1 - target
 #[derive(Message, Copy, Clone, Debug)]
-pub struct FireDebugWeaponMessage (pub Entity, pub Entity);
+pub struct FireDebugWeaponMessage(pub Entity, pub Entity);
 
 // Just blow up the missile upon trigger
 // 0 - self
 #[derive(Message, Copy, Clone, Debug)]
-pub struct FireDebugWarheadMessage (pub Entity);
+pub struct FireDebugWarheadMessage(pub Entity);
 
 // Fire the missile
 // 0 - self
 #[derive(Message, Copy, Clone, Debug)]
-pub struct FireDebugMissileMessage (pub Entity);
+pub struct FireDebugMissileMessage(pub Entity);
 
 // TODO: add logic to query for shield on the ship, and check
 // if the shield covers where the damage is coming from, and then if so,
@@ -172,14 +182,22 @@ pub fn process_damage_event(
                 }
 
                 // Check if the damage source is covered by the shield arc
-                match within_arc(ship_pos.0, trigger.event().pos, arc.current, arc.current_arc) {
+                match within_arc(
+                    ship_pos.0,
+                    trigger.event().pos,
+                    arc.current,
+                    arc.current_arc,
+                ) {
                     ArcCheck::InsideArc => {
                         // Split incoming damage into shield and ship damage
                         #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                        let shield_damage: u16 = (f32::from(trigger.event().dmg) * shield.damage_reduce).round() as u16;
+                        let shield_damage: u16 =
+                            (f32::from(trigger.event().dmg) * shield.damage_reduce).round() as u16;
 
                         // If shield can't cover full shield damage, deduce and pass on to ship
-                        if let Some(new_shield_health) = shield_health.current.checked_sub(shield_damage) {
+                        if let Some(new_shield_health) =
+                            shield_health.current.checked_sub(shield_damage)
+                        {
                             shield_health.current = new_shield_health;
                             ship_damage = trigger.event().dmg - shield_damage;
                         } else {
@@ -188,11 +206,11 @@ pub fn process_damage_event(
                             shield_health.current = 0;
                             ship_damage = trigger.event().dmg - shield_damage + carry_shield_damage;
                         }
-                    },
+                    }
                     ArcCheck::OutsideArc => {
                         // Pass on full damage
                         ship_damage = trigger.event().dmg;
-                    },
+                    }
                     ArcCheck::SamePosition => {
                         // Print warning & pass on full damage
                         println!("Warning self-damaging? - {:?}", ship_pos.0);
@@ -215,17 +233,13 @@ pub fn process_damage_event(
     }
 }
 
-pub(crate) fn apply_debug_weapon_cooldown(
-    mut query: Query<&mut DebugWeapon>
-) {
+pub(crate) fn apply_debug_weapon_cooldown(mut query: Query<&mut DebugWeapon>) {
     for mut weapon in &mut query {
         weapon.current = weapon.current.saturating_sub(1);
     }
 }
 
-pub(crate) fn apply_debug_missile_cooldown(
-    mut query: Query<&mut DebugMissile>
-) {
+pub(crate) fn apply_debug_missile_cooldown(mut query: Query<&mut DebugMissile>) {
     for mut weapon in &mut query {
         weapon.current = weapon.current.saturating_sub(1);
     }
@@ -289,26 +303,27 @@ pub fn process_fire_debug_weapon_message(
 ) {
     for FireDebugWeaponMessage(ship, target) in fire_debug_weapon_message.read() {
         if let Ok((mut weapon, ship_pos)) = query.get_mut(*ship)
-            && weapon.current == 0 {
-                weapon.current = weapon.cooldown;
+            && weapon.current == 0
+        {
+            weapon.current = weapon.cooldown;
 
-                // Fetch the ship & target position
-                let [ship_tran, target_tran] = position.get_many([*ship, *target]).expect("position");
+            // Fetch the ship & target position
+            let [ship_tran, target_tran] = position.get_many([*ship, *target]).expect("position");
 
-                // Setup the weapon render
-                commands.spawn(RenderDebugWeapon {
-                    origin: ship_tran.translation.truncate(),
-                    target: target_tran.translation.truncate(),
-                    fade: Timer::new(Duration::from_secs_f32(5.), TimerMode::Once),
-                });
+            // Setup the weapon render
+            commands.spawn(RenderDebugWeapon {
+                origin: ship_tran.translation.truncate(),
+                target: target_tran.translation.truncate(),
+                fade: Timer::new(Duration::from_secs_f32(5.), TimerMode::Once),
+            });
 
-                // emit damage event to the target
-                commands.trigger(DamageEvent {
-                    target: *target,
-                    pos: ship_pos.0,
-                    dmg: weapon.damage,
-                });
-            }
+            // emit damage event to the target
+            commands.trigger(DamageEvent {
+                target: *target,
+                pos: ship_pos.0,
+                dmg: weapon.damage,
+            });
+        }
     }
 }
 
@@ -353,7 +368,6 @@ pub fn process_fire_debug_warhead_message(
     }
 }
 
-
 // TODO: for now hardcore various things, but we need to pass in the script to the missile
 // That or yeet the script from parent ship and copy it over
 pub fn process_fire_debug_missile_message(
@@ -365,27 +379,34 @@ pub fn process_fire_debug_missile_message(
     for FireDebugMissileMessage(ship) in fire_debug_missile_message.read() {
         // 1. does this have a missile component if so, check if we can fire
         if let Ok(mut weapon) = parent_missile.get_mut(*ship)
-            && weapon.current == 0 {
-                weapon.current = weapon.cooldown;
+            && weapon.current == 0
+        {
+            weapon.current = weapon.cooldown;
 
-                // 2. if yes, spawn a ship next to the parent ship
-                // 3. for now yeet the script from the parent ship onto this
-                let (pos, rot, parent_script) = parent_ship.get(*ship).expect("parent");
+            // 2. if yes, spawn a ship next to the parent ship
+            // 3. for now yeet the script from the parent ship onto this
+            let (pos, rot, parent_script) = parent_ship.get(*ship).expect("parent");
 
-                // Calculate the position of the future missile
-                let offset = pos.0 + rot.0.to_quat().mul_vec3(Vec3::Y * 400.).truncate().as_ivec2();
+            // Calculate the position of the future missile
+            let offset = pos.0
+                + rot
+                    .0
+                    .to_quat()
+                    .mul_vec3(Vec3::Y * 400.)
+                    .truncate()
+                    .as_ivec2();
 
-                // 4. send it on its merry way
-                let missile = ShipBuilder::new(parent_script.clone())
-                    .position(offset.x, offset.y)
-                    .rotation(rot.0)
-                    .velocity(0, 0)
-                    .radar_arc(32)
-                    .warhead(100)
-                    .build();
+            // 4. send it on its merry way
+            let missile = ShipBuilder::new(parent_script.clone())
+                .position(offset.x, offset.y)
+                .rotation(rot.0)
+                .velocity(0, 0)
+                .radar_arc(32)
+                .warhead(100)
+                .build();
 
-                spawn_ship.write(SpawnMessage(missile));
-            }
+            spawn_ship.write(SpawnMessage(missile));
+        }
     }
 }
 
@@ -438,7 +459,11 @@ pub(crate) fn debug_shield_health_gitzmos(
     ship_query: Query<&Transform>,
 ) {
     for (health, child_of) in query.iter() {
-        let base = ship_query.get(child_of.parent()).expect("child").translation.truncate();
+        let base = ship_query
+            .get(child_of.parent())
+            .expect("child")
+            .translation
+            .truncate();
 
         render_bar_gizmos(
             &mut gizmos,
@@ -480,9 +505,7 @@ impl ShieldBundle {
                 current_arc,
                 target_arc,
             },
-            shield: Shield {
-                damage_reduce,
-            },
+            shield: Shield { damage_reduce },
             health: Health {
                 current: health,
                 maximum: health,

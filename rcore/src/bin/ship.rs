@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use avian2d::prelude::*;
+use bevy::prelude::*;
 
 //use bevy::window::PresentMode;
 
@@ -12,19 +12,19 @@ use bevy_prototype_lyon::prelude::ShapePlugin;
 use rcore::FixedGameSystem;
 use rcore::arena_bounds_setup;
 
-use rcore::weapon::WeaponPlugin;
 use rcore::movement::MovementPlugin;
 use rcore::radar::RadarPlugin;
 use rcore::rotation::RotationPlugin;
 use rcore::script::ScriptPlugins;
 use rcore::spawner::SpawnerPlugin;
+use rcore::weapon::WeaponPlugin;
 
 use rcore::math::AbsRot;
 use rcore::math::RelRot;
-use rcore::script::ShipScript;
 use rcore::script::Script;
-use rcore::script::ShipStatus;
 use rcore::script::ShipAction;
+use rcore::script::ShipScript;
+use rcore::script::ShipStatus;
 use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::add_ship;
@@ -32,23 +32,18 @@ use rcore::ship::add_ship;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-
         // Physics
         // TODO: make sure it happens post iterpolation
         .add_plugins(PhysicsPlugins::default())
         //.add_plugins(PhysicsDebugPlugin::default())
-
         // FPS
         .add_plugins(ScreenDiagnosticsPlugin::default())
         .add_plugins(ScreenFrameDiagnosticsPlugin)
         .add_plugins(ScreenEntityDiagnosticsPlugin)
-
         // Graphics (lyon)
         .add_plugins(ShapePlugin)
-
         // TODO: fix up systems so i can bump it to bevy default 64hz
         .insert_resource(Time::<Fixed>::from_hz(2.0))
-
         // Game bits
         .add_plugins(MovementPlugin)
         .add_plugins(RadarPlugin)
@@ -56,26 +51,31 @@ fn main() {
         .add_plugins(ScriptPlugins)
         .add_plugins(SpawnerPlugin)
         .add_plugins(WeaponPlugin)
-
         // Configure the system set ordering
-        .configure_sets(FixedUpdate, (
-            FixedGameSystem::GameLogic,
-            FixedGameSystem::ShipLogic,
-            FixedGameSystem::Spawn,
-            FixedGameSystem::Weapon,
-        ).chain())
-
+        .configure_sets(
+            FixedUpdate,
+            (
+                FixedGameSystem::GameLogic,
+                FixedGameSystem::ShipLogic,
+                FixedGameSystem::Spawn,
+                FixedGameSystem::Weapon,
+            )
+                .chain(),
+        )
         // Startup setup
-        .add_systems(Startup, (
-            |mut commands: Commands| {
-                commands.spawn(Camera2d);
-            },
-//            |mut window: Single<&mut Window>| {
-//                window.present_mode = PresentMode::AutoNoVsync;
-//            },
-            arena_bounds_setup,
-            ship_setup,
-        ))
+        .add_systems(
+            Startup,
+            (
+                |mut commands: Commands| {
+                    commands.spawn(Camera2d);
+                },
+                //            |mut window: Single<&mut Window>| {
+                //                window.present_mode = PresentMode::AutoNoVsync;
+                //            },
+                arena_bounds_setup,
+                ship_setup,
+            ),
+        )
         .run();
 }
 
@@ -116,13 +116,11 @@ impl ShipScript for SimpleShip {
     fn on_update(&mut self, status: &ShipStatus) -> ShipAction {
         println!(
             "on_update: Pos - {:?} - Vel - {:?} - Rot - {:?}",
-            status.position,
-            status.velocity,
-            status.heading,
+            status.position, status.velocity, status.heading,
         );
 
         if status.heading == AbsRot(0) || status.heading == AbsRot(128) {
-            if status.velocity.y < 95 && status.heading == AbsRot(0){
+            if status.velocity.y < 95 && status.heading == AbsRot(0) {
                 println!("Accelerate");
                 ShipAction::new()
                     .acceleration(self.acc)
@@ -141,8 +139,7 @@ impl ShipScript for SimpleShip {
             }
         } else {
             println!("Idle");
-            ShipAction::new()
-                .target_entity(self.target_e)
+            ShipAction::new().target_entity(self.target_e)
         }
     }
 
@@ -151,7 +148,10 @@ impl ShipScript for SimpleShip {
         self.target_y = target_pos.y;
         self.target_e = Some(target_entity);
 
-        println!("on_contact - target.x: {:?}, target.y: {:?}", target_pos.x, target_pos.y);
+        println!(
+            "on_contact - target.x: {:?}, target.y: {:?}",
+            target_pos.x, target_pos.y
+        );
     }
 
     fn on_collision(&mut self) {
@@ -165,7 +165,9 @@ impl ShipScript for SimpleShip {
 struct DummyShip;
 
 impl ShipScript for DummyShip {
-    fn on_update(&mut self, _status: &ShipStatus) -> ShipAction {ShipAction::new()}
+    fn on_update(&mut self, _status: &ShipStatus) -> ShipAction {
+        ShipAction::new()
+    }
     fn on_contact(&mut self, _target_pos: IVec2, _target_entity: Entity) {}
     fn on_collision(&mut self) {}
 }
@@ -174,50 +176,57 @@ impl ShipScript for DummyShip {
 // things limit_r, target_r,
 fn ship_setup(mut commands: Commands) {
     let ships = vec![
-        ShipBuilder::new(Script { script: Box::new(SimpleShip::new()) })
-            .position(0, 0)
-            .velocity(0, 0)
-            .velocity_limit(100)
-            .rotation(AbsRot(0))
-            .rotation_limit(16)
-            .radar(AbsRot(0))
-            .radar_arc(64)
-            .debug(DebugBuilder::new()
-                .radar_arc()
-                .build())
-            .build(),
-
-        ShipBuilder::new(Script { script: Box::new(DummyShip) })
-            .position(3500, 0)
-            .velocity(0, 0)
-            .radar_arc(2)
-            .shield(AbsRot(192))
-            .shield_damage_reduce(0.75)
-            .debug(DebugBuilder::new()
+        ShipBuilder::new(Script {
+            script: Box::new(SimpleShip::new()),
+        })
+        .position(0, 0)
+        .velocity(0, 0)
+        .velocity_limit(100)
+        .rotation(AbsRot(0))
+        .rotation_limit(16)
+        .radar(AbsRot(0))
+        .radar_arc(64)
+        .debug(DebugBuilder::new().radar_arc().build())
+        .build(),
+        ShipBuilder::new(Script {
+            script: Box::new(DummyShip),
+        })
+        .position(3500, 0)
+        .velocity(0, 0)
+        .radar_arc(2)
+        .shield(AbsRot(192))
+        .shield_damage_reduce(0.75)
+        .debug(
+            DebugBuilder::new()
                 .health()
                 .shield_health()
                 .shield_arc()
-                .build())
-            .build(),
-
-        ShipBuilder::new(Script { script: Box::new(DummyShip) })
-            .position(-3500, 0)
-            .velocity(0, 0)
-            .radar_arc(2)
-            .shield(AbsRot(0))
-            .shield_damage_reduce(0.25)
-            .debug(DebugBuilder::new()
+                .build(),
+        )
+        .build(),
+        ShipBuilder::new(Script {
+            script: Box::new(DummyShip),
+        })
+        .position(-3500, 0)
+        .velocity(0, 0)
+        .radar_arc(2)
+        .shield(AbsRot(0))
+        .shield_damage_reduce(0.25)
+        .debug(
+            DebugBuilder::new()
                 .health()
                 .shield_health()
                 .shield_arc()
-                .build())
-            .build(),
-
-        ShipBuilder::new(Script { script: Box::new(DummyShip) })
-            .position(-4500, -2500)
-            .velocity(0, 0)
-            .radar_arc(2)
-            .build(),
+                .build(),
+        )
+        .build(),
+        ShipBuilder::new(Script {
+            script: Box::new(DummyShip),
+        })
+        .position(-4500, -2500)
+        .velocity(0, 0)
+        .radar_arc(2)
+        .build(),
     ];
 
     for ship in ships {

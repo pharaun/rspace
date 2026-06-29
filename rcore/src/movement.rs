@@ -1,25 +1,29 @@
-use bevy::prelude::*;
-use crate::math::vec_scale;
-use crate::math::un_vec_scale;
 use crate::FixedGameSystem;
+use crate::math::un_vec_scale;
+use crate::math::vec_scale;
 use crate::rotation::Rotation;
+use bevy::prelude::*;
 
-use crate::ARENA_SCALE;
 use crate::ARENA;
+use crate::ARENA_SCALE;
 
 pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, (
+        app.add_systems(
+            FixedUpdate,
+            (
                 apply_movement.in_set(FixedGameSystem::GameLogic),
-                wrap_position.in_set(FixedGameSystem::GameLogic).after(apply_movement),
-            ))
-            .add_systems(RunFixedMainLoop, (
-                interpolate_movement.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
-            ))
-            .add_systems(Update, (
-                debug_movement_gitzmos,
-            ));
+                wrap_position
+                    .in_set(FixedGameSystem::GameLogic)
+                    .after(apply_movement),
+            ),
+        )
+        .add_systems(
+            RunFixedMainLoop,
+            (interpolate_movement.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),),
+        )
+        .add_systems(Update, (debug_movement_gitzmos,));
     }
 }
 
@@ -94,14 +98,21 @@ pub(crate) fn interpolate_movement(
         let scaled_previous_position = vec_scale(previous_position.0, ARENA_SCALE);
 
         // Linearly interpolate the translation from the old position to the current one.
-        transform.translation = scaled_previous_position.lerp(scaled_position, overstep).extend(0.);
+        transform.translation = scaled_previous_position
+            .lerp(scaled_position, overstep)
+            .extend(0.);
     }
 }
 
 // TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
 #[expect(clippy::needless_pass_by_value)]
 pub(crate) fn apply_movement(
-    mut query: Query<(&mut Velocity, &Rotation, &mut Position, &mut PreviousPosition)>,
+    mut query: Query<(
+        &mut Velocity,
+        &Rotation,
+        &mut Position,
+        &mut PreviousPosition,
+    )>,
     fixed_time: Res<Time<Fixed>>,
 ) {
     for (mut vec, rot, mut position, mut previous_position) in query.iter_mut() {
@@ -110,12 +121,16 @@ pub(crate) fn apply_movement(
         // Calculate lorentz factor to apply to acceleration
         // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
         // do so. Could optionally allow for a heading change while preserving the current velocity
-        let acceleration: Vec2 = rot.0.to_quat().mul_vec3(Vec3::Y * (vec.acceleration as f32)).truncate();
+        let acceleration: Vec2 = rot
+            .0
+            .to_quat()
+            .mul_vec3(Vec3::Y * (vec.acceleration as f32))
+            .truncate();
         let factor = calculate_lorentz_factor(
             vec_scale(vec.velocity, 1.0),
             acceleration,
             vec.velocity_limit,
-            &fixed_time
+            &fixed_time,
         );
 
         vec.velocity += un_vec_scale(acceleration * factor * fixed_time.delta_secs(), 1.0);
@@ -130,7 +145,7 @@ fn calculate_lorentz_factor<T>(
     time: &Time<T>,
 ) -> f32
 where
-    T: Default
+    T: Default,
 {
     // Apply Lorentz factor only if it will increase the velocity,
     // this is not realistic but permits easy deceleration for the ship
@@ -142,7 +157,9 @@ where
         // Y = 1 / Sqrt(1 - v^2/c^2)
         // Clamp (1 - v^2/c^2) to float min to avoid NaN and inf
         // Simplified via multiplying by the factor rather than dividing
-        (1.0 - (old_velocity_length / (velocity_limit as f32).powi(2))).max(0.0).sqrt()
+        (1.0 - (old_velocity_length / (velocity_limit as f32).powi(2)))
+            .max(0.0)
+            .sqrt()
     } else {
         1.0
     }
@@ -188,7 +205,9 @@ pub(crate) fn debug_movement_gitzmos(
         let base = tran.translation.truncate();
         let heading = tran.rotation;
         let velocity = vel.velocity;
-        let acceleration = heading.mul_vec3(Vec3::Y * (vel.acceleration as f32)).truncate();
+        let acceleration = heading
+            .mul_vec3(Vec3::Y * (vel.acceleration as f32))
+            .truncate();
 
         // Current heading
         gizmos.line_2d(

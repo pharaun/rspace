@@ -20,7 +20,7 @@ use crate::asm::parser::StackReg;
 use crate::asm::parser::StoreLoad;
 use crate::asm::parser::TfmMode;
 
-use byteorder::{ByteOrder, BigEndian};
+use byteorder::{BigEndian, ByteOrder};
 
 pub(super) fn generate_object_code(input: Vec<AsmInst>) -> Vec<u8> {
     let mut result = Vec::new();

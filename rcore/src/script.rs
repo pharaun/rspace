@@ -1,21 +1,21 @@
-use bevy::prelude::*;
 use avian2d::prelude::*;
+use bevy::prelude::*;
 
 use dyn_clone::DynClone;
 
 use std::fmt;
 
-use crate::movement::Velocity;
 use crate::movement::Position;
-use crate::rotation::TargetRotation;
+use crate::movement::Velocity;
 use crate::rotation::Rotation;
+use crate::rotation::TargetRotation;
 
+use crate::radar::Arc as CompArc;
 use crate::radar::ContactMessage;
 use crate::radar::Radar;
-use crate::radar::Arc as CompArc;
-use crate::weapon::FireDebugWeaponMessage;
-use crate::weapon::FireDebugWarheadMessage;
 use crate::weapon::FireDebugMissileMessage;
+use crate::weapon::FireDebugWarheadMessage;
+use crate::weapon::FireDebugWeaponMessage;
 
 use crate::FixedGameSystem;
 use crate::math::AbsRot;
@@ -62,7 +62,7 @@ pub struct ShipStatus {
     pub position: IVec2,
     pub velocity: IVec2,
     pub acceleration: i32,
-    pub heading: AbsRot
+    pub heading: AbsRot,
 }
 
 // Initial attempt of building a ship action structure for what to do
@@ -71,7 +71,7 @@ pub struct ShipAction {
     pub heading: RelRot,
     pub acceleration: i32,
     pub radar_heading: RelRot,
-    pub target_entity: Option<Entity>
+    pub target_entity: Option<Entity>,
 }
 
 impl Default for ShipAction {
@@ -86,7 +86,7 @@ impl ShipAction {
             heading: RelRot(0),
             acceleration: 0,
             radar_heading: RelRot(0),
-            target_entity: None
+            target_entity: None,
         }
     }
 
@@ -112,10 +112,7 @@ impl ShipAction {
 }
 
 pub trait ShipScript: DynClone + Send + Sync + 'static {
-    fn on_update(
-        &mut self,
-        status: &ShipStatus,
-    ) -> ShipAction;
+    fn on_update(&mut self, status: &ShipStatus) -> ShipAction;
 
     // TODO: add ship status to these as well
     fn on_contact(&mut self, target_pos: IVec2, target_entity: Entity);
@@ -125,7 +122,7 @@ dyn_clone::clone_trait_object!(ShipScript);
 
 #[derive(Component, Clone)]
 pub struct Script {
-    pub script: Box<dyn ShipScript>
+    pub script: Box<dyn ShipScript>,
 }
 
 impl fmt::Debug for Script {
@@ -141,11 +138,14 @@ pub struct ScriptPlugins;
 impl Plugin for ScriptPlugins {
     fn build(&self, app: &mut App) {
         app.insert_resource(ScriptTimer(Timer::from_seconds(1.0, TimerMode::Repeating)))
-            .add_systems(FixedUpdate, (
-                process_on_update.in_set(FixedGameSystem::ShipLogic),
-                process_on_collision.in_set(FixedGameSystem::ShipLogic),
-                process_on_contact.in_set(FixedGameSystem::ShipLogic),
-            ));
+            .add_systems(
+                FixedUpdate,
+                (
+                    process_on_update.in_set(FixedGameSystem::ShipLogic),
+                    process_on_collision.in_set(FixedGameSystem::ShipLogic),
+                    process_on_contact.in_set(FixedGameSystem::ShipLogic),
+                ),
+            );
     }
 }
 
@@ -155,13 +155,18 @@ fn process_on_collision(
 ) {
     // Handle collision events first
     for event in collision_events.read() {
-        if let Ok([(_, e1_script), (_, e2_script)]) = query.get_many_mut([event.collider1, event.collider2]) {
+        if let Ok([(_, e1_script), (_, e2_script)]) =
+            query.get_many_mut([event.collider1, event.collider2])
+        {
             for mut ship_script in [e1_script, e2_script] {
                 // Invoke collision handler
                 ship_script.script.on_collision();
             }
         } else {
-            println!("ERROR - SCRIPT - CollisionStart({:?}, {:?})", event.collider1, event.collider2);
+            println!(
+                "ERROR - SCRIPT - CollisionStart({:?}, {:?})",
+                event.collider1, event.collider2
+            );
         }
     }
 }
@@ -175,7 +180,8 @@ fn process_on_contact(
         let ContactMessage(e1, e2) = contact_message;
         // TODO: right now with the ContactEvent being copies it leads to aliased query here,
         // This should be fixed once we have proper contact event that does not refer to self
-        if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2]) {
+        if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2])
+        {
             // E1 knows where e2 is
             e1_script.script.on_contact(e2_pos.0, e2_entity);
         } else {
@@ -205,9 +211,11 @@ fn process_on_update(
     mut timer: ResMut<ScriptTimer>,
     mut query: Query<(Entity, &mut Script)>,
     mut ship_query: Query<(
-        &mut Velocity, &Position,
-        &mut TargetRotation, &Rotation,
-        &Children
+        &mut Velocity,
+        &Position,
+        &mut TargetRotation,
+        &Rotation,
+        &Children,
     )>,
     target_query: Query<Entity>,
     mut radar_query: Query<&mut CompArc, With<Radar>>,
@@ -245,7 +253,9 @@ fn process_on_update(
             }
 
             // For now emit a fire event
-            if let Some(target) = res.target_entity && let Ok(target_entity) = target_query.get(target) {
+            if let Some(target) = res.target_entity
+                && let Ok(target_entity) = target_query.get(target)
+            {
                 l_message.write(FireDebugWeaponMessage(entity, target_entity));
             }
 

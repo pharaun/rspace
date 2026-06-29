@@ -6,18 +6,19 @@ use crate::math::AbsRot;
 pub struct RotationPlugin;
 impl Plugin for RotationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, (
-                apply_rotation.in_set(FixedGameSystem::GameLogic),
-            ))
-            .add_systems(RunFixedMainLoop, (
-                interpolate_rotation.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
-            ))
-            .add_systems(Update, (
-                debug_rotation_gitzmos,
-            ))
-            .add_systems(PostUpdate, (
-                disable_rotation_propagation.after(TransformSystems::Propagate),
-            ));
+        app.add_systems(
+            FixedUpdate,
+            (apply_rotation.in_set(FixedGameSystem::GameLogic),),
+        )
+        .add_systems(
+            RunFixedMainLoop,
+            (interpolate_rotation.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),),
+        )
+        .add_systems(Update, (debug_rotation_gitzmos,))
+        .add_systems(
+            PostUpdate,
+            (disable_rotation_propagation.after(TransformSystems::Propagate),),
+        );
     }
 }
 
@@ -31,10 +32,7 @@ pub struct RotationBundle {
 impl RotationBundle {
     pub fn new(rotation: AbsRot, target: AbsRot, limit: u8) -> Self {
         Self {
-            target: TargetRotation {
-                limit,
-                target,
-            },
+            target: TargetRotation { limit, target },
             rotation: Rotation(rotation),
             previous: PreviousRotation(rotation),
         }
@@ -74,7 +72,7 @@ pub struct RotDebug;
 #[expect(clippy::needless_pass_by_value)]
 pub(crate) fn interpolate_rotation(
     mut query: Query<(&mut Transform, &Rotation, &PreviousRotation)>,
-    fixed_time: Res<Time<Fixed>>
+    fixed_time: Res<Time<Fixed>>,
 ) {
     // How much of a "partial timestep" has accumulated since the last fixed timestep run.
     // Between `0.0` and `1.0`.
@@ -90,7 +88,7 @@ pub(crate) fn interpolate_rotation(
 #[expect(clippy::needless_pass_by_value)]
 pub(crate) fn apply_rotation(
     time: Res<Time<Fixed>>,
-    mut query: Query<(&TargetRotation, &mut Rotation, &mut PreviousRotation)>
+    mut query: Query<(&TargetRotation, &mut Rotation, &mut PreviousRotation)>,
 ) {
     for (target_rot, mut rotation, mut previous_rotation) in query.iter_mut() {
         previous_rotation.0 = rotation.0;
@@ -104,7 +102,10 @@ pub(crate) fn apply_rotation(
         let limit = f32::from(target_rot.limit) * time.delta_secs();
 
         #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let angle = rotation.0.angle_between(target_rot.target).clamp(limit.round() as u8);
+        let angle = rotation
+            .0
+            .angle_between(target_rot.target)
+            .clamp(limit.round() as u8);
         rotation.0 += angle;
     }
 }
@@ -129,14 +130,14 @@ pub(crate) fn disable_rotation_propagation(
 #[expect(clippy::similar_names)]
 pub(crate) fn debug_rotation_gitzmos(
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &TargetRotation), With<RotDebug>>
+    query: Query<(&Transform, &TargetRotation), With<RotDebug>>,
 ) {
     for (tran, target) in query.iter() {
         let base = tran.translation.truncate();
         let heading = tran.rotation;
         let qtarget = target.target.to_quat();
 
-        let cw_limit  = heading * AbsRot(target.limit).to_quat();
+        let cw_limit = heading * AbsRot(target.limit).to_quat();
         let ccw_limit = heading * AbsRot(255 - target.limit).to_quat();
 
         // Current heading

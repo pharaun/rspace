@@ -1,25 +1,19 @@
 use std::f32::consts::PI;
-use std::ops::AddAssign;
 use std::ops::Add;
+use std::ops::AddAssign;
 
 use bevy::prelude::EulerRot;
+use bevy::prelude::IVec2;
 use bevy::prelude::Quat;
 use bevy::prelude::Vec2;
-use bevy::prelude::IVec2;
 
 pub fn vec_scale(vec: IVec2, factor: f32) -> Vec2 {
-    Vec2::new(
-        vec.x as f32 / factor,
-        vec.y as f32 / factor,
-    )
+    Vec2::new(vec.x as f32 / factor, vec.y as f32 / factor)
 }
 
 #[expect(clippy::cast_possible_truncation)]
 pub fn un_vec_scale(vec: Vec2, factor: f32) -> IVec2 {
-    IVec2::new(
-        (vec.x * factor) as i32,
-        (vec.y * factor) as i32,
-    )
+    IVec2::new((vec.x * factor) as i32, (vec.y * factor) as i32)
 }
 
 // TODO: figure out better math stuff for integer angle math and stuff:
@@ -53,11 +47,7 @@ impl AbsRot {
     pub fn from_angle(angle: f32) -> Self {
         let tmp = {
             let tmp = angle / FRAC_PI_128;
-            if tmp < 0.0 {
-                tmp + 256.
-            } else {
-                tmp
-            }
+            if tmp < 0.0 { tmp + 256. } else { tmp }
         };
         #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         Self(tmp.round() as u8)
@@ -66,11 +56,13 @@ impl AbsRot {
     // TODO: probs want to redo some of these math to allow for in between AbsRot angles
     // to allow for a 1-arc width radar
     pub fn from_vec2_angle(base: IVec2, target: IVec2) -> Option<Self> {
-        if (target-base) == IVec2::ZERO {
+        if (target - base) == IVec2::ZERO {
             None
         } else {
             // IVec2(X, Y) (+Y = 0, +X = 64, -Y = 128, -X = 192)
-            Some(Self::from_angle(Vec2::Y.angle_to((target-base).as_vec2())))
+            Some(Self::from_angle(
+                Vec2::Y.angle_to((target - base).as_vec2()),
+            ))
         }
     }
 
@@ -85,9 +77,8 @@ impl AbsRot {
         //  ccw < target || target < cw
         // if ccw is less than cw its within the axis and thus
         //  ccw < target < cw
-        (ccw_arc > cw_arc &&
-          (ccw_arc <= target || target <= cw_arc)) ||
-            (ccw_arc <= target && target <= cw_arc)
+        (ccw_arc > cw_arc && (ccw_arc <= target || target <= cw_arc))
+            || (ccw_arc <= target && target <= cw_arc)
     }
 
     #[expect(clippy::cast_possible_truncation)]

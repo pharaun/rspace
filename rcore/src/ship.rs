@@ -4,35 +4,34 @@ use bevy_prototype_lyon::prelude::*;
 use avian2d::prelude::*;
 
 use crate::math::AbsRot;
-use crate::script::Script;
 use crate::math::vec_scale;
+use crate::script::Script;
 
 use crate::ARENA;
 use crate::ARENA_SCALE;
 
-use crate::movement::MovementBundle;
 use crate::movement::MovDebug;
+use crate::movement::MovementBundle;
 
-use crate::rotation::RotationBundle;
 use crate::rotation::RotDebug;
+use crate::rotation::RotationBundle;
 
 use crate::class::ShipClass;
-use crate::class::get_ship;
 use crate::class::get_radar;
+use crate::class::get_ship;
 
-use crate::radar::RadarDebug;
 use crate::radar::ArcDebug;
 use crate::radar::RadarBundle;
+use crate::radar::RadarDebug;
 
-use crate::weapon::Health;
-use crate::weapon::HealthDebug;
-use crate::weapon::DebugWeapon;
 use crate::weapon::DebugMissile;
 use crate::weapon::DebugWarhead;
+use crate::weapon::DebugWeapon;
+use crate::weapon::Health;
+use crate::weapon::HealthDebug;
 
 use crate::weapon::ShieldBundle;
 use crate::weapon::ShieldHealthDebug;
-
 
 // INFO:
 // - Ship class: Tiny, Small, Med, Large where they would occupy roughly
@@ -144,35 +143,14 @@ impl ShipBuilder {
         // TODO: setup so that most of these components have default() or something so that
         // they can be more self-contained without having to build them up here in the builder
         Self {
-            movement: MovementBundle::new(
-                IVec2::new(0, 0),
-                IVec2::new(0, 0),
-                100,
-                0,
-            ),
-            rotation: RotationBundle::new(
-                AbsRot(0),
-                AbsRot(0),
-                16,
-            ),
-            radar: RadarBundle::new(
-                AbsRot(0),
-                AbsRot(0),
-                64,
-                64,
-            ),
+            movement: MovementBundle::new(IVec2::new(0, 0), IVec2::new(0, 0), 100, 0),
+            rotation: RotationBundle::new(AbsRot(0), AbsRot(0), 16),
+            radar: RadarBundle::new(AbsRot(0), AbsRot(0), 64, 64),
             health: Health {
                 current: 100,
                 maximum: 100,
             },
-            shield: ShieldBundle::new(
-                AbsRot(0),
-                AbsRot(0),
-                64,
-                64,
-                0.5,
-                100,
-            ),
+            shield: ShieldBundle::new(AbsRot(0), AbsRot(0), 64, 64, 0.5, 100),
             warhead: None,
             script,
             debug: DebugShip::new(),
@@ -183,7 +161,9 @@ impl ShipBuilder {
     pub fn position(mut self, x: i32, y: i32) -> Self {
         self.movement.position(x, y);
         // Warn if its outside arena bounds since it will then warp the next frame
-        if !(-(ARENA.y / 2)..=(ARENA.y / 2)).contains(&y) || !(-(ARENA.x / 2)..=(ARENA.x / 2)).contains(&x) {
+        if !(-(ARENA.y / 2)..=(ARENA.y / 2)).contains(&y)
+            || !(-(ARENA.x / 2)..=(ARENA.x / 2)).contains(&x)
+        {
             println!("WARNING: Set position outside of arena bounds - x: {x:?}, y: {y:?}");
         }
         self
@@ -253,9 +233,7 @@ impl ShipBuilder {
     }
 
     pub fn warhead(mut self, damage: u16) -> Self {
-        self.warhead = Some(DebugWarhead {
-            damage
-        });
+        self.warhead = Some(DebugWarhead { damage });
         self
     }
 
@@ -389,13 +367,11 @@ impl DebugBuilder {
     }
 }
 
-pub fn add_ship(
-    commands: &mut Commands,
-    ship: StarterShip
-) {
+pub fn add_ship(commands: &mut Commands, ship: StarterShip) {
     let radar_target = ship.radar.arc.target;
     let ship_target = ship.rotation.target.target;
-    let mut transform = Transform::from_translation(vec_scale(ship.movement.position.0, ARENA_SCALE).extend(0.));
+    let mut transform =
+        Transform::from_translation(vec_scale(ship.movement.position.0, ARENA_SCALE).extend(0.));
     transform.rotate(ship_target.to_quat());
 
     let mut spawned_ship = commands.spawn((
@@ -410,18 +386,14 @@ pub fn add_ship(
     spawned_ship
         .insert(Ship)
         .insert(ship.script)
-
         // Motion components
         .insert(ship.movement)
         .insert(ship.rotation)
-
         // Health
         .insert(ship.health)
-
         // TODO: probs want collision groups (ie ship vs missile vs other ships)
         .insert(Collider::circle(15.0))
         .insert(CollisionEventsEnabled)
-
         // Insert the graphics for the radar dish
         .with_children(|parent| {
             let mut transform = Transform::from_translation(Vec2::new(0., -2.).extend(1.));
@@ -442,12 +414,9 @@ pub fn add_ship(
                 spawned_radar.insert(arc);
             }
         })
-
         // Insert shielding
         .with_children(|parent| {
-            let mut spawned_shield = parent.spawn((
-                ship.shield,
-            ));
+            let mut spawned_shield = parent.spawn((ship.shield,));
 
             if let Some(shield_health) = ship.debug.shield_health {
                 spawned_shield.insert(shield_health);
@@ -463,8 +432,15 @@ pub fn add_ship(
         spawned_ship.insert(warhead);
     } else {
         spawned_ship
-            .insert(DebugWeapon { cooldown: 10, current: 0, damage: 34 })
-            .insert(DebugMissile { cooldown: 10, current: 0 });
+            .insert(DebugWeapon {
+                cooldown: 10,
+                current: 0,
+                damage: 34,
+            })
+            .insert(DebugMissile {
+                cooldown: 10,
+                current: 0,
+            });
     }
 
     // Debug components
