@@ -149,6 +149,7 @@ pub struct FireDebugMissileMessage (pub Entity);
 // apply the shield damage reduce, pass it on to the ship health, and deduce the rest
 // from the shield health pool, once shield health pool is zero, then just pass full
 // damage through
+#[expect(clippy::needless_pass_by_value)]
 pub fn process_damage_event(
     trigger: On<DamageEvent>,
     mut commands: Commands,
@@ -174,7 +175,8 @@ pub fn process_damage_event(
                 match within_arc(ship_pos.0, trigger.event().pos, arc.current, arc.current_arc) {
                     ArcCheck::InsideArc => {
                         // Split incoming damage into shield and ship damage
-                        let shield_damage: u16 = (trigger.event().dmg as f32 * shield.damage_reduce).round() as u16;
+                        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                        let shield_damage: u16 = (f32::from(trigger.event().dmg) * shield.damage_reduce).round() as u16;
 
                         // If shield can't cover full shield damage, deduce and pass on to ship
                         if let Some(new_shield_health) = shield_health.current.checked_sub(shield_damage) {
@@ -207,7 +209,7 @@ pub fn process_damage_event(
             health.current = new_health;
         } else {
             // This ship is now dead, despawn it
-            println!("Despawning - {:?}", ship);
+            println!("Despawning - {ship:?}");
             commands.entity(ship).despawn();
         }
     }
@@ -229,6 +231,7 @@ pub(crate) fn apply_debug_missile_cooldown(
     }
 }
 
+#[expect(clippy::needless_pass_by_value)]
 pub(crate) fn render_debug_weapon(
     mut gizmos: Gizmos,
     mut commands: Commands,
@@ -253,6 +256,7 @@ pub(crate) fn render_debug_weapon(
     }
 }
 
+#[expect(clippy::needless_pass_by_value)]
 pub(crate) fn render_debug_warhead(
     mut gizmos: Gizmos,
     mut commands: Commands,
@@ -284,12 +288,12 @@ pub fn process_fire_debug_weapon_message(
     position: Query<&Transform>,
 ) {
     for FireDebugWeaponMessage(ship, target) in fire_debug_weapon_message.read() {
-        if let Ok((mut weapon, ship_pos)) = query.get_mut(*ship) {
-            if weapon.current == 0 {
+        if let Ok((mut weapon, ship_pos)) = query.get_mut(*ship)
+            && weapon.current == 0 {
                 weapon.current = weapon.cooldown;
 
                 // Fetch the ship & target position
-                let [ship_tran, target_tran] = position.get_many([*ship, *target]).unwrap();
+                let [ship_tran, target_tran] = position.get_many([*ship, *target]).expect("position");
 
                 // Setup the weapon render
                 commands.spawn(RenderDebugWeapon {
@@ -300,12 +304,11 @@ pub fn process_fire_debug_weapon_message(
 
                 // emit damage event to the target
                 commands.trigger(DamageEvent {
-                    target: target.clone(),
+                    target: *target,
                     pos: ship_pos.0,
                     dmg: weapon.damage,
                 });
             }
-        }
     }
 }
 
@@ -320,7 +323,7 @@ pub fn process_fire_debug_warhead_message(
         // does this ship (self) have a warhead component?
         if let Ok(warhead) = have_warhead.get(*ship) {
             // Fetch the ship position
-            let ship_tran = render_position.get(*ship).unwrap();
+            let ship_tran = render_position.get(*ship).expect("position");
 
             // Setup the weapon render
             commands.spawn(RenderDebugWarhead {
@@ -329,7 +332,7 @@ pub fn process_fire_debug_warhead_message(
             });
 
             // Find target in radius and then emit damage to each target within radius
-            let (base_ship, base_position) = position.get(*ship).unwrap();
+            let (base_ship, base_position) = position.get(*ship).expect("postion");
             for (target_ship, target_position) in position.iter() {
                 if base_ship == target_ship {
                     continue;
@@ -361,13 +364,13 @@ pub fn process_fire_debug_missile_message(
 ) {
     for FireDebugMissileMessage(ship) in fire_debug_missile_message.read() {
         // 1. does this have a missile component if so, check if we can fire
-        if let Ok(mut weapon) = parent_missile.get_mut(*ship) {
-            if weapon.current == 0 {
+        if let Ok(mut weapon) = parent_missile.get_mut(*ship)
+            && weapon.current == 0 {
                 weapon.current = weapon.cooldown;
 
                 // 2. if yes, spawn a ship next to the parent ship
                 // 3. for now yeet the script from the parent ship onto this
-                let (pos, rot, parent_script) = parent_ship.get(*ship).unwrap();
+                let (pos, rot, parent_script) = parent_ship.get(*ship).expect("parent");
 
                 // Calculate the position of the future missile
                 let offset = pos.0 + rot.0.to_quat().mul_vec3(Vec3::Y * 400.).truncate().as_ivec2();
@@ -383,7 +386,6 @@ pub fn process_fire_debug_missile_message(
 
                 spawn_ship.write(SpawnMessage(missile));
             }
-        }
     }
 }
 
@@ -411,6 +413,7 @@ fn render_bar_gizmos(
     );
 }
 
+#[expect(clippy::type_complexity)]
 pub(crate) fn debug_health_gitzmos(
     mut gizmos: Gizmos,
     query: Query<(&Health, &Transform), (With<HealthDebug>, Without<Shield>)>,
@@ -422,25 +425,26 @@ pub(crate) fn debug_health_gitzmos(
             &mut gizmos,
             base + Vec2::new(0., -25.),
             35.,
-            health.current as f32 / health.maximum as f32,
+            f32::from(health.current) / f32::from(health.maximum),
             bevy::color::palettes::css::GREEN,
         );
     }
 }
 
+#[expect(clippy::type_complexity)]
 pub(crate) fn debug_shield_health_gitzmos(
     mut gizmos: Gizmos,
     query: Query<(&Health, &ChildOf), (With<ShieldHealthDebug>, With<Shield>)>,
     ship_query: Query<&Transform>,
 ) {
     for (health, child_of) in query.iter() {
-        let base = ship_query.get(child_of.parent()).unwrap().translation.truncate();
+        let base = ship_query.get(child_of.parent()).expect("child").translation.truncate();
 
         render_bar_gizmos(
             &mut gizmos,
             base + Vec2::new(0., -35.),
             35.,
-            health.current as f32 / health.maximum as f32,
+            f32::from(health.current) / f32::from(health.maximum),
             bevy::color::palettes::css::BLUE,
         );
     }
@@ -468,8 +472,8 @@ impl ShieldBundle {
         target_arc: u8,
         damage_reduce: f32,
         health: u16,
-    ) -> ShieldBundle {
-        ShieldBundle {
+    ) -> Self {
+        Self {
             arc: Arc {
                 current,
                 target,

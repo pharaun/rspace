@@ -124,6 +124,7 @@ impl StarterShip {
 }
 
 // Builder to make building a starter ship nicer
+#[must_use]
 pub struct ShipBuilder {
     movement: MovementBundle,
     rotation: RotationBundle,
@@ -139,10 +140,10 @@ pub struct ShipBuilder {
 // https://discord.com/channels/691052431525675048/1403836135045726339/1403837230111522917
 // It'll permit us to have a "bundle builder" that builds a ship
 impl ShipBuilder {
-    pub fn new(script: Script) -> ShipBuilder {
+    pub fn new(script: Script) -> Self {
         // TODO: setup so that most of these components have default() or something so that
         // they can be more self-contained without having to build them up here in the builder
-        ShipBuilder {
+        Self {
             movement: MovementBundle::new(
                 IVec2::new(0, 0),
                 IVec2::new(0, 0),
@@ -179,91 +180,91 @@ impl ShipBuilder {
     }
 
     // Settings
-    pub fn position(mut self, x: i32, y: i32) -> ShipBuilder {
+    pub fn position(mut self, x: i32, y: i32) -> Self {
         self.movement.position(x, y);
         // Warn if its outside arena bounds since it will then warp the next frame
-        if (y < -(ARENA.y / 2)) || (y > (ARENA.y / 2)) || (x < -(ARENA.x / 2)) || (x > (ARENA.x / 2)) {
-            println!("WARNING: Set position outside of arena bounds - x: {:?}, y: {:?}", x, y);
+        if !(-(ARENA.y / 2)..=(ARENA.y / 2)).contains(&y) || !(-(ARENA.x / 2)..=(ARENA.x / 2)).contains(&x) {
+            println!("WARNING: Set position outside of arena bounds - x: {x:?}, y: {y:?}");
         }
         self
     }
 
-    pub fn velocity(mut self, x: i32, y: i32) -> ShipBuilder {
+    pub fn velocity(mut self, x: i32, y: i32) -> Self {
         self.movement.velocity.velocity = IVec2::new(x, y);
         self
     }
 
-    pub fn acceleration(mut self, acceleration: i32) -> ShipBuilder {
+    pub fn acceleration(mut self, acceleration: i32) -> Self {
         self.movement.velocity.acceleration = acceleration;
         self
     }
 
-    pub fn velocity_limit(mut self, limit: u32) -> ShipBuilder {
+    pub fn velocity_limit(mut self, limit: u32) -> Self {
         self.movement.velocity.velocity_limit = limit;
         self
     }
 
-    pub fn rotation(mut self, rotation: AbsRot) -> ShipBuilder {
+    pub fn rotation(mut self, rotation: AbsRot) -> Self {
         self.rotation.rotation(rotation);
         // Target radar in same direction as the ship
         self.radar.rotation(rotation);
         self
     }
 
-    pub fn rotation_limit(mut self, limit: u8) -> ShipBuilder {
+    pub fn rotation_limit(mut self, limit: u8) -> Self {
         self.rotation.target.limit = limit;
         self
     }
 
-    pub fn health(mut self, health: u16) -> ShipBuilder {
+    pub fn health(mut self, health: u16) -> Self {
         self.health.current = health;
         self.health.maximum = health;
         self
     }
 
-    pub fn radar(mut self, rotation: AbsRot) -> ShipBuilder {
+    pub fn radar(mut self, rotation: AbsRot) -> Self {
         self.radar.rotation(rotation);
         self
     }
 
-    pub fn radar_arc(mut self, arc: u8) -> ShipBuilder {
+    pub fn radar_arc(mut self, arc: u8) -> Self {
         self.radar.arc(arc);
         self
     }
 
-    pub fn shield(mut self, rotation: AbsRot) -> ShipBuilder {
+    pub fn shield(mut self, rotation: AbsRot) -> Self {
         self.shield.rotation(rotation);
         self
     }
 
-    pub fn shield_arc(mut self, arc: u8) -> ShipBuilder {
+    pub fn shield_arc(mut self, arc: u8) -> Self {
         self.shield.arc(arc);
         self
     }
 
-    pub fn shield_health(mut self, shield: u16) -> ShipBuilder {
+    pub fn shield_health(mut self, shield: u16) -> Self {
         self.shield.health(shield);
         self
     }
 
-    pub fn shield_damage_reduce(mut self, damage_reduce: f32) -> ShipBuilder {
+    pub fn shield_damage_reduce(mut self, damage_reduce: f32) -> Self {
         self.shield.damage_reduce(damage_reduce);
         self
     }
 
-    pub fn warhead(mut self, damage: u16) -> ShipBuilder {
+    pub fn warhead(mut self, damage: u16) -> Self {
         self.warhead = Some(DebugWarhead {
             damage
         });
         self
     }
 
-    pub fn debug(mut self, debug: DebugShip) -> ShipBuilder {
+    pub fn debug(mut self, debug: DebugShip) -> Self {
         self.debug = debug;
         self
     }
 
-    pub fn script(mut self, script: Script) -> ShipBuilder {
+    pub fn script(mut self, script: Script) -> Self {
         self.script = script;
         self
     }
@@ -286,27 +287,27 @@ impl ShipBuilder {
 // TODO: For components that are empty (ie tags) can use component ids + insert them from a null ptr
 // This will allow for a list of component ids to make it easier to add/set debug bits on a ship
 // optionally
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct DebugShip {
-    radar_debug: Option<RadarDebug>,
-    radar_arc_debug: Option<ArcDebug>,
-    mov_debug: Option<MovDebug>,
-    rot_debug: Option<RotDebug>,
-    health_debug: Option<HealthDebug>,
-    shield_health_debug: Option<ShieldHealthDebug>,
-    shield_arc_debug: Option<ArcDebug>,
+    radar: Option<RadarDebug>,
+    radar_arc: Option<ArcDebug>,
+    mov: Option<MovDebug>,
+    rot: Option<RotDebug>,
+    health: Option<HealthDebug>,
+    shield_health: Option<ShieldHealthDebug>,
+    shield_arc: Option<ArcDebug>,
 }
 
 impl DebugShip {
-    pub fn new() -> DebugShip {
-        DebugShip {
-            radar_debug: None,
-            radar_arc_debug: None,
-            mov_debug: None,
-            rot_debug: None,
-            health_debug: None,
-            shield_health_debug: None,
-            shield_arc_debug: None,
+    pub fn new() -> Self {
+        Self {
+            radar: None,
+            radar_arc: None,
+            mov: None,
+            rot: None,
+            health: None,
+            shield_health: None,
+            shield_arc: None,
         }
     }
 
@@ -315,73 +316,75 @@ impl DebugShip {
     }
 }
 
+#[must_use]
+#[derive(Default)]
 pub struct DebugBuilder {
-    radar_debug: Option<RadarDebug>,
-    radar_arc_debug: Option<ArcDebug>,
-    mov_debug: Option<MovDebug>,
-    rot_debug: Option<RotDebug>,
-    health_debug: Option<HealthDebug>,
-    shield_health_debug: Option<ShieldHealthDebug>,
-    shield_arc_debug: Option<ArcDebug>,
+    radar: Option<RadarDebug>,
+    radar_arc: Option<ArcDebug>,
+    mov: Option<MovDebug>,
+    rot: Option<RotDebug>,
+    health: Option<HealthDebug>,
+    shield_health: Option<ShieldHealthDebug>,
+    shield_arc: Option<ArcDebug>,
 }
 
 impl DebugBuilder {
-    pub fn new() -> DebugBuilder {
-        DebugBuilder {
-            radar_debug: None,
-            radar_arc_debug: None,
-            mov_debug: None,
-            rot_debug: None,
-            health_debug: None,
-            shield_health_debug: None,
-            shield_arc_debug: None,
+    pub fn new() -> Self {
+        Self {
+            radar: None,
+            radar_arc: None,
+            mov: None,
+            rot: None,
+            health: None,
+            shield_health: None,
+            shield_arc: None,
         }
     }
 
-    pub fn radar(mut self) -> DebugBuilder {
-        self.radar_debug = Some(RadarDebug);
+    pub fn radar(mut self) -> Self {
+        self.radar = Some(RadarDebug);
         self
     }
 
-    pub fn radar_arc(mut self) -> DebugBuilder {
-        self.radar_arc_debug = Some(ArcDebug);
+    pub fn radar_arc(mut self) -> Self {
+        self.radar_arc = Some(ArcDebug);
         self
     }
 
-    pub fn movement(mut self) -> DebugBuilder {
-        self.mov_debug = Some(MovDebug);
+    pub fn movement(mut self) -> Self {
+        self.mov = Some(MovDebug);
         self
     }
 
-    pub fn rotation(mut self) -> DebugBuilder {
-        self.rot_debug = Some(RotDebug);
+    pub fn rotation(mut self) -> Self {
+        self.rot = Some(RotDebug);
         self
     }
 
-    pub fn health(mut self) -> DebugBuilder {
-        self.health_debug = Some(HealthDebug);
+    pub fn health(mut self) -> Self {
+        self.health = Some(HealthDebug);
         self
     }
 
-    pub fn shield_health(mut self) -> DebugBuilder {
-        self.shield_health_debug = Some(ShieldHealthDebug);
+    pub fn shield_health(mut self) -> Self {
+        self.shield_health = Some(ShieldHealthDebug);
         self
     }
 
-    pub fn shield_arc(mut self) -> DebugBuilder {
-        self.shield_arc_debug = Some(ArcDebug);
+    pub fn shield_arc(mut self) -> Self {
+        self.shield_arc = Some(ArcDebug);
         self
     }
 
     pub fn build(self) -> DebugShip {
         DebugShip {
-            radar_debug: self.radar_debug,
-            radar_arc_debug: self.radar_arc_debug,
-            mov_debug: self.mov_debug,
-            rot_debug: self.rot_debug,
-            health_debug: self.health_debug,
-            shield_health_debug: self.shield_health_debug,
-            shield_arc_debug: self.shield_arc_debug,
+            radar: self.radar,
+            radar_arc: self.radar_arc,
+            mov: self.mov,
+            rot: self.rot,
+            health: self.health,
+            shield_health: self.shield_health,
+            shield_arc: self.shield_arc,
         }
     }
 }
@@ -431,11 +434,11 @@ pub fn add_ship(
                 ship.radar,
             ));
 
-            if let Some(radar) = ship.debug.radar_debug {
+            if let Some(radar) = ship.debug.radar {
                 spawned_radar.insert(radar);
             }
 
-            if let Some(arc) = ship.debug.radar_arc_debug {
+            if let Some(arc) = ship.debug.radar_arc {
                 spawned_radar.insert(arc);
             }
         })
@@ -446,32 +449,32 @@ pub fn add_ship(
                 ship.shield,
             ));
 
-            if let Some(shield_health) = ship.debug.shield_health_debug {
+            if let Some(shield_health) = ship.debug.shield_health {
                 spawned_shield.insert(shield_health);
             }
 
-            if let Some(arc) = ship.debug.shield_arc_debug {
+            if let Some(arc) = ship.debug.shield_arc {
                 spawned_shield.insert(arc);
             }
         });
 
     // Weapons
-    if ship.warhead.is_none() {
+    if let Some(warhead) = ship.warhead {
+        spawned_ship.insert(warhead);
+    } else {
         spawned_ship
             .insert(DebugWeapon { cooldown: 10, current: 0, damage: 34 })
             .insert(DebugMissile { cooldown: 10, current: 0 });
-    } else {
-        spawned_ship.insert(ship.warhead.unwrap());
     }
 
     // Debug components
-    if let Some(mov) = ship.debug.mov_debug {
+    if let Some(mov) = ship.debug.mov {
         spawned_ship.insert(mov);
     }
-    if let Some(rot) = ship.debug.rot_debug {
+    if let Some(rot) = ship.debug.rot {
         spawned_ship.insert(rot);
     }
-    if let Some(health) = ship.debug.health_debug {
+    if let Some(health) = ship.debug.health {
         spawned_ship.insert(health);
     }
 }

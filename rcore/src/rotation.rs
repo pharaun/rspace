@@ -29,8 +29,8 @@ pub struct RotationBundle {
 }
 
 impl RotationBundle {
-    pub fn new(rotation: AbsRot, target: AbsRot, limit: u8) -> RotationBundle {
-        RotationBundle {
+    pub fn new(rotation: AbsRot, target: AbsRot, limit: u8) -> Self {
+        Self {
             target: TargetRotation {
                 limit,
                 target,
@@ -71,6 +71,7 @@ pub struct RotDebug;
 // Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
 // Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
 // - Since we do have velocity information so we should be able to do better interpolation
+#[expect(clippy::needless_pass_by_value)]
 pub(crate) fn interpolate_rotation(
     mut query: Query<(&mut Transform, &Rotation, &PreviousRotation)>,
     fixed_time: Res<Time<Fixed>>
@@ -86,6 +87,7 @@ pub(crate) fn interpolate_rotation(
     }
 }
 
+#[expect(clippy::needless_pass_by_value)]
 pub(crate) fn apply_rotation(
     time: Res<Time<Fixed>>,
     mut query: Query<(&TargetRotation, &mut Rotation, &mut PreviousRotation)>
@@ -99,7 +101,9 @@ pub(crate) fn apply_rotation(
         }
 
         // Clamp the rotation
-        let limit = target_rot.limit as f32 * time.delta_secs();
+        let limit = f32::from(target_rot.limit) * time.delta_secs();
+
+        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let angle = rotation.0.angle_between(target_rot.target).clamp(limit.round() as u8);
         rotation.0 += angle;
     }
@@ -122,6 +126,7 @@ pub(crate) fn disable_rotation_propagation(
     }
 }
 
+#[expect(clippy::similar_names)]
 pub(crate) fn debug_rotation_gitzmos(
     mut gizmos: Gizmos,
     query: Query<(&Transform, &TargetRotation), With<RotDebug>>

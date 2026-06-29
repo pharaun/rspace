@@ -66,6 +66,7 @@ pub struct ShipStatus {
 }
 
 // Initial attempt of building a ship action structure for what to do
+#[must_use]
 pub struct ShipAction {
     pub heading: RelRot,
     pub acceleration: i32,
@@ -73,9 +74,15 @@ pub struct ShipAction {
     pub target_entity: Option<Entity>
 }
 
+impl Default for ShipAction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ShipAction {
-    pub fn new() -> ShipAction {
-        ShipAction {
+    pub fn new() -> Self {
+        Self {
             heading: RelRot(0),
             acceleration: 0,
             radar_heading: RelRot(0),
@@ -83,22 +90,22 @@ impl ShipAction {
         }
     }
 
-    pub fn heading(mut self, hdr: RelRot) -> ShipAction {
+    pub fn heading(mut self, hdr: RelRot) -> Self {
         self.heading = hdr;
         self
     }
 
-    pub fn acceleration(mut self, acc: i32) -> ShipAction {
+    pub fn acceleration(mut self, acc: i32) -> Self {
         self.acceleration = acc;
         self
     }
 
-    pub fn radar_heading(mut self, hdr: RelRot) -> ShipAction {
+    pub fn radar_heading(mut self, hdr: RelRot) -> Self {
         self.radar_heading = hdr;
         self
     }
 
-    pub fn target_entity(mut self, target: Option<Entity>) -> ShipAction {
+    pub fn target_entity(mut self, target: Option<Entity>) -> Self {
         self.target_entity = target;
         self
     }
@@ -133,7 +140,7 @@ struct ScriptTimer(Timer);
 pub struct ScriptPlugins;
 impl Plugin for ScriptPlugins {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ScriptTimer(Timer::from_seconds(1.0 / 1.0, TimerMode::Repeating)))
+        app.insert_resource(ScriptTimer(Timer::from_seconds(1.0, TimerMode::Repeating)))
             .add_systems(FixedUpdate, (
                 process_on_update.in_set(FixedGameSystem::ShipLogic),
                 process_on_collision.in_set(FixedGameSystem::ShipLogic),
@@ -172,7 +179,7 @@ fn process_on_contact(
             // E1 knows where e2 is
             e1_script.script.on_contact(e2_pos.0, e2_entity);
         } else {
-            println!("ERROR - SCRIPT - {:?}", contact_message);
+            println!("ERROR - SCRIPT - {contact_message:?}");
         }
     }
 }
@@ -192,6 +199,7 @@ fn process_on_contact(
 // per frame ShipAction event that gets sent out to all sort of subsystem and they check
 // if its relevant, and if so they update theirselves, otherwise they skip, this may
 // be a better way since it would let us to self-contain the logic into each area's systems?
+#[expect(clippy::needless_pass_by_value, clippy::too_many_arguments)]
 fn process_on_update(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
@@ -210,7 +218,7 @@ fn process_on_update(
     // handle normal on_update ticks
     if timer.0.tick(time.delta()).just_finished() {
         for (entity, mut ship_script) in query.iter_mut() {
-            let ship = ship_query.get(entity).unwrap();
+            let ship = ship_query.get(entity).expect("ship");
 
             let ship_status = ShipStatus {
                 position: ship.1.0,
@@ -222,14 +230,14 @@ fn process_on_update(
             let res = ship_script.script.on_update(&ship_status);
 
             // Always apply
-            let mut velocity = ship_query.get_mut(entity).unwrap().0;
+            let mut velocity = ship_query.get_mut(entity).expect("vel").0;
             velocity.acceleration = res.acceleration;
 
-            let mut rotation = ship_query.get_mut(entity).unwrap().2;
+            let mut rotation = ship_query.get_mut(entity).expect("rot").2;
             rotation.target += res.heading;
 
             // Radar is on the children entity of the ship
-            let children = ship_query.get(entity).unwrap().4;
+            let children = ship_query.get(entity).expect("radar").4;
             for child_entity in children {
                 if let Ok(mut radar) = radar_query.get_mut(*child_entity) {
                     radar.target += res.radar_heading;
@@ -237,14 +245,12 @@ fn process_on_update(
             }
 
             // For now emit a fire event
-            if let Some(target) = res.target_entity {
-                if let Ok(target_entity) = target_query.get(target) {
-                    l_message.write(FireDebugWeaponMessage(entity, target_entity));
-                }
+            if let Some(target) = res.target_entity && let Ok(target_entity) = target_query.get(target) {
+                l_message.write(FireDebugWeaponMessage(entity, target_entity));
             }
 
             // For now spam the warhead fire event
-            if let Some(_) = res.target_entity {
+            if res.target_entity.is_some() {
                 w_message.write(FireDebugWarheadMessage(entity));
                 m_message.write(FireDebugMissileMessage(entity));
             }

@@ -1,8 +1,8 @@
-mod regfile;
+pub mod regfile;
 pub mod mem;
 mod mem_util;
-mod mio;
-mod csr;
+pub mod mio;
+pub mod csr;
 mod cpu;
 pub mod opcode;
 

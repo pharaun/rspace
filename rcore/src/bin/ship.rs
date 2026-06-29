@@ -68,7 +68,7 @@ fn main() {
         // Startup setup
         .add_systems(Startup, (
             |mut commands: Commands| {
-                commands.spawn(Camera2d::default());
+                commands.spawn(Camera2d);
             },
 //            |mut window: Single<&mut Window>| {
 //                window.present_mode = PresentMode::AutoNoVsync;
@@ -92,8 +92,8 @@ struct SimpleShip {
 }
 
 impl SimpleShip {
-    fn new() -> SimpleShip {
-        SimpleShip {
+    fn new() -> Self {
+        Self {
             acc: 10,
             dec: 20,
             rot: -128,

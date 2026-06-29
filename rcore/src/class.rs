@@ -1,4 +1,4 @@
-use bevy_prototype_lyon::geometry::ShapeBuilderBase;
+use bevy_prototype_lyon::geometry::ShapeBuilderBase as _;
 use bevy_prototype_lyon::prelude::Fill;
 use bevy_prototype_lyon::prelude::Shape;
 use bevy_prototype_lyon::prelude::ShapeBuilder;
@@ -27,6 +27,7 @@ pub enum ShipClass {
     Tiny,
 }
 
+#[expect(clippy::needless_pass_by_value)]
 pub fn get_ship(class: ShipClass, fill: Fill, stroke: Stroke) -> Shape {
     let ship_path = match class {
         ShipClass::Large => todo!(),

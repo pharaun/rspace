@@ -38,8 +38,8 @@ pub struct RadarBundle {
 }
 
 impl RadarBundle {
-    pub fn new(current: AbsRot, target: AbsRot, current_arc: u8, target_arc: u8) -> RadarBundle {
-        RadarBundle {
+    pub fn new(current: AbsRot, target: AbsRot, current_arc: u8, target_arc: u8) -> Self {
+        Self {
             arc: Arc {
                 current,
                 target,
@@ -132,6 +132,7 @@ pub enum ArcCheck {
 // Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
 // Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
 // - Since we do have velocity information so we should be able to do better interpolation
+#[expect(clippy::needless_pass_by_value)]
 pub(crate) fn interpolate_arc(
     mut query: Query<(&mut Transform, &Arc)>,
     fixed_time: Res<Time<Fixed>>
@@ -171,30 +172,27 @@ pub(crate) fn apply_radar(
 
         // TODO: abstract this logic to a helper class (gizmo debug wants this too and we will have
         // other radar types)
-        let (base_ship, base_position) = ship_query.get(child_of.parent()).unwrap();
+        let (base_ship, base_position) = ship_query.get(child_of.parent()).expect("child");
         for (target_ship, target_position) in ship_query.iter() {
             if base_ship == target_ship {
                 continue;
             }
 
-            match within_radar(
+            if matches!(within_radar(
                 base_position.0, target_position.0,
                 arc.current, arc.current_arc, DISTANCE_SQUARED
-            ) {
-                RadarContact::Contact => {
-                    // Is this contact better than current winner?
-                    if let Some((_, best_position)) = best_target {
-                        let target_distance = base_position.0.distance_squared(target_position.0);
-                        let best_distance = base_position.0.distance_squared(best_position);
+            ), RadarContact::Contact) {
+                // Is this contact better than current winner?
+                if let Some((_, best_position)) = best_target {
+                    let target_distance = base_position.0.distance_squared(target_position.0);
+                    let best_distance = base_position.0.distance_squared(best_position);
 
-                        if target_distance <= best_distance {
-                            best_target = Some((target_ship, target_position.0));
-                        }
-                    } else {
+                    if target_distance <= best_distance {
                         best_target = Some((target_ship, target_position.0));
                     }
-                },
-                _ => (),
+                } else {
+                    best_target = Some((target_ship, target_position.0));
+                }
             }
         }
 
@@ -233,6 +231,7 @@ pub fn within_arc(
     }
 }
 
+#[expect(clippy::similar_names)]
 pub(crate) fn debug_arc_gitzmos(
     mut gizmos: Gizmos,
     query: Query<(&Arc, &ChildOf), With<ArcDebug>>,
@@ -240,11 +239,14 @@ pub(crate) fn debug_arc_gitzmos(
 ) {
     for (arc, child_of) in query.iter() {
         // Need the ship translation to position the arc gizmo right
-        let base = parent_query.get(child_of.parent()).unwrap().translation.truncate();
+        let base = parent_query.get(child_of.parent()).expect("child").translation.truncate();
         let heading = arc.current;
         let target = arc.target;
 
+        #[expect(clippy::cast_possible_wrap)]
         let cw_arc = heading + RelRot((arc.current_arc / 2) as i8);
+
+        #[expect(clippy::cast_possible_wrap)]
         let ccw_arc = heading + RelRot(-((arc.current_arc / 2) as i8));
 
         // Current heading
@@ -295,7 +297,7 @@ pub(crate) fn debug_radar_gitzmos(
     for (arc, child_of) in query.iter() {
         // Need the ship translation to position the radar gizmo right
         let (base, base_pos) = {
-            let (base, pos) = parent_query.get(child_of.parent()).unwrap();
+            let (base, pos) = parent_query.get(child_of.parent()).expect("child");
             (base.translation.truncate(), pos)
         };
 

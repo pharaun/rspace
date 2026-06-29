@@ -14,6 +14,7 @@ pub fn vec_scale(vec: IVec2, factor: f32) -> Vec2 {
     )
 }
 
+#[expect(clippy::cast_possible_truncation)]
 pub fn un_vec_scale(vec: Vec2, factor: f32) -> IVec2 {
     IVec2::new(
         (vec.x * factor) as i32,
@@ -42,11 +43,11 @@ pub struct AbsRot(pub u8);
 
 impl AbsRot {
     pub fn to_quat(&self) -> Quat {
-        Quat::from_rotation_z(FRAC_PI_128 * self.0 as f32)
+        Quat::from_rotation_z(FRAC_PI_128 * f32::from(self.0))
     }
 
     pub fn from_quat(quat: Quat) -> Self {
-        AbsRot::from_angle(quat.to_euler(EulerRot::ZYX).0)
+        Self::from_angle(quat.to_euler(EulerRot::ZYX).0)
     }
 
     pub fn from_angle(angle: f32) -> Self {
@@ -58,7 +59,8 @@ impl AbsRot {
                 tmp
             }
         };
-        AbsRot(tmp.round() as u8)
+        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        Self(tmp.round() as u8)
     }
 
     // TODO: probs want to redo some of these math to allow for in between AbsRot angles
@@ -68,13 +70,14 @@ impl AbsRot {
             None
         } else {
             // IVec2(X, Y) (+Y = 0, +X = 64, -Y = 128, -X = 192)
-            Some(AbsRot::from_angle(Vec2::Y.angle_to((target-base).as_vec2())))
+            Some(Self::from_angle(Vec2::Y.angle_to((target-base).as_vec2())))
         }
     }
 
     // TODO: does not handle arc-length shorter than 2 arc-length wide.
     // - Need to decide how to make 1-wide arc work
-    pub fn between(&self, arc: u8, target: AbsRot) -> bool {
+    #[expect(clippy::similar_names, clippy::cast_possible_wrap)]
+    pub fn between(&self, arc: u8, target: Self) -> bool {
         let cw_arc = *self + RelRot((arc / 2) as i8);
         let ccw_arc = *self + RelRot(-((arc / 2) as i8));
 
@@ -87,30 +90,32 @@ impl AbsRot {
             (ccw_arc <= target && target <= cw_arc)
     }
 
-    pub fn angle_between(&self, target: AbsRot) -> RelRot {
-        RelRot((target.0 as i16 - self.0 as i16) as i8)
+    #[expect(clippy::cast_possible_truncation)]
+    pub fn angle_between(&self, target: Self) -> RelRot {
+        RelRot((i16::from(target.0) - i16::from(self.0)) as i8)
     }
 
-    pub fn transform_slerp(&self, end: AbsRot, f: f32) -> Quat {
+    pub fn transform_slerp(&self, end: Self, f: f32) -> Quat {
         self.to_quat().slerp(end.to_quat(), f)
     }
 }
 
 impl Add<RelRot> for AbsRot {
-    type Output = AbsRot;
+    type Output = Self;
 
-    fn add(self, rhs: RelRot) -> AbsRot {
+    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    fn add(self, rhs: RelRot) -> Self {
         if rhs.0 < 0 {
-            AbsRot(self.0.wrapping_sub((-(rhs.0 as i16)) as u8))
+            Self(self.0.wrapping_sub((-i16::from(rhs.0)) as u8))
         } else {
-            AbsRot(self.0.wrapping_add(rhs.0 as u8))
+            Self(self.0.wrapping_add(rhs.0 as u8))
         }
     }
 }
 
 impl AddAssign<RelRot> for AbsRot {
     fn add_assign(&mut self, rhs: RelRot) {
-        *self = *self + rhs
+        *self = *self + rhs;
     }
 }
 
@@ -123,13 +128,15 @@ impl AddAssign<RelRot> for AbsRot {
 pub struct RelRot(pub i8);
 
 impl RelRot {
-    pub fn clamp(&self, clamp: u8) -> RelRot {
+    #[must_use]
+    #[expect(clippy::cast_possible_wrap)]
+    pub fn clamp(&self, clamp: u8) -> Self {
         if clamp >= 128 {
             *self
         } else if self.0 < -(clamp as i8) {
-            RelRot(-(clamp as i8))
+            Self(-(clamp as i8))
         } else if self.0 > clamp as i8 {
-            RelRot(clamp as i8)
+            Self(clamp as i8)
         } else {
             *self
         }

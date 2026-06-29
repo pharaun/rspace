@@ -10,10 +10,12 @@ struct Cpu {
 }
 
 impl Cpu {
+    #[expect(dead_code)]
     fn set_pc(&mut self, pc: u16) {
         self.pc = pc;
     }
 
+    #[expect(dead_code)]
     fn step<M: Memory>(&mut self, _reg: &mut RegFile, _mem: &mut M) {
 
     }
@@ -22,6 +24,7 @@ impl Cpu {
 struct Mem([u8; 65536]);
 
 impl Mem {
+    #[expect(dead_code)]
     fn new_with(program: &[u8], load_at: u16) -> Self {
         assert!(program.len() + (load_at as usize) < 65536);
 
@@ -43,6 +46,7 @@ impl Memory for Mem {
 
 // TODO: support wrapping memory access?
 // - Validate this assumption
+#[expect(dead_code)]
 trait Memory {
     fn get_u8(&self, addr: u16) -> u8;
     fn set_u8(&mut self, addr: u16, value: u8);

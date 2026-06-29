@@ -151,6 +151,7 @@ mod test_quad_acc {
 }
 
 // TODO: how to handle the 0 register (zero)
+#[expect(dead_code)]
 #[derive(Debug, Default)]
 pub(super) struct RegFile {
     pub acc: QuadAcc,
@@ -172,7 +173,7 @@ pub(super) struct RegFile {
 
 #[bitfield(u8, order=Msb)]
 #[derive(PartialEq)]
-struct ConditionCode {
+pub(super) struct ConditionCode {
     e: bool, // 0b1000_0000
     f: bool,
     h: bool,
@@ -185,7 +186,7 @@ struct ConditionCode {
 
 #[bitfield(u8, order=Msb)]
 #[derive(PartialEq)]
-struct CpuMode {
+pub(super) struct CpuMode {
     // Readable
     d0: bool, // 0b1000_0000
     il: bool,

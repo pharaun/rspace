@@ -31,8 +31,8 @@ pub struct MovementBundle {
 }
 
 impl MovementBundle {
-    pub fn new(position: IVec2, velocity: IVec2, velocity_limit: u32, acceleration: i32) -> MovementBundle {
-        MovementBundle {
+    pub fn new(position: IVec2, velocity: IVec2, velocity_limit: u32, acceleration: i32) -> Self {
+        Self {
             velocity: Velocity {
                 acceleration,
                 velocity,
@@ -79,6 +79,7 @@ pub struct MovDebug;
 // Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
 // Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
 // - Since we do have velocity information so we should be able to do better interpolation
+#[expect(clippy::needless_pass_by_value)]
 pub(crate) fn interpolate_movement(
     mut query: Query<(&mut Transform, &Position, &PreviousPosition)>,
     fixed_time: Res<Time<Fixed>>,
@@ -98,6 +99,7 @@ pub(crate) fn interpolate_movement(
 }
 
 // TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
+#[expect(clippy::needless_pass_by_value)]
 pub(crate) fn apply_movement(
     mut query: Query<(&mut Velocity, &Rotation, &mut Position, &mut PreviousPosition)>,
     fixed_time: Res<Time<Fixed>>,
@@ -110,8 +112,8 @@ pub(crate) fn apply_movement(
         // do so. Could optionally allow for a heading change while preserving the current velocity
         let acceleration: Vec2 = rot.0.to_quat().mul_vec3(Vec3::Y * (vec.acceleration as f32)).truncate();
         let factor = calculate_lorentz_factor(
-            &vec_scale(vec.velocity, 1.0),
-            &acceleration,
+            vec_scale(vec.velocity, 1.0),
+            acceleration,
             vec.velocity_limit,
             &fixed_time
         );
@@ -122,8 +124,8 @@ pub(crate) fn apply_movement(
 }
 
 fn calculate_lorentz_factor<T>(
-    velocity: &Vec2,
-    acceleration: &Vec2,
+    velocity: Vec2,
+    acceleration: Vec2,
     velocity_limit: u32,
     time: &Time<T>,
 ) -> f32

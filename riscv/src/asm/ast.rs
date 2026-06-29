@@ -30,7 +30,7 @@ pub(super) struct ParseDataTypeError { _priv: () }
 
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Csr {
+pub(crate) enum Csr {
     // Machine Information Registers
     MVENDORID, MARCHID, MIMPID, MHARTID,
 
@@ -104,11 +104,11 @@ impl FromStr for Csr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseCsrError { _priv: () }
+pub(crate) struct ParseCsrError { _priv: () }
 
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Reg {
+pub(crate) enum Reg {
     X0, X1, X2, X3, X4, X5, X6, X7, X8, X9,
     X10, X11, X12, X13, X14, X15, X16, X17, X18, X19,
     X20, X21, X22, X23, X24, X25, X26, X27, X28, X29,
@@ -197,4 +197,4 @@ impl FromStr for Reg {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseRegError { _priv: () }
+pub(crate) struct ParseRegError { _priv: () }

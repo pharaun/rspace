@@ -193,7 +193,7 @@ impl Cpu {
             },
             (0b000_0001, 0b100, opcode::OP_REG) => {
                 // DIV
-                let _neg: u32 = (-1 as i32) as u32;
+                let _neg: u32 = -1i32 as u32;
                 self.reg[rd] = match (self.reg[rs2], self.reg[rs1]) {
                     (    0x0,             _) => (-1i32) as u32,
                     (   _neg, 0xff_ff_ff_ff) => 0xff_ff_ff_ff,
@@ -210,7 +210,7 @@ impl Cpu {
             },
             (0b000_0001, 0b110, opcode::OP_REG) => {
                 // REM
-                let _neg: u32 = (-1 as i32) as u32;
+                let _neg: u32 = -1i32 as u32;
                 self.reg[rd] = match (self.reg[rs2], self.reg[rs1]) {
                     (    0x0,             _) => self.reg[rs1],
                     (   _neg, 0xff_ff_ff_ff) => 0x0,

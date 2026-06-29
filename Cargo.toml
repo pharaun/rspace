@@ -21,7 +21,7 @@ unused_lifetimes = "warn"
 unused_macro_rules = "warn"
 unused_qualifications = "warn"
 
-elided_lifetimes_in_paths = "warn"
+elided_lifetimes_in_paths = { level = "allow", priority = 1 }
 future_incompatible = { level = "warn", priority = -1 }
 nonstandard_style = { level = "warn", priority = -1 }
 semicolon_in_expressions_from_macros = "warn"
@@ -91,7 +91,6 @@ large_types_passed_by_value = "warn"
 linkedlist = "warn"
 lossy_float_literal = "warn"
 macro_use_imports = "warn"
-mem_forget = "warn"
 mutex_integer = "warn"
 needless_for_each = "warn"
 negative_feature_names = "warn"

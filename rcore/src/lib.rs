@@ -121,7 +121,7 @@ pub fn arena_bounds_setup(mut commands: Commands) {
             let hdr = AbsRot(angle).to_quat().mul_vec3(Vec3::Y * 40.);
 
             parent.spawn((
-                Text2d::new(format!("{}", angle)),
+                Text2d::new(format!("{angle}")),
                 Transform::from_translation(hdr),
                 ArenaMarker,
             ));
