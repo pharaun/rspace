@@ -145,12 +145,12 @@ impl ShipBuilder {
         Self {
             movement: MovementBundle::new(IVec2::new(0, 0), IVec2::new(0, 0), 100, 0),
             rotation: RotationBundle::new(AbsRot(0), AbsRot(0), 16),
-            radar: RadarBundle::new(AbsRot(0), AbsRot(0), 64, 64),
+            radar: RadarBundle::new(AbsRot(0), AbsRot(0), 32, 32),
             health: Health {
                 current: 100,
                 maximum: 100,
             },
-            shield: ShieldBundle::new(AbsRot(0), AbsRot(0), 64, 64, 0.5, 100),
+            shield: ShieldBundle::new(AbsRot(0), AbsRot(0), 32, 32, 0.5, 100),
             warhead: None,
             script,
             debug: DebugShip::new(),

@@ -32,7 +32,7 @@ const FRAC_PI_128: f32 = PI / -128.0;
 // 128 = 180º South
 // 192 = 270º West
 // Radian: 0 = 0, 1 = π/128, 64 = π/2, 128 = π/1, ...
-#[derive(Debug, PartialEq, PartialOrd, Clone, Copy, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub struct AbsRot(pub u8);
 
 impl AbsRot {
@@ -53,8 +53,6 @@ impl AbsRot {
         Self(tmp.round() as u8)
     }
 
-    // TODO: probs want to redo some of these math to allow for in between AbsRot angles
-    // to allow for a 1-arc width radar
     pub fn from_vec2_angle(base: IVec2, target: IVec2) -> Option<Self> {
         if (target - base) == IVec2::ZERO {
             None
@@ -66,23 +64,39 @@ impl AbsRot {
         }
     }
 
-    // TODO: does not handle arc-length shorter than 2 arc-length wide.
-    // - Need to decide how to make 1-wide arc work
-    #[expect(clippy::similar_names, clippy::cast_possible_wrap)]
-    pub fn between(&self, arc: u8, target: Self) -> bool {
-        let cw_arc = *self + RelRot((arc / 2) as i8);
-        let ccw_arc = *self + RelRot(-((arc / 2) as i8));
+    // To support an arc-width of 1, we decided to make it so that an arc is
+    // equiv to AbsRot(x) +- 0.5 arc width, ie dead-on is going to return x.
+    //
+    // half_arc = 0 -> `self` +- 0.5
+    // half_arc = 1 -> `self-1 ..= self+1`
+    //
+    // Clamping to 127 max, half_arcs leads it to be able to check 255/256 arcs
+    // TODO: may want to consider clamping to 64 for gameplay reason (128 arc)
+    //
+    // TODO: this is tricky cuz we give it AbsRot so it is already discretized
+    // where we might want to instead give it a quat/convert it so that it can
+    // handle the +- math correctly.
+    pub fn within(&self, half_arc: u8, target: Self) -> bool {
+        // unsigned_abs to avoid the (-128i8).abs() overflow
+        i16::from(self.angle_between(target).0).unsigned_abs() <= u16::from(half_arc.min(127))
+    }
 
-        // If CCW is greater than CW it crossed the 0 boundary
-        //  ccw < target || target < cw
-        // if ccw is less than cw its within the axis and thus
-        //  ccw < target < cw
-        (ccw_arc > cw_arc && (ccw_arc <= target || target <= cw_arc))
-            || (ccw_arc <= target && target <= cw_arc)
+    // Debugging math
+    #[expect(clippy::cast_possible_wrap)]
+    #[must_use]
+    pub fn cw_edge(&self, half_arc: u8) -> Self {
+        *self + RelRot(half_arc.min(127) as i8)
+    }
+
+    #[expect(clippy::cast_possible_wrap)]
+    #[must_use]
+    pub fn ccw_edge(&self, half_arc: u8) -> Self {
+        *self + RelRot(-(half_arc.min(127) as i8))
     }
 
     #[expect(clippy::cast_possible_truncation)]
     pub fn angle_between(&self, target: Self) -> RelRot {
+        // [-128, 127] so it defaults to CCW here due to cast wrap
         RelRot((i16::from(target.0) - i16::from(self.0)) as i8)
     }
 
@@ -216,29 +230,47 @@ fn test_from_vec2_angle() {
     assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(-1, -1)), Some(AbsRot(160)));
 }
 
+#[rustfmt::skip]
 #[test]
-fn test_between() {
-    // Test an arc width that jumps over the 256/0 discontinunity
-    assert_eq!(true, AbsRot(0).between(2, AbsRot(0)));
-    assert_eq!(true, AbsRot(0).between(2, AbsRot(1)));
-    assert_eq!(true, AbsRot(0).between(2, AbsRot(255)));
+fn test_within() {
+    // Test an 0 arc-width
+    assert_eq!(false, AbsRot(0).within(0, AbsRot(255)));
+    assert_eq!(true,  AbsRot(0).within(0, AbsRot(0)));
+    assert_eq!(false, AbsRot(0).within(0, AbsRot(1)));
 
-    assert_eq!(false, AbsRot(0).between(2, AbsRot(2)));
-    assert_eq!(false, AbsRot(0).between(2, AbsRot(254)));
+    assert_eq!(false, AbsRot(255).within(0, AbsRot(254)));
+    assert_eq!(true,  AbsRot(255).within(0, AbsRot(255)));
+    assert_eq!(false, AbsRot(255).within(0, AbsRot(0)));
 
-    // Test an arc width that does not jump over the discontinunity
-    assert_eq!(true, AbsRot(64).between(2, AbsRot(64)));
-    assert_eq!(true, AbsRot(64).between(2, AbsRot(65)));
-    assert_eq!(true, AbsRot(64).between(2, AbsRot(63)));
+    // Test an 1 wide arc that jumps over 256/0
+    assert_eq!(false, AbsRot(0).within(1, AbsRot(254)));
+    assert_eq!(true,  AbsRot(0).within(1, AbsRot(255)));
+    assert_eq!(true,  AbsRot(0).within(1, AbsRot(0)));
+    assert_eq!(true,  AbsRot(0).within(1, AbsRot(1)));
+    assert_eq!(false, AbsRot(0).within(1, AbsRot(2)));
 
-    assert_eq!(false, AbsRot(64).between(2, AbsRot(66)));
-    assert_eq!(false, AbsRot(64).between(2, AbsRot(62)));
+    // Test an arc that doesn't have a discontinunity
+    assert_eq!(false, AbsRot(64).within(1, AbsRot(62)));
+    assert_eq!(true,  AbsRot(64).within(1, AbsRot(63)));
+    assert_eq!(true,  AbsRot(64).within(1, AbsRot(64)));
+    assert_eq!(true,  AbsRot(64).within(1, AbsRot(65)));
+    assert_eq!(false, AbsRot(64).within(1, AbsRot(66)));
 
-    // Test an max width arc (128)
-    assert_eq!(true, AbsRot(0).between(128, AbsRot(0)));
-    assert_eq!(true, AbsRot(0).between(128, AbsRot(64)));
-    assert_eq!(true, AbsRot(0).between(128, AbsRot(192)));
+    // Test an max width arc
+    assert_eq!(true, AbsRot(0).within(127, AbsRot(0)));
+    assert_eq!(true, AbsRot(0).within(127, AbsRot(64)));
+    assert_eq!(false, AbsRot(0).within(127, AbsRot(128))); // Directly back
+    assert_eq!(true, AbsRot(0).within(127, AbsRot(192)));
+    assert_eq!(true, AbsRot(0).within(127, AbsRot(255)));
+}
 
-    assert_eq!(false, AbsRot(0).between(128, AbsRot(65)));
-    assert_eq!(false, AbsRot(0).between(128, AbsRot(191)));
+#[test]
+fn test_render_edges() {
+    // cw_edge
+    assert_eq!(AbsRot(0).cw_edge(1), AbsRot(1));
+    assert_eq!(AbsRot(64).cw_edge(32), AbsRot(96));
+
+    // ccw_edge
+    assert_eq!(AbsRot(0).ccw_edge(1), AbsRot(255));
+    assert_eq!(AbsRot(64).ccw_edge(32), AbsRot(32));
 }

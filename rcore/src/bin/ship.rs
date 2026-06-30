@@ -69,9 +69,6 @@ fn main() {
                 |mut commands: Commands| {
                     commands.spawn(Camera2d);
                 },
-                //            |mut window: Single<&mut Window>| {
-                //                window.present_mode = PresentMode::AutoNoVsync;
-                //            },
                 arena_bounds_setup,
                 ship_setup,
             ),

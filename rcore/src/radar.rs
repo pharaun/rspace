@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 use crate::math::AbsRot;
-use crate::math::RelRot;
 use crate::movement::Position;
 use crate::rotation::NoRotationPropagation;
 
@@ -70,12 +69,13 @@ impl RadarBundle {
 #[derive(Component, Clone, Copy, Default)]
 pub struct Arc {
     // TODO: Can probs pull out the AbsRot and reuse Rotation component
-    // But would have to look into the catch when it comes to 1/256th of an arc since
-    // right now we cannot, best we can do is 2/256th of an arc
     pub current: AbsRot,
     pub target: AbsRot,
 
-    // Units arc - [0 = off, 1 = 1/256th of an arc, max 128]
+    // Half-arc:
+    // - 0 == 1/256th of an arc
+    // - 1 == 3/256th of an arc
+    // - 127 = 255/256th of an arc
     pub current_arc: u8,
     pub target_arc: u8,
 }
@@ -230,7 +230,7 @@ fn within_radar(
 pub fn within_arc(base: IVec2, target: IVec2, heading: AbsRot, arc: u8) -> ArcCheck {
     match AbsRot::from_vec2_angle(base, target) {
         Some(rot) => {
-            if heading.between(arc, rot) {
+            if heading.within(arc, rot) {
                 ArcCheck::InsideArc
             } else {
                 ArcCheck::OutsideArc
@@ -256,11 +256,8 @@ pub(crate) fn debug_arc_gitzmos(
         let heading = arc.current;
         let target = arc.target;
 
-        #[expect(clippy::cast_possible_wrap)]
-        let cw_arc = heading + RelRot((arc.current_arc / 2) as i8);
-
-        #[expect(clippy::cast_possible_wrap)]
-        let ccw_arc = heading + RelRot(-((arc.current_arc / 2) as i8));
+        let cw_arc = heading.cw_edge(arc.current_arc);
+        let ccw_arc = heading.ccw_edge(arc.current_arc);
 
         // Current heading
         gizmos.line_2d(
