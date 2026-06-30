@@ -200,7 +200,7 @@ fn ship_setup(mut commands: Commands) {
         .rotation(AbsRot(0))
         .rotation_limit(16)
         .radar(AbsRot(0))
-        .radar_arc(64)
+        .radar_arc(32)
         .debug(DebugBuilder::new().radar_arc().build())
         .build(),
         ShipBuilder::new(Script {
@@ -208,7 +208,7 @@ fn ship_setup(mut commands: Commands) {
         })
         .position(3500, 0)
         .velocity(0, 0)
-        .radar_arc(2)
+        .radar_arc(1)
         .shield(AbsRot(192))
         .shield_damage_reduce(0.75)
         .debug(
@@ -224,7 +224,7 @@ fn ship_setup(mut commands: Commands) {
         })
         .position(-3500, 0)
         .velocity(0, 0)
-        .radar_arc(2)
+        .radar_arc(1)
         .shield(AbsRot(0))
         .shield_damage_reduce(0.25)
         .debug(
@@ -240,7 +240,7 @@ fn ship_setup(mut commands: Commands) {
         })
         .position(-4500, -2500)
         .velocity(0, 0)
-        .radar_arc(2)
+        .radar_arc(1)
         .build(),
     ];
 
