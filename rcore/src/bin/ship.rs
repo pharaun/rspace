@@ -1,11 +1,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
-
-//use bevy::window::PresentMode;
-
-use bevy_screen_diagnostics::ScreenDiagnosticsPlugin;
-use bevy_screen_diagnostics::ScreenEntityDiagnosticsPlugin;
-use bevy_screen_diagnostics::ScreenFrameDiagnosticsPlugin;
+use bevy::dev_tools::fps_overlay::*;
+use bevy::text::FontSmoothing;
 
 use bevy_prototype_lyon::prelude::ShapePlugin;
 
@@ -37,9 +33,31 @@ fn main() {
         .add_plugins(PhysicsPlugins::default())
         //.add_plugins(PhysicsDebugPlugin::default())
         // FPS
-        .add_plugins(ScreenDiagnosticsPlugin::default())
-        .add_plugins(ScreenFrameDiagnosticsPlugin)
-        .add_plugins(ScreenEntityDiagnosticsPlugin)
+        .add_plugins(FpsOverlayPlugin {
+            config: FpsOverlayConfig {
+                text_config: TextFont {
+                    // Here we define size of our overlay
+                    font_size: FontSize::Px(18.0),
+                    // If we want, we can use a custom font
+                    font: default(),
+                    // We could also disable font smoothing,
+                    font_smoothing: FontSmoothing::default(),
+                    ..default()
+                },
+                // We can also change color of the overlay
+                text_color: Color::srgb(1.0, 0.0, 0.0),
+                // We can also set the refresh interval for the FPS counter
+                refresh_interval: core::time::Duration::from_millis(100),
+                enabled: true,
+                frame_time_graph_config: FrameTimeGraphConfig {
+                    enabled: false,
+                    // The minimum acceptable fps
+                    min_fps: 30.0,
+                    // The target fps
+                    target_fps: 60.0,
+                },
+            },
+        })
         // Graphics (lyon)
         .add_plugins(ShapePlugin)
         // TODO: fix up systems so i can bump it to bevy default 64hz
