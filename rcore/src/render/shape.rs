@@ -5,8 +5,8 @@ use bevy_prototype_lyon::prelude::ShapeBuilder;
 use bevy_prototype_lyon::prelude::ShapePath;
 use bevy_prototype_lyon::prelude::Stroke;
 
-use bevy::prelude::Vec2;
 use bevy::prelude::Srgba;
+use bevy::prelude::Vec2;
 
 use crate::ship::ShipClass;
 
@@ -42,5 +42,7 @@ pub(super) fn get_radar(stroke: Srgba) -> Shape {
         .move_to(Vec2::new(0.0, 2.0))
         .line_to(Vec2::new(0.0, -4.5));
 
-    ShapeBuilder::with(&radar_path).stroke(Stroke::new(stroke, 1.5)).build()
+    ShapeBuilder::with(&radar_path)
+        .stroke(Stroke::new(stroke, 1.5))
+        .build()
 }

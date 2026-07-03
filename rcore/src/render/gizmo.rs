@@ -5,22 +5,22 @@ use crate::ARENA_SCALE;
 use crate::math::AbsRot;
 use crate::math::vec_scale;
 
+use crate::movement::MovDebug;
 use crate::movement::Position;
 use crate::movement::Velocity;
-use crate::movement::MovDebug;
 
 use crate::rotation::RotDebug;
 use crate::rotation::TargetRotation;
 
-use crate::weapon::Shield;
-use crate::weapon::ShieldHealthDebug;
 use crate::weapon::Health;
 use crate::weapon::HealthDebug;
+use crate::weapon::Shield;
+use crate::weapon::ShieldHealthDebug;
 
 use crate::radar::Arc;
 use crate::radar::ArcDebug;
-use crate::radar::RadarDebug;
 use crate::radar::RadarContact;
+use crate::radar::RadarDebug;
 
 use crate::radar::within_radar;
 
@@ -48,10 +48,7 @@ fn render_bar_gizmos(
     );
 }
 
-pub(super) fn movement(
-    query: Query<(&Transform, &Velocity), With<MovDebug>>,
-    mut gizmos: Gizmos,
-) {
+pub(super) fn movement(query: Query<(&Transform, &Velocity), With<MovDebug>>, mut gizmos: Gizmos) {
     for (tran, vel) in query.iter() {
         let base = tran.translation.truncate();
         let heading = tran.rotation;

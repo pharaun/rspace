@@ -391,9 +391,7 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) {
     transform.rotate(ship_target.to_quat());
 
     // Probs worth restructuring
-    let mut spawned_ship = commands.spawn((
-        transform,
-    ));
+    let mut spawned_ship = commands.spawn((transform,));
 
     spawned_ship
         .insert(Ship(ShipClass::Medium))
@@ -414,10 +412,7 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) {
 
             // TODO: fix this render, since if ship spawns in with a radar set one way
             // the shape/render doesn't update to point in that way so its a bug
-            let mut spawned_radar = parent.spawn((
-                transform,
-                ship.radar,
-            ));
+            let mut spawned_radar = parent.spawn((transform, ship.radar));
 
             if let Some(radar) = ship.debug.radar {
                 spawned_radar.insert(radar);

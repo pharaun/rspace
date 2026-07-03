@@ -1,21 +1,21 @@
-use bevy_prototype_lyon::prelude::ShapePlugin;
+use bevy::dev_tools::fps_overlay::*;
+use bevy::prelude::*;
+use bevy::text::FontSmoothing;
 use bevy_prototype_lyon::plugin::BuildShapes;
 use bevy_prototype_lyon::prelude::Shape;
-use bevy::prelude::*;
-use bevy::dev_tools::fps_overlay::*;
-use bevy::text::FontSmoothing;
+use bevy_prototype_lyon::prelude::ShapePlugin;
 
 mod arena;
-mod shape;
 mod gizmo;
+mod shape;
 
 use arena::arena_bounds_setup;
-use shape::get_ship;
 use shape::get_radar;
+use shape::get_ship;
 
 use crate::ARENA_SCALE;
-use crate::ship::Ship;
 use crate::radar::Radar;
+use crate::ship::Ship;
 use crate::weapon::RenderDebugWarhead;
 use crate::weapon::RenderDebugWeapon;
 
@@ -52,10 +52,7 @@ impl Plugin for RenderPlugin {
                 },
             })
             // Startup setup (ie arena)
-            .add_systems(
-                Startup,
-                arena_bounds_setup,
-            )
+            .add_systems(Startup, arena_bounds_setup)
             // Handle assigning a lyon shape to entities
             .add_systems(
                 PostUpdate,
@@ -63,14 +60,15 @@ impl Plugin for RenderPlugin {
             )
             // Gizmos
             .add_systems(
-                Update, (
+                Update,
+                (
                     gizmo::movement,
                     gizmo::radar,
                     gizmo::arc,
                     gizmo::rotation,
                     gizmo::health,
                     gizmo::shield_health,
-                )
+                ),
             )
             // Temporary weapon render via gizmos
             .add_systems(
@@ -83,31 +81,21 @@ impl Plugin for RenderPlugin {
     }
 }
 
-fn apply_ship_shape(
-    query: Query<(Entity, &Ship), Without<Shape>>,
-    mut commands: Commands,
-) {
+fn apply_ship_shape(query: Query<(Entity, &Ship), Without<Shape>>, mut commands: Commands) {
     for (entity, ship) in query.iter() {
-        commands.entity(entity).insert(
-            get_ship(
-                ship.0,
-                bevy::color::palettes::css::GREEN,
-                bevy::color::palettes::css::BLACK,
-            )
-        );
+        commands.entity(entity).insert(get_ship(
+            ship.0,
+            bevy::color::palettes::css::GREEN,
+            bevy::color::palettes::css::BLACK,
+        ));
     }
 }
 
-fn apply_radar_shape(
-    query: Query<(Entity, &Radar), Without<Shape>>,
-    mut commands: Commands,
-) {
+fn apply_radar_shape(query: Query<(Entity, &Radar), Without<Shape>>, mut commands: Commands) {
     for (entity, _) in query.iter() {
-        commands.entity(entity).insert(
-            get_radar(
-                bevy::color::palettes::css::MAROON,
-            )
-        );
+        commands
+            .entity(entity)
+            .insert(get_radar(bevy::color::palettes::css::MAROON));
     }
 }
 
