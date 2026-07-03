@@ -1,4 +1,6 @@
-use bevy::dev_tools::fps_overlay::*;
+use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
+use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
+use bevy::dev_tools::fps_overlay::FrameTimeGraphConfig;
 use bevy::prelude::*;
 use bevy::text::FontSmoothing;
 use bevy_prototype_lyon::plugin::BuildShapes;

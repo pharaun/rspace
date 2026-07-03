@@ -29,10 +29,8 @@ impl Plugin for WeaponPlugin {
             .add_message::<FireDebugMissileMessage>()
             .add_systems(
                 FixedUpdate,
-                (
-                    apply_debug_weapon_cooldown,
-                    apply_debug_missile_cooldown,
-                ).in_set(FixedGameSystem::GameLogic),
+                (apply_debug_weapon_cooldown, apply_debug_missile_cooldown)
+                    .in_set(FixedGameSystem::GameLogic),
             )
             .add_systems(
                 FixedUpdate,
@@ -42,7 +40,8 @@ impl Plugin for WeaponPlugin {
                     // Missile will spawn the next frame
                     // TODO: do we want a post-shiplogic set -> missile -> spawn -> weapon sequencing
                     process_fire_debug_missile_message,
-                ).in_set(FixedGameSystem::Weapon),
+                )
+                    .in_set(FixedGameSystem::Weapon),
             );
     }
 }

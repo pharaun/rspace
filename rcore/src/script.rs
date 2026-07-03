@@ -140,11 +140,8 @@ impl Plugin for ScriptPlugins {
         app.insert_resource(ScriptTimer(Timer::from_seconds(1.0, TimerMode::Repeating)))
             .add_systems(
                 FixedUpdate,
-                (
-                    process_on_update,
-                    process_on_collision,
-                    process_on_contact,
-                ).in_set(FixedGameSystem::ShipLogic),
+                (process_on_update, process_on_collision, process_on_contact)
+                    .in_set(FixedGameSystem::ShipLogic),
             );
     }
 }

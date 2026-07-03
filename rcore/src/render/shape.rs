@@ -10,7 +10,6 @@ use bevy::prelude::Vec2;
 
 use crate::ship::ShipClass;
 
-#[expect(clippy::needless_pass_by_value)]
 pub(super) fn get_ship(class: ShipClass, fill: Srgba, stroke: Srgba) -> Shape {
     let ship_path = match class {
         ShipClass::Large => todo!(),
