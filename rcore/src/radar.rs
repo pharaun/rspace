@@ -4,12 +4,11 @@ use crate::math::AbsRot;
 use crate::movement::Position;
 use crate::rotation::NoRotationPropagation;
 
-use crate::ARENA_SCALE;
 use crate::FixedGameSystem;
 
 // TODO: dynamic radar distance, for now fixed
-const DISTANCE: i32 = 4000;
-const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
+pub const DISTANCE: i32 = 4000;
+pub const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
 
 pub struct RadarPlugin;
 impl Plugin for RadarPlugin {
@@ -27,8 +26,7 @@ impl Plugin for RadarPlugin {
             .add_systems(
                 RunFixedMainLoop,
                 (interpolate_arc.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),),
-            )
-            .add_systems(Update, (debug_arc_gitzmos, debug_radar_gitzmos));
+            );
     }
 }
 
@@ -117,7 +115,7 @@ pub struct ContactMessage(pub Entity, pub Entity);
 
 // Radar Contact Result
 #[derive(Debug)]
-enum RadarContact {
+pub enum RadarContact {
     TooFar,
     Contact,
     SamePosition,
@@ -210,7 +208,7 @@ pub(crate) fn apply_radar(
     }
 }
 
-fn within_radar(
+pub fn within_radar(
     base: IVec2,
     target: IVec2,
     radar_heading: AbsRot,
@@ -237,109 +235,5 @@ pub fn within_arc(base: IVec2, target: IVec2, heading: AbsRot, arc: u8) -> ArcCh
             }
         }
         None => ArcCheck::SamePosition,
-    }
-}
-
-#[expect(clippy::similar_names)]
-pub(crate) fn debug_arc_gitzmos(
-    mut gizmos: Gizmos,
-    query: Query<(&Arc, &ChildOf), With<ArcDebug>>,
-    parent_query: Query<&Transform>,
-) {
-    for (arc, child_of) in query.iter() {
-        // Need the ship translation to position the arc gizmo right
-        let base = parent_query
-            .get(child_of.parent())
-            .expect("child")
-            .translation
-            .truncate();
-        let heading = arc.current;
-        let target = arc.target;
-
-        let cw_arc = heading.cw_edge(arc.current_arc);
-        let ccw_arc = heading.ccw_edge(arc.current_arc);
-
-        // Current heading
-        gizmos.line_2d(
-            base + heading.to_quat().mul_vec3(Vec3::Y * 110.).truncate(),
-            base + heading.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
-            bevy::color::palettes::css::RED,
-        );
-
-        // Target heading
-        gizmos.line_2d(
-            base + target.to_quat().mul_vec3(Vec3::Y * 110.).truncate(),
-            base + target.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
-            bevy::color::palettes::css::GREEN,
-        );
-
-        // Arc - only current for now
-        gizmos.line_2d(
-            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
-            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
-            bevy::color::palettes::css::YELLOW,
-        );
-        gizmos.short_arc_2d_between(
-            base,
-            base + heading.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
-            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
-            bevy::color::palettes::css::YELLOW,
-        );
-        gizmos.line_2d(
-            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
-            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
-            bevy::color::palettes::css::YELLOW,
-        );
-        gizmos.short_arc_2d_between(
-            base,
-            base + heading.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
-            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
-            bevy::color::palettes::css::YELLOW,
-        );
-    }
-}
-
-pub(crate) fn debug_radar_gitzmos(
-    mut gizmos: Gizmos,
-    query: Query<(&Arc, &ChildOf), With<RadarDebug>>,
-    parent_query: Query<(&Transform, &Position)>,
-) {
-    for (arc, child_of) in query.iter() {
-        // Need the ship translation to position the radar gizmo right
-        let (base, base_pos) = {
-            let (base, pos) = parent_query.get(child_of.parent()).expect("child");
-            (base.translation.truncate(), pos)
-        };
-
-        // Draw distance & contact status
-        gizmos.circle_2d(
-            Isometry2d::from_translation(base),
-            (DISTANCE as f32) / ARENA_SCALE,
-            bevy::color::palettes::css::GREEN,
-        );
-
-        // Draw line between this ship (owner of this radar) and all target
-        // color the target if they register as an contact (on radar)
-        for (target_base, target_pos) in parent_query.iter() {
-            if base_pos.0 == target_pos.0 {
-                continue;
-            }
-
-            // Find out if its a contact, if so color the lines
-            let color = match within_radar(
-                base_pos.0,
-                target_pos.0,
-                arc.current,
-                arc.current_arc,
-                DISTANCE_SQUARED,
-            ) {
-                RadarContact::Contact => bevy::color::palettes::css::GREEN,
-                RadarContact::OutsideArc => bevy::color::palettes::css::YELLOW,
-                RadarContact::TooFar => bevy::color::palettes::css::RED,
-                RadarContact::SamePosition => bevy::color::palettes::css::PURPLE,
-            };
-
-            gizmos.line_2d(base, target_base.translation.truncate(), color);
-        }
     }
 }

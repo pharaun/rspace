@@ -14,7 +14,6 @@ impl Plugin for RotationPlugin {
             RunFixedMainLoop,
             (interpolate_rotation.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),),
         )
-        .add_systems(Update, (debug_rotation_gitzmos,))
         .add_systems(
             PostUpdate,
             (disable_rotation_propagation.after(TransformSystems::Propagate),),
@@ -124,64 +123,5 @@ pub(crate) fn disable_rotation_propagation(
                     .into();
             }
         }
-    }
-}
-
-#[expect(clippy::similar_names)]
-pub(crate) fn debug_rotation_gitzmos(
-    mut gizmos: Gizmos,
-    query: Query<(&Transform, &TargetRotation), With<RotDebug>>,
-) {
-    for (tran, target) in query.iter() {
-        let base = tran.translation.truncate();
-        let heading = tran.rotation;
-        let qtarget = target.target.to_quat();
-
-        let cw_limit = heading * AbsRot(target.limit).to_quat();
-        let ccw_limit = heading * AbsRot(255 - target.limit).to_quat();
-
-        // Current heading
-        gizmos.line_2d(
-            base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + heading.mul_vec3(Vec3::Y * 100.).truncate(),
-            bevy::color::palettes::css::RED,
-        );
-
-        // Target heading
-        gizmos.line_2d(
-            base + qtarget.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + qtarget.mul_vec3(Vec3::Y * 90.).truncate(),
-            bevy::color::palettes::css::GREEN,
-        );
-        gizmos.short_arc_2d_between(
-            base,
-            base + heading.mul_vec3(Vec3::Y * 80.).truncate(),
-            base + qtarget.mul_vec3(Vec3::Y * 80.).truncate(),
-            bevy::color::palettes::css::GREEN,
-        );
-
-        // Limit + Arcs for rotation direction
-        gizmos.line_2d(
-            base + cw_limit.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + cw_limit.mul_vec3(Vec3::Y * 80.).truncate(),
-            bevy::color::palettes::css::YELLOW,
-        );
-        gizmos.short_arc_2d_between(
-            base,
-            base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + cw_limit.mul_vec3(Vec3::Y * 70.).truncate(),
-            bevy::color::palettes::css::YELLOW,
-        );
-        gizmos.line_2d(
-            base + ccw_limit.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + ccw_limit.mul_vec3(Vec3::Y * 80.).truncate(),
-            bevy::color::palettes::css::YELLOW,
-        );
-        gizmos.short_arc_2d_between(
-            base,
-            base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + ccw_limit.mul_vec3(Vec3::Y * 70.).truncate(),
-            bevy::color::palettes::css::YELLOW,
-        );
     }
 }

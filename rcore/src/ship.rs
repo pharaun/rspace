@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_prototype_lyon::prelude::*;
 
 use avian2d::prelude::*;
 
@@ -15,10 +14,6 @@ use crate::movement::MovementBundle;
 
 use crate::rotation::RotDebug;
 use crate::rotation::RotationBundle;
-
-use crate::class::ShipClass;
-use crate::class::get_radar;
-use crate::class::get_ship;
 
 use crate::radar::ArcDebug;
 use crate::radar::RadarBundle;
@@ -86,7 +81,28 @@ use crate::weapon::ShieldHealthDebug;
 // - Ship energy (fuel for engine? and heat production)
 // - Ship construction (each ship can build a ship same size or smaller than itself?
 #[derive(Component)]
-struct Ship;
+pub struct Ship(pub ShipClass);
+
+// There are several classes of ship:
+// 1. cruiser - large
+// 2. frigate - medium
+// 3. fighter - small
+// 4. missiles/mines - tiny
+//
+// but we can probs represent this idea with something that is like
+// ship size, then you load out a customized list of component on it
+// to produce a whole ship, so ie a tiny-class loaded with a warhead
+// and radar would be a missile for example.
+//
+// This file would mostly serve a way to provide a render for the various
+// class of ship, and then we can feed it into the base mod to yield a 'ship'
+#[derive(Clone, Copy)]
+pub enum ShipClass {
+    Large,
+    Medium,
+    Small,
+    Tiny,
+}
 
 // TODO: decouple the rendering stuff somewhat from the rest of the system. Ie we
 // still bundle the assets in the ECS, but have all of the system interact within
@@ -374,17 +390,13 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) {
         Transform::from_translation(vec_scale(ship.movement.position.0, ARENA_SCALE).extend(0.));
     transform.rotate(ship_target.to_quat());
 
+    // Probs worth restructuring
     let mut spawned_ship = commands.spawn((
-        get_ship(
-            ShipClass::Medium,
-            Fill::color(bevy::color::palettes::css::GREEN),
-            Stroke::new(bevy::color::palettes::css::BLACK, 2.0),
-        ),
         transform,
     ));
 
     spawned_ship
-        .insert(Ship)
+        .insert(Ship(ShipClass::Medium))
         .insert(ship.script)
         // Motion components
         .insert(ship.movement)
@@ -400,8 +412,9 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) {
             // TODO: this is probs wrong and needs to be fixed
             transform.rotate(radar_target.to_quat());
 
+            // TODO: fix this render, since if ship spawns in with a radar set one way
+            // the shape/render doesn't update to point in that way so its a bug
             let mut spawned_radar = parent.spawn((
-                get_radar(Stroke::new(bevy::color::palettes::css::MAROON, 1.5)),
                 transform,
                 ship.radar,
             ));

@@ -1,12 +1,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
-use bevy::dev_tools::fps_overlay::*;
-use bevy::text::FontSmoothing;
-
-use bevy_prototype_lyon::prelude::ShapePlugin;
 
 use rcore::FixedGameSystem;
-use rcore::arena_bounds_setup;
 
 use rcore::movement::MovementPlugin;
 use rcore::radar::RadarPlugin;
@@ -25,6 +20,8 @@ use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::add_ship;
 
+pub use rcore::render::RenderPlugin;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -32,34 +29,7 @@ fn main() {
         // TODO: make sure it happens post iterpolation
         .add_plugins(PhysicsPlugins::default())
         //.add_plugins(PhysicsDebugPlugin::default())
-        // FPS
-        .add_plugins(FpsOverlayPlugin {
-            config: FpsOverlayConfig {
-                text_config: TextFont {
-                    // Here we define size of our overlay
-                    font_size: FontSize::Px(18.0),
-                    // If we want, we can use a custom font
-                    font: default(),
-                    // We could also disable font smoothing,
-                    font_smoothing: FontSmoothing::default(),
-                    ..default()
-                },
-                // We can also change color of the overlay
-                text_color: Color::srgb(1.0, 0.0, 0.0),
-                // We can also set the refresh interval for the FPS counter
-                refresh_interval: core::time::Duration::from_millis(100),
-                enabled: true,
-                frame_time_graph_config: FrameTimeGraphConfig {
-                    enabled: false,
-                    // The minimum acceptable fps
-                    min_fps: 30.0,
-                    // The target fps
-                    target_fps: 60.0,
-                },
-            },
-        })
-        // Graphics (lyon)
-        .add_plugins(ShapePlugin)
+        .add_plugins(RenderPlugin)
         // TODO: fix up systems so i can bump it to bevy default 64hz
         .insert_resource(Time::<Fixed>::from_hz(2.0))
         // Game bits
@@ -87,7 +57,6 @@ fn main() {
                 |mut commands: Commands| {
                     commands.spawn(Camera2d);
                 },
-                arena_bounds_setup,
                 ship_setup,
             ),
         )

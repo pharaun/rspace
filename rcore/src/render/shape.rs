@@ -6,29 +6,12 @@ use bevy_prototype_lyon::prelude::ShapePath;
 use bevy_prototype_lyon::prelude::Stroke;
 
 use bevy::prelude::Vec2;
+use bevy::prelude::Srgba;
 
-// There are several classes of ship:
-// 1. cruiser - large
-// 2. frigate - medium
-// 3. fighter - small
-// 4. missiles/mines - tiny
-//
-// but we can probs represent this idea with something that is like
-// ship size, then you load out a customized list of component on it
-// to produce a whole ship, so ie a tiny-class loaded with a warhead
-// and radar would be a missile for example.
-//
-// This file would mostly serve a way to provide a render for the various
-// class of ship, and then we can feed it into the base mod to yield a 'ship'
-pub enum ShipClass {
-    Large,
-    Medium,
-    Small,
-    Tiny,
-}
+use crate::ship::ShipClass;
 
 #[expect(clippy::needless_pass_by_value)]
-pub fn get_ship(class: ShipClass, fill: Fill, stroke: Stroke) -> Shape {
+pub(super) fn get_ship(class: ShipClass, fill: Srgba, stroke: Srgba) -> Shape {
     let ship_path = match class {
         ShipClass::Large => todo!(),
         ShipClass::Medium => ShapePath::new()
@@ -42,12 +25,12 @@ pub fn get_ship(class: ShipClass, fill: Fill, stroke: Stroke) -> Shape {
     };
 
     ShapeBuilder::with(&ship_path)
-        .fill(fill)
-        .stroke(stroke)
+        .fill(Fill::color(fill))
+        .stroke(Stroke::new(stroke, 2.0))
         .build()
 }
 
-pub fn get_radar(stroke: Stroke) -> Shape {
+pub(super) fn get_radar(stroke: Srgba) -> Shape {
     let radar_path = ShapePath::new()
         .move_to(Vec2::new(5.0, 0.0))
         .arc(
@@ -59,5 +42,5 @@ pub fn get_radar(stroke: Stroke) -> Shape {
         .move_to(Vec2::new(0.0, 2.0))
         .line_to(Vec2::new(0.0, -4.5));
 
-    ShapeBuilder::with(&radar_path).stroke(stroke).build()
+    ShapeBuilder::with(&radar_path).stroke(Stroke::new(stroke, 1.5)).build()
 }

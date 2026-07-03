@@ -4,7 +4,6 @@ use bevy::prelude::*;
 
 use crate::FixedGameSystem;
 
-use crate::ARENA_SCALE;
 use crate::movement::Position;
 
 use crate::radar::Arc;
@@ -18,8 +17,8 @@ use crate::spawner::SpawnMessage;
 use crate::AbsRot;
 
 // TODO: dynamic warhead distance, for now fixed
-const DISTANCE: i32 = 500;
-const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
+pub const DISTANCE: i32 = 500;
+pub const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
 
 pub struct WeaponPlugin;
 impl Plugin for WeaponPlugin {
@@ -51,15 +50,7 @@ impl Plugin for WeaponPlugin {
             .add_systems(
                 FixedUpdate,
                 (process_fire_debug_warhead_message.in_set(FixedGameSystem::Weapon),),
-            )
-            .add_systems(
-                RunFixedMainLoop,
-                (
-                    render_debug_weapon.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
-                    render_debug_warhead.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
-                ),
-            )
-            .add_systems(Update, (debug_health_gitzmos, debug_shield_health_gitzmos));
+            );
     }
 }
 
@@ -245,56 +236,6 @@ pub(crate) fn apply_debug_missile_cooldown(mut query: Query<&mut DebugMissile>) 
     }
 }
 
-#[expect(clippy::needless_pass_by_value)]
-pub(crate) fn render_debug_weapon(
-    mut gizmos: Gizmos,
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut RenderDebugWeapon)>,
-    time: Res<Time>,
-) {
-    for (entity, mut render) in query.iter_mut() {
-        render.fade.tick(time.delta());
-
-        // TODO: render the beam thicker
-        gizmos.line_2d(
-            render.origin,
-            render.target,
-            bevy::color::palettes::css::RED,
-        );
-
-        // Check if fade has expired?
-        // if so, despawn
-        if render.fade.is_finished() {
-            commands.entity(entity).despawn();
-        }
-    }
-}
-
-#[expect(clippy::needless_pass_by_value)]
-pub(crate) fn render_debug_warhead(
-    mut gizmos: Gizmos,
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut RenderDebugWarhead)>,
-    time: Res<Time>,
-) {
-    for (entity, mut render) in query.iter_mut() {
-        render.fade.tick(time.delta());
-
-        // TODO: render the beam thicker
-        gizmos.circle_2d(
-            Isometry2d::from_translation(render.origin),
-            DISTANCE as f32 / ARENA_SCALE,
-            bevy::color::palettes::css::RED,
-        );
-
-        // Check if fade has expired?
-        // if so, despawn
-        if render.fade.is_finished() {
-            commands.entity(entity).despawn();
-        }
-    }
-}
-
 pub fn process_fire_debug_weapon_message(
     mut commands: Commands,
     mut fire_debug_weapon_message: MessageReader<FireDebugWeaponMessage>,
@@ -407,71 +348,6 @@ pub fn process_fire_debug_missile_message(
 
             spawn_ship.write(SpawnMessage(missile));
         }
-    }
-}
-
-fn render_bar_gizmos(
-    gizmos: &mut Gizmos,
-    position: Vec2,
-    width: f32,
-    percentage_full: f32,
-    bar_color: Srgba,
-) {
-    let bar_offset = (width * percentage_full) - (width / 2.);
-
-    // Primitive bar-graph in gizmo form
-    for v_off in 1..10 {
-        gizmos.line_2d(
-            position + Vec2::new(-(width / 2.), 5. - v_off as f32),
-            position + Vec2::new(bar_offset, 5. - v_off as f32),
-            bar_color,
-        );
-    }
-    gizmos.rect_2d(
-        Isometry2d::from_translation(position),
-        Vec2::new(width, 10.),
-        bevy::color::palettes::css::RED,
-    );
-}
-
-#[expect(clippy::type_complexity)]
-pub(crate) fn debug_health_gitzmos(
-    mut gizmos: Gizmos,
-    query: Query<(&Health, &Transform), (With<HealthDebug>, Without<Shield>)>,
-) {
-    for (health, tran) in query.iter() {
-        let base = tran.translation.truncate();
-
-        render_bar_gizmos(
-            &mut gizmos,
-            base + Vec2::new(0., -25.),
-            35.,
-            f32::from(health.current) / f32::from(health.maximum),
-            bevy::color::palettes::css::GREEN,
-        );
-    }
-}
-
-#[expect(clippy::type_complexity)]
-pub(crate) fn debug_shield_health_gitzmos(
-    mut gizmos: Gizmos,
-    query: Query<(&Health, &ChildOf), (With<ShieldHealthDebug>, With<Shield>)>,
-    ship_query: Query<&Transform>,
-) {
-    for (health, child_of) in query.iter() {
-        let base = ship_query
-            .get(child_of.parent())
-            .expect("child")
-            .translation
-            .truncate();
-
-        render_bar_gizmos(
-            &mut gizmos,
-            base + Vec2::new(0., -35.),
-            35.,
-            f32::from(health.current) / f32::from(health.maximum),
-            bevy::color::palettes::css::BLUE,
-        );
     }
 }
 

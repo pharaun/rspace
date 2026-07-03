@@ -22,8 +22,7 @@ impl Plugin for MovementPlugin {
         .add_systems(
             RunFixedMainLoop,
             (interpolate_movement.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),),
-        )
-        .add_systems(Update, (debug_movement_gitzmos,));
+        );
     }
 }
 
@@ -194,42 +193,5 @@ fn wrap_position(mut query: Query<(&mut Position, &mut PreviousPosition), Change
 
         pos.0.x += res.x;
         ppos.0.x += res.x;
-    }
-}
-
-pub(crate) fn debug_movement_gitzmos(
-    query: Query<(&Transform, &Velocity), With<MovDebug>>,
-    mut gizmos: Gizmos,
-) {
-    for (tran, vel) in query.iter() {
-        let base = tran.translation.truncate();
-        let heading = tran.rotation;
-        let velocity = vel.velocity;
-        let acceleration = heading
-            .mul_vec3(Vec3::Y * (vel.acceleration as f32))
-            .truncate();
-
-        // Current heading
-        gizmos.line_2d(
-            base + heading.mul_vec3(Vec3::Y * 30.).truncate(),
-            base + heading.mul_vec3(Vec3::Y * 60.).truncate(),
-            bevy::color::palettes::css::RED,
-        );
-
-        // Velocity direction
-        gizmos.line_2d(
-            base + vec_scale(velocity, 1.).normalize() * 30.,
-            base + vec_scale(velocity, 1.).normalize() * 50.,
-            bevy::color::palettes::css::GREEN,
-        );
-
-        // Acceleration direction
-        if vel.acceleration > 0 {
-            gizmos.line_2d(
-                base + acceleration.normalize() * 30.,
-                base + acceleration.normalize() * 40.,
-                bevy::color::palettes::css::YELLOW,
-            );
-        }
     }
 }
