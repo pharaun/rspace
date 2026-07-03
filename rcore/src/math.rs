@@ -11,8 +11,8 @@ pub fn vec_scale(vec: IVec2, factor: f32) -> Vec2 {
     Vec2::new(vec.x as f32 / factor, vec.y as f32 / factor)
 }
 
-#[expect(clippy::cast_possible_truncation)]
 pub fn un_vec_scale(vec: Vec2, factor: f32) -> IVec2 {
+    #[expect(clippy::cast_possible_truncation)]
     IVec2::new((vec.x * factor) as i32, (vec.y * factor) as i32)
 }
 
@@ -45,12 +45,8 @@ impl AbsRot {
     }
 
     pub fn from_angle(angle: f32) -> Self {
-        let tmp = {
-            let tmp = angle / FRAC_PI_128;
-            if tmp < 0.0 { tmp + 256. } else { tmp }
-        };
         #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        Self(tmp.round() as u8)
+        Self((angle / FRAC_PI_128).round().rem_euclid(256.) as u8)
     }
 
     pub fn from_vec2_angle(base: IVec2, target: IVec2) -> Option<Self> {
@@ -77,27 +73,23 @@ impl AbsRot {
     // where we might want to instead give it a quat/convert it so that it can
     // handle the +- math correctly.
     pub fn within(&self, half_arc: u8, target: Self) -> bool {
-        // unsigned_abs to avoid the (-128i8).abs() overflow
-        i16::from(self.angle_between(target).0).unsigned_abs() <= u16::from(half_arc.min(127))
+        self.angle_between(target).0.unsigned_abs() <= half_arc.min(127)
     }
 
     // Debugging math
-    #[expect(clippy::cast_possible_wrap)]
     #[must_use]
     pub fn cw_edge(&self, half_arc: u8) -> Self {
-        *self + RelRot(half_arc.min(127) as i8)
+        *self + RelRot(half_arc.min(127).cast_signed())
     }
 
-    #[expect(clippy::cast_possible_wrap)]
     #[must_use]
     pub fn ccw_edge(&self, half_arc: u8) -> Self {
-        *self + RelRot(-(half_arc.min(127) as i8))
+        *self + RelRot(-half_arc.min(127).cast_signed())
     }
 
-    #[expect(clippy::cast_possible_truncation)]
     pub fn angle_between(&self, target: Self) -> RelRot {
-        // [-128, 127] so it defaults to CCW here due to cast wrap
-        RelRot((i16::from(target.0) - i16::from(self.0)) as i8)
+        // i8 == [-128, 127] so it biases ccw at 128.
+        RelRot(target.0.wrapping_sub(self.0).cast_signed())
     }
 
     pub fn transform_slerp(&self, end: Self, f: f32) -> Quat {
@@ -108,13 +100,8 @@ impl AbsRot {
 impl Add<RelRot> for AbsRot {
     type Output = Self;
 
-    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     fn add(self, rhs: RelRot) -> Self {
-        if rhs.0 < 0 {
-            Self(self.0.wrapping_sub((-i16::from(rhs.0)) as u8))
-        } else {
-            Self(self.0.wrapping_add(rhs.0 as u8))
-        }
+        Self(self.0.wrapping_add_signed(rhs.0))
     }
 }
 
@@ -134,17 +121,13 @@ pub struct RelRot(pub i8);
 
 impl RelRot {
     #[must_use]
-    #[expect(clippy::cast_possible_wrap)]
     pub fn clamp(&self, clamp: u8) -> Self {
         if clamp >= 128 {
-            *self
-        } else if self.0 < -(clamp as i8) {
-            Self(-(clamp as i8))
-        } else if self.0 > clamp as i8 {
-            Self(clamp as i8)
-        } else {
-            *self
+            return *self;
         }
+        // Since its always <128 thanks to clamp above its a valid i8
+        let bound = clamp.cast_signed();
+        Self(self.0.clamp(-bound, bound))
     }
 }
 
@@ -196,16 +179,65 @@ fn test_from_quat() {
 }
 
 #[test]
+fn test_from_to_quat_roundtrip() {
+    // u8 is small enough to just test it all.
+    for i in 0..=u8::MAX {
+        assert_eq!(
+            AbsRot::from_quat(AbsRot(i).to_quat()),
+            AbsRot(i),
+            "step {i}"
+        );
+    }
+}
+
+#[test]
+fn test_from_angle() {
+    // CW rotation
+    assert_eq!(AbsRot::from_angle(-PI / 512.), AbsRot(0));
+    assert_eq!(AbsRot::from_angle(-PI / 256.), AbsRot(1));
+    assert_eq!(AbsRot::from_angle(-PI / 128.), AbsRot(1));
+    assert_eq!(AbsRot::from_angle(-PI / 64.), AbsRot(2));
+
+    // CCW rotation
+    assert_eq!(AbsRot::from_angle(PI / 512.), AbsRot(0)); // Should be 0
+    assert_eq!(AbsRot::from_angle(PI / 256.), AbsRot(255));
+    assert_eq!(AbsRot::from_angle(PI / 128.), AbsRot(255));
+    assert_eq!(AbsRot::from_angle(PI / 64.), AbsRot(254));
+}
+
+#[test]
 fn test_angle_between() {
+    assert_eq!(AbsRot(0).angle_between(AbsRot(0)), RelRot(0));
     assert_eq!(AbsRot(0).angle_between(AbsRot(1)), RelRot(1));
     assert_eq!(AbsRot(0).angle_between(AbsRot(255)), RelRot(-1));
+
+    // Biasing to -128
+    assert_eq!(AbsRot(0).angle_between(AbsRot(128)), RelRot(-128));
+    assert_eq!(AbsRot(64).angle_between(AbsRot(192)), RelRot(-128));
+
+    // Shortest picked
+    assert_eq!(AbsRot(0).angle_between(AbsRot(200)), RelRot(-56));
+
+    // Wrapping cross 0 check
+    assert_eq!(AbsRot(200).angle_between(AbsRot(10)), RelRot(66));
+    assert_eq!(AbsRot(10).angle_between(AbsRot(200)), RelRot(-66));
 }
 
 #[test]
 fn test_clamp() {
+    assert_eq!(RelRot(5).clamp(0), RelRot(0));
     assert_eq!(RelRot(0).clamp(1), RelRot(0));
+    assert_eq!(RelRot(1).clamp(1), RelRot(1));
     assert_eq!(RelRot(2).clamp(1), RelRot(1));
     assert_eq!(RelRot(-2).clamp(1), RelRot(-1));
+
+    // Ignore big clamp values
+    assert_eq!(RelRot(-128).clamp(128), RelRot(-128));
+    assert_eq!(RelRot(-128).clamp(200), RelRot(-128));
+
+    // [-128, 127] bias, check that 127 catches both sides
+    assert_eq!(RelRot(-128).clamp(127), RelRot(-127));
+    assert_eq!(RelRot(127).clamp(127), RelRot(127));
 }
 
 #[test]
@@ -213,6 +245,11 @@ fn test_add_rel_to_abs() {
     assert_eq!(AbsRot(0) + RelRot(0), AbsRot(0));
     assert_eq!(AbsRot(0) + RelRot(1), AbsRot(1));
     assert_eq!(AbsRot(0) + RelRot(-1), AbsRot(255));
+    assert_eq!(AbsRot(0) + RelRot(-128), AbsRot(128));
+
+    // Wrapping
+    assert_eq!(AbsRot(255) + RelRot(1), AbsRot(0));
+    assert_eq!(AbsRot(200) + RelRot(100), AbsRot(44));
 }
 
 #[rustfmt::skip]
