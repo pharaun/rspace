@@ -20,16 +20,42 @@ use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::add_ship;
 
-pub use rcore::render::RenderPlugin;
-
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
+    let mut app = App::new();
+
+    // Normal render Setup
+    #[cfg(feature = "render")]
+    {
+        use rcore::render::RenderPlugin;
+
+        app.add_plugins(DefaultPlugins)
+            .add_plugins(RenderPlugin)
+            .add_systems(Startup, |mut commands: Commands| {
+                commands.spawn(Camera2d);
+            });
+    }
+
+    // Headless Setup
+    #[cfg(not(feature = "render"))]
+    {
+        use std::time::Duration;
+        use bevy::app::ScheduleRunnerPlugin;
+
+        app.add_plugins(
+            DefaultPlugins.set(
+                ScheduleRunnerPlugin::run_loop(
+                    Duration::from_secs_f64(1.0 / 60.0)
+                )
+            )
+        );
+    }
+
+    // Rest of the game
+    app
         // Physics
         // TODO: make sure it happens post iterpolation
         .add_plugins(PhysicsPlugins::default())
         //.add_plugins(PhysicsDebugPlugin::default())
-        .add_plugins(RenderPlugin)
         // TODO: fix up systems so i can bump it to bevy default 64hz
         .insert_resource(Time::<Fixed>::from_hz(2.0))
         // Game bits
@@ -51,15 +77,7 @@ fn main() {
                 .chain(),
         )
         // Startup setup
-        .add_systems(
-            Startup,
-            (
-                |mut commands: Commands| {
-                    commands.spawn(Camera2d);
-                },
-                ship_setup,
-            ),
-        )
+        .add_systems(Startup, ship_setup)
         .run();
 }
 

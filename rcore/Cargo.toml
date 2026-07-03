@@ -7,9 +7,39 @@ edition = "2024"
 [lints]
 workspace = true
 
-[dependencies]
-bevy_prototype_lyon = "0.17"
+[features]
+# To permit headless builds for testing core simulation logic
+default = ["render"]
 
+render = [
+    # Ship rendering
+    "dep:bevy_prototype_lyon",
+
+    # Debug gizmos
+    "avian2d/debug-plugin",
+
+    # Bevy functionality:
+    "bevy/bevy_animation",     # Provides animation functionality
+    "bevy/bevy_asset",         # Assets management
+    "bevy/bevy_color",         # Provides shared color types and operations
+    "bevy/bevy_core_pipeline", # Common rendering abstractions
+    "bevy/bevy_gizmos",        # Support drawing debug lines and shapes
+    "bevy/bevy_gizmos_render", # Support rendering the gizmos
+    "bevy/bevy_pbr",           # 3D (physically-based) rendering
+    "bevy/bevy_render",        # Rendering framework core
+    "bevy/bevy_scene",         # Scenes management
+    "bevy/bevy_sprite",        # 2D (sprites) rendering
+    "bevy/bevy_text",          # Text/font rendering
+    "bevy/bevy_ui",            # UI toolkit
+    "bevy/bevy_ui_render",     # UI GPU rendering (TransparentUi phase) — required by FpsOverlay
+    "bevy/bevy_winit",         # Window management (cross-platform Winit backend)
+    "bevy/bevy_window",        # Winit dep
+    "bevy/default_font",       # Embed a minimal default font for text/UI
+
+    "bevy/bevy_dev_tools",    # Fps
+]
+
+[dependencies]
 # To permit ship dyn object to be cloned (so that they all have their own memory region for data)
 dyn-clone = "1.0.20"
 
@@ -17,41 +47,24 @@ dyn-clone = "1.0.20"
 version = "0.7"
 default-features = false
 features = [
-	"2d",
-	"f32",
-	"parry-f32",
-	"parallel",
-	"debug-plugin",
+    "2d",
+    "f32",
+    "parry-f32",
+    "parallel",
 ]
+
+[dependencies.bevy_prototype_lyon]
+version = "0.17"
+optional = true
 
 [dependencies.bevy]
 version = "0.19"
 default-features = false
 features = [
-  # Bevy functionality:
-  "multi_threaded",     # Run with multithreading
-  "bevy_animation",     # Provides animation functionality
-  "bevy_asset",         # Assets management
-  "bevy_color",         # Provides shared color types and operations
-  "bevy_core_pipeline", # Common rendering abstractions
-  "bevy_gizmos",        # Support drawing debug lines and shapes
-  "bevy_gizmos_render", # Support rendering the gizmos
-  "bevy_pbr",           # 3D (physically-based) rendering
-  "bevy_render",        # Rendering framework core
-  "bevy_scene",         # Scenes management
-  "bevy_sprite",        # 2D (sprites) rendering
-  "bevy_state",         # Enable built in global state machines
-  "bevy_text",          # Text/font rendering
-  "bevy_ui",            # UI toolkit
-  "bevy_ui_render",     # UI GPU rendering (TransparentUi phase) — required by FpsOverlay
-  "bevy_winit",         # Window management (cross-platform Winit backend)
-  "bevy_window",        # Winit dep
-  "default_font",       # Embed a minimal default font for text/UI
+    "bevy_state",         # Enable built in global state machines
 
-  # Bevy 0.16
-  "std",
-  "async_executor",
-
-  "bevy_dev_tools",    # Fps
-  "dynamic_linking"
+    "std",
+    "async_executor",
+    "multi_threaded",     # Run with multithreading
+    "dynamic_linking"     # Speed up dev compilation
 ]

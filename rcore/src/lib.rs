@@ -8,9 +8,9 @@ pub mod script;
 pub mod ship;
 pub mod spawner;
 pub mod weapon;
-pub mod render;
 
-pub use render::RenderPlugin;
+#[cfg(feature = "render")]
+pub mod render;
 
 use crate::math::AbsRot;
 
@@ -39,8 +39,3 @@ pub enum FixedGameSystem {
     // This is all of the logic that has to do with weapon damage/hits/scan/health
     Weapon,
 }
-
-// TODO: add an Arena Marker for ships and stuff for objects we want to have warping
-// enabled for, versus objects we don't.
-#[derive(Component)]
-struct ArenaMarker;
