@@ -17,11 +17,9 @@ impl Plugin for RadarPlugin {
             .add_systems(
                 FixedUpdate,
                 (
-                    apply_arc.in_set(FixedGameSystem::GameLogic),
-                    apply_radar
-                        .in_set(FixedGameSystem::GameLogic)
-                        .after(apply_arc),
-                ),
+                    apply_arc,
+                    apply_radar.after(apply_arc),
+                ).in_set(FixedGameSystem::GameLogic),
             )
             .add_systems(
                 RunFixedMainLoop,

@@ -13,11 +13,9 @@ impl Plugin for MovementPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                apply_movement.in_set(FixedGameSystem::GameLogic),
-                wrap_position
-                    .in_set(FixedGameSystem::GameLogic)
-                    .after(apply_movement),
-            ),
+                apply_movement,
+                wrap_position.after(apply_movement),
+            ).in_set(FixedGameSystem::GameLogic),
         )
         .add_systems(
             RunFixedMainLoop,

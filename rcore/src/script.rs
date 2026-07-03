@@ -141,10 +141,10 @@ impl Plugin for ScriptPlugins {
             .add_systems(
                 FixedUpdate,
                 (
-                    process_on_update.in_set(FixedGameSystem::ShipLogic),
-                    process_on_collision.in_set(FixedGameSystem::ShipLogic),
-                    process_on_contact.in_set(FixedGameSystem::ShipLogic),
-                ),
+                    process_on_update,
+                    process_on_collision,
+                    process_on_contact,
+                ).in_set(FixedGameSystem::ShipLogic),
             );
     }
 }
