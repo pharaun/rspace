@@ -78,6 +78,8 @@ pub struct DebugWeapon {
     // Need to figure out how to have a "global" tick-tock to have tick-tock timing for the
     // simulator so that later we can "speed up the simulator to the max that the cpu can do for
     // doing repative testing/tournment/etc without a render.
+    //
+    // TODO: need to accord for 64hz tick rate here, it assumes 2hz right now
     pub cooldown: u16,
     pub current: u16,
     pub damage: u16,
@@ -92,6 +94,8 @@ pub struct DebugMissile {
     // Need to figure out how to have a "global" tick-tock to have tick-tock timing for the
     // simulator so that later we can "speed up the simulator to the max that the cpu can do for
     // doing repative testing/tournment/etc without a render.
+    //
+    // TODO: need to accord for 64hz tick rate here, it assumes 2hz right now
     pub cooldown: u16,
     pub current: u16,
 }

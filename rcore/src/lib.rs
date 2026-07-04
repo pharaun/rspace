@@ -14,6 +14,12 @@ pub mod render;
 
 use crate::math::AbsRot;
 
+// Sim timing
+// TODO: remove this when bevy default 64hz is back. Blockers:
+//  - weapon cooldown
+//  - per-tick script
+pub const TICK_HZ: u32 = 2;
+
 // This is the actual ship-arena
 pub const ARENA_SCALE: f32 = 10.0;
 const ARENA: IVec2 = IVec2::new(10240, 6400);

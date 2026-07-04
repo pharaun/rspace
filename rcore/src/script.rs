@@ -140,6 +140,8 @@ impl Plugin for ScriptPlugins {
         app.insert_resource(ScriptTimer(Timer::from_seconds(1.0, TimerMode::Repeating)))
             .add_systems(
                 FixedUpdate,
+                // TODO: fix this to fire every so often (ie use script timer) or some other
+                // so that we can decouple this from the fixedupdate hz
                 (process_on_update, process_on_collision, process_on_contact)
                     .in_set(FixedGameSystem::ShipLogic),
             );

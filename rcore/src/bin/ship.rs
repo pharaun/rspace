@@ -20,6 +20,8 @@ use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::add_ship;
 
+use rcore::TICK_HZ;
+
 fn main() {
     let mut app = App::new();
 
@@ -53,7 +55,7 @@ fn main() {
         .add_plugins(PhysicsPlugins::default())
         //.add_plugins(PhysicsDebugPlugin::default())
         // TODO: fix up systems so i can bump it to bevy default 64hz
-        .insert_resource(Time::<Fixed>::from_hz(2.0))
+        .insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
         // Game bits
         .add_plugins(MovementPlugin)
         .add_plugins(RadarPlugin)

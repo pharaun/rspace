@@ -138,8 +138,6 @@ pub(crate) fn interpolate_arc(
     let overstep = fixed_time.overstep_fraction();
 
     for (mut transform, arc) in &mut query {
-        // Note: `slerp` will always take the shortest path, but when the two rotations are more than
-        // 180 degrees apart, this can cause visual artifacts as the rotation "flips" to the other side.
         transform.rotation = arc.current.transform_slerp(arc.target, overstep);
     }
 }

@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
 use crate::FixedGameSystem;
+use crate::TICK_HZ;
+
+use crate::math::tick_step;
 use crate::math::AbsRot;
 
 pub struct RotationPlugin;
@@ -31,7 +34,7 @@ pub struct RotationBundle {
 impl RotationBundle {
     pub fn new(rotation: AbsRot, target: AbsRot, limit: u8) -> Self {
         Self {
-            target: TargetRotation { limit, target },
+            target: TargetRotation { limit, target, carry: 0 },
             rotation: Rotation(rotation),
             previous: PreviousRotation(rotation),
         }
@@ -47,8 +50,9 @@ impl RotationBundle {
 #[derive(Component, Clone, Copy)]
 #[require(Rotation)]
 pub struct TargetRotation {
-    pub limit: u8, // Per Second?
+    pub limit: u8, // rotation per second
     pub target: AbsRot,
+    pub carry: u32, // sub tick rotation
 }
 
 #[derive(Component, Default, Clone, Copy)]
@@ -78,8 +82,6 @@ pub(crate) fn interpolate_rotation(
     let overstep = fixed_time.overstep_fraction();
 
     for (mut transform, rotation, previous_rotation) in &mut query {
-        // Note: `slerp` will always take the shortest path, but when the two rotations are more than
-        // 180 degrees apart, this can cause visual artifacts as the rotation "flips" to the other side.
         transform.rotation = previous_rotation.0.transform_slerp(rotation.0, overstep);
     }
 }
@@ -87,9 +89,9 @@ pub(crate) fn interpolate_rotation(
 #[expect(clippy::needless_pass_by_value)]
 pub(crate) fn apply_rotation(
     time: Res<Time<Fixed>>,
-    mut query: Query<(&TargetRotation, &mut Rotation, &mut PreviousRotation)>,
+    mut query: Query<(&mut TargetRotation, &mut Rotation, &mut PreviousRotation)>,
 ) {
-    for (target_rot, mut rotation, mut previous_rotation) in query.iter_mut() {
+    for (mut target_rot, mut rotation, mut previous_rotation) in query.iter_mut() {
         previous_rotation.0 = rotation.0;
 
         // If rotation is the same as the target rotation, bail
@@ -97,14 +99,16 @@ pub(crate) fn apply_rotation(
             continue;
         }
 
-        // Clamp the rotation
-        let limit = f32::from(target_rot.limit) * time.delta_secs();
+        // Calculate the carry so sub-tick rotation isn't lost
+        let (step, carry) = tick_step(u32::from(target_rot.limit), target_rot.carry, TICK_HZ);
+        target_rot.carry = carry;
+        // let limit = f32::from(target_rot.limit) * time.delta_secs();
 
         #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let angle = rotation
             .0
             .angle_between(target_rot.target)
-            .clamp(limit.round() as u8);
+            .clamp(u8::try_from(step).unwrap_or(u8::MAX));
         rotation.0 += angle;
     }
 }

@@ -1,11 +1,12 @@
 use crate::FixedGameSystem;
-use crate::math::un_vec_scale;
+use crate::math::tick_step_ivec2;
 use crate::math::vec_scale;
 use crate::rotation::Rotation;
 use bevy::prelude::*;
 
 use crate::ARENA;
 use crate::ARENA_SCALE;
+use crate::TICK_HZ;
 
 pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
@@ -26,7 +27,7 @@ impl Plugin for MovementPlugin {
 pub struct MovementBundle {
     pub velocity: Velocity,
     pub position: Position,
-    pub previous: PreviousPosition,
+    pub previous: PositionPrevious,
 }
 
 impl MovementBundle {
@@ -38,7 +39,7 @@ impl MovementBundle {
                 velocity_limit,
             },
             position: Position(position),
-            previous: PreviousPosition(position),
+            previous: PositionPrevious(position),
         }
     }
 
@@ -52,7 +53,7 @@ impl MovementBundle {
 // I want to have RCS so that there can be a small amount of lateral and backward movement
 // but you would still need the main engine for heavy acceleration.
 #[derive(Component, Clone, Copy)]
-#[require(Position)]
+#[require(Position, VelocityCarry)]
 pub struct Velocity {
     pub acceleration: i32,
     pub velocity: IVec2,
@@ -65,11 +66,18 @@ pub struct Velocity {
 // Transform is separate and a visual layer, we need to redo the code to better
 // separate the rendering layer from the simulation layer
 #[derive(Component, Default, Clone, Copy)]
-#[require(PreviousPosition)]
+#[require(PositionPrevious, PositionCarry)]
 pub struct Position(pub IVec2);
 
 #[derive(Component, Default, Clone, Copy)]
-pub struct PreviousPosition(pub IVec2);
+pub struct PositionPrevious(pub IVec2);
+
+// Experiment with sub-tick integration (bresenham-style carries)
+#[derive(Component, Default, Clone, Copy)]
+pub struct PositionCarry(pub IVec2);
+
+#[derive(Component, Default, Clone, Copy)]
+pub struct VelocityCarry(pub Vec2);
 
 #[derive(Component, Clone, Copy)]
 pub struct MovDebug;
@@ -80,7 +88,7 @@ pub struct MovDebug;
 // - Since we do have velocity information so we should be able to do better interpolation
 #[expect(clippy::needless_pass_by_value)]
 pub(crate) fn interpolate_movement(
-    mut query: Query<(&mut Transform, &Position, &PreviousPosition)>,
+    mut query: Query<(&mut Transform, &Position, &PositionPrevious)>,
     fixed_time: Res<Time<Fixed>>,
 ) {
     // How much of a "partial timestep" has accumulated since the last fixed timestep run.
@@ -104,13 +112,15 @@ pub(crate) fn interpolate_movement(
 pub(crate) fn apply_movement(
     mut query: Query<(
         &mut Velocity,
+        &mut VelocityCarry,
         &Rotation,
         &mut Position,
-        &mut PreviousPosition,
+        &mut PositionCarry,
+        &mut PositionPrevious,
     )>,
     fixed_time: Res<Time<Fixed>>,
 ) {
-    for (mut vec, rot, mut position, mut previous_position) in query.iter_mut() {
+    for (mut vec, mut carry_vec, rot, mut position, mut carry_position, mut previous_position) in query.iter_mut() {
         previous_position.0 = position.0;
 
         // Calculate lorentz factor to apply to acceleration
@@ -122,14 +132,24 @@ pub(crate) fn apply_movement(
             .mul_vec3(Vec3::Y * (vec.acceleration as f32))
             .truncate();
         let factor = calculate_lorentz_factor(
-            vec_scale(vec.velocity, 1.0),
+            vec.velocity.as_vec2(),
             acceleration,
             vec.velocity_limit,
             &fixed_time,
         );
 
-        vec.velocity += un_vec_scale(acceleration * factor * fixed_time.delta_secs(), 1.0);
-        position.0 += un_vec_scale(vec_scale(vec.velocity, 1.0) * fixed_time.delta_secs(), 1.0);
+        // Calculate the carry so sub-tick acceleration isn't lost
+        let exact = acceleration * factor * fixed_time.delta_secs() + carry_vec.0;
+        let apply = exact.round();
+        carry_vec.0 = exact - apply;
+        vec.velocity += apply.as_ivec2();
+        // vec.velocity += un_vec_scale(acceleration * factor * fixed_time.delta_secs(), 1.0);
+
+        // Calculate the carry so sub-tick velocity isn't lost
+        let (step, carry) = tick_step_ivec2(vec.velocity, carry_position.0, TICK_HZ);
+        carry_position.0 = carry;
+        position.0 += step;
+        // position.0 += un_vec_scale(vec_scale(vec.velocity, 1.0) * fixed_time.delta_secs(), 1.0);
     }
 }
 
@@ -166,7 +186,7 @@ where
 // needed
 // TODO: May want to change this to instead wrap the game-areana and change this to be a render
 // concern
-fn wrap_position(mut query: Query<(&mut Position, &mut PreviousPosition), Changed<Position>>) {
+fn wrap_position(mut query: Query<(&mut Position, &mut PositionPrevious), Changed<Position>>) {
     for (mut pos, mut ppos) in query.iter_mut() {
         let res: IVec2 = {
             let mut ret = IVec2::new(0, 0);

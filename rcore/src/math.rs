@@ -8,12 +8,28 @@ use bevy::prelude::Quat;
 use bevy::prelude::Vec2;
 
 pub fn vec_scale(vec: IVec2, factor: f32) -> Vec2 {
-    Vec2::new(vec.x as f32 / factor, vec.y as f32 / factor)
+    vec.as_vec2() / factor
 }
 
 pub fn un_vec_scale(vec: Vec2, factor: f32) -> IVec2 {
-    #[expect(clippy::cast_possible_truncation)]
-    IVec2::new((vec.x * factor) as i32, (vec.y * factor) as i32)
+    (vec * factor).round().as_ivec2()
+}
+
+// Bresenham-style integer rate integration
+//  - split a per-second rate into a per-tick rate
+//  - carry the remainder for next call
+//  - this fixes the (1, 1) == 2/s not 1/s issue and make it approach the true rate
+// TODO: do we want to pass in the tick_hz or ?
+pub fn tick_step(rate: u32, carry: u32, tick_hz: u32) -> (u32, u32) {
+    let budget = rate + carry;
+    (budget / tick_hz, budget % tick_hz)
+}
+
+// IVec2 version of tick_step
+pub fn tick_step_ivec2(rate: IVec2, carry: IVec2, tick_hz: u32) -> (IVec2, IVec2) {
+    let hz = IVec2::splat(tick_hz.cast_signed());
+    let budget = rate + carry;
+    (budget.div_euclid(hz), budget.rem_euclid(hz))
 }
 
 // TODO: figure out better math stuff for integer angle math and stuff:
@@ -50,6 +66,7 @@ impl AbsRot {
     }
 
     pub fn from_vec2_angle(base: IVec2, target: IVec2) -> Option<Self> {
+        // TODO: this can overflow cuz its i32 so need to fix
         if (target - base) == IVec2::ZERO {
             None
         } else {
@@ -73,17 +90,20 @@ impl AbsRot {
     // where we might want to instead give it a quat/convert it so that it can
     // handle the +- math correctly.
     pub fn within(&self, half_arc: u8, target: Self) -> bool {
+        debug_assert!(half_arc <= 127);
         self.angle_between(target).0.unsigned_abs() <= half_arc.min(127)
     }
 
     // Debugging math
     #[must_use]
     pub fn cw_edge(&self, half_arc: u8) -> Self {
+        debug_assert!(half_arc <= 127);
         *self + RelRot(half_arc.min(127).cast_signed())
     }
 
     #[must_use]
     pub fn ccw_edge(&self, half_arc: u8) -> Self {
+        debug_assert!(half_arc <= 127);
         *self + RelRot(-half_arc.min(127).cast_signed())
     }
 
@@ -93,7 +113,10 @@ impl AbsRot {
     }
 
     pub fn transform_slerp(&self, end: Self, f: f32) -> Quat {
-        self.to_quat().slerp(end.to_quat(), f)
+        // Force the slerp to respect the ccw bias of angle_between
+        let delta = self.angle_between(end);
+        Quat::from_rotation_z(FRAC_PI_128 * (f32::from(self.0) + f32::from(delta.0) * f))
+        //self.to_quat().slerp(end.to_quat(), f)
     }
 }
 
@@ -116,7 +139,7 @@ impl AddAssign<RelRot> for AbsRot {
 // -64 = 90º Left
 //  64 = 90º Right
 // Clamped: [-128, 128)
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub struct RelRot(pub i8);
 
 impl RelRot {
@@ -128,6 +151,67 @@ impl RelRot {
         // Since its always <128 thanks to clamp above its a valid i8
         let bound = clamp.cast_signed();
         Self(self.0.clamp(-bound, bound))
+    }
+}
+
+#[test]
+fn test_vec_scale_roundtrip() {
+    // Make sure the code rounds properly and not just truncate it, there
+    // are some factors that causes it to be off by one. Such as: 7, 10, 49...
+    for factor in 1..=100 {
+        // Might as well exhaustively test an large arena
+        for x in -20_000..=20_000 {
+            let vec = IVec2::new(x, -x);
+            assert_eq!(
+                un_vec_scale(vec_scale(vec, factor as f32), factor as f32),
+                vec,
+                "x={x} factor={factor}"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_tick_step_several_rates() {
+    // We can have the engine from 1..=128 hz probs, forcefully check them all
+    for hz in 1..=128 {
+        for rate in 0..=256 {
+            let mut carry = 0;
+            let mut total = 0;
+
+            // To force the carry == 0 we loop till "1 second" has passed
+            for _ in 0..hz {
+                let (step, new_carry) = tick_step(rate, carry, hz);
+                total += step;
+                carry = new_carry;
+            }
+            assert_eq!(total, rate, "rate {rate} at {hz}hz");
+            assert_eq!(carry, 0, "rate {rate} at {hz}hz");
+        }
+    }
+}
+
+#[test]
+fn test_tick_step_ivec2_several_rates() {
+    // We can have the engine from 1..=128 hz probs, forcefully check them all
+    for hz in 1..=128 {
+        // Step by 32 to avoid spinning for longer than a few second
+        for x in (-256..=256).step_by(32) {
+            for y in (-256..=256).step_by(32) {
+                let rate = IVec2::new(x, y);
+                let mut carry = IVec2::ZERO;
+                let mut total = IVec2::ZERO;
+
+                // To force the carry == 0 we loop till "1 second" has passed
+                for _ in 0..hz {
+                    let (step, new_carry) = tick_step_ivec2(rate, carry, hz);
+                    total += step;
+                    carry = new_carry;
+                }
+                assert_eq!(total, rate, "rate {rate} at {hz}hz");
+                assert_eq!(carry, IVec2::ZERO, "rate {rate} at {hz}hz");
+            }
+        }
     }
 }
 
@@ -221,6 +305,32 @@ fn test_angle_between() {
     // Wrapping cross 0 check
     assert_eq!(AbsRot(200).angle_between(AbsRot(10)), RelRot(66));
     assert_eq!(AbsRot(10).angle_between(AbsRot(200)), RelRot(-66));
+}
+
+#[cfg(test)]
+fn assert_rot_eq(a: Quat, b: Quat) {
+    let diff = a.dot(b).abs();
+    assert!(
+        diff > 0.999_99,
+        "rotations differ: {a:?} vs {b:?} - differ by: {diff}"
+    );
+}
+
+#[rustfmt::skip]
+#[test]
+fn test_transform_slerp_biases_ccw() {
+    // Easy exact angles to validate quickly
+    assert_eq!(AbsRot(0).transform_slerp(AbsRot(64), 0.),  AbsRot(0).to_quat());
+    assert_eq!(AbsRot(0).transform_slerp(AbsRot(64), 0.5), AbsRot(32).to_quat());
+    assert_eq!(AbsRot(0).transform_slerp(AbsRot(64), 1.),  AbsRot(64).to_quat());
+
+    // Check the 256/0 rotation
+    assert_eq!(AbsRot(200).transform_slerp(AbsRot(10), 0.5), AbsRot(233).to_quat());
+
+    // Check that it biases CCW like angle_between
+    assert_rot_eq(AbsRot(0).transform_slerp(AbsRot(128), 0.25), AbsRot(224).to_quat());
+    assert_rot_eq(AbsRot(0).transform_slerp(AbsRot(128), 0.5),  AbsRot(192).to_quat());
+    assert_rot_eq(AbsRot(0).transform_slerp(AbsRot(128), 0.75), AbsRot(160).to_quat());
 }
 
 #[test]
