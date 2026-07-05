@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use crate::FixedGameSystem;
 use crate::TICK_HZ;
 
-use crate::math::tick_step;
 use crate::math::AbsRot;
+use crate::math::tick_step;
 
 pub struct RotationPlugin;
 impl Plugin for RotationPlugin {
@@ -34,7 +34,11 @@ pub struct RotationBundle {
 impl RotationBundle {
     pub fn new(rotation: AbsRot, target: AbsRot, limit: u8) -> Self {
         Self {
-            target: TargetRotation { limit, target, carry: 0 },
+            target: TargetRotation {
+                limit,
+                target,
+                carry: 0,
+            },
             rotation: Rotation(rotation),
             previous: PreviousRotation(rotation),
         }
@@ -104,7 +108,6 @@ pub(crate) fn apply_rotation(
         target_rot.carry = carry;
         // let limit = f32::from(target_rot.limit) * time.delta_secs();
 
-        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let angle = rotation
             .0
             .angle_between(target_rot.target)

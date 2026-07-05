@@ -2,10 +2,47 @@ use std::f32::consts::PI;
 use std::ops::Add;
 use std::ops::AddAssign;
 
+use bevy::math::I64Vec2;
 use bevy::prelude::EulerRot;
 use bevy::prelude::IVec2;
 use bevy::prelude::Quat;
 use bevy::prelude::Vec2;
+
+// Fixed-point unit scale for (headings, lorentz factor) calculation
+// to remove any remaining floating point calculation in the core sim
+// loop.
+//
+// power of 2 (sized so that i32 rate * FP_SCALE^2 still fits in i64)
+pub const FP_SCALE: i64 = 1 << 15;
+
+// Stepped Rotation: inspiration bevy::math::Rot2 - Which is clamped to the range (-π, π]
+const FRAC_PI_128: f32 = PI / -128.0;
+
+// Quarter sin table (0-64) for fixed point math (via FP_SCALE)
+//
+// python3 -c 'import math; print([round(math.sin(math.pi*i/128)*32768) for i in range(65)])'
+#[rustfmt::skip]
+const QUARTER_SIN_FP: [i32; 65] = [
+        0,   804,  1608,  2411,  3212,  4011,  4808,  5602,
+     6393,  7180,  7962,  8740,  9512, 10279, 11039, 11793,
+    12540, 13279, 14010, 14733, 15447, 16151, 16846, 17531,
+    18205, 18868, 19520, 20160, 20788, 21403, 22006, 22595,
+    23170, 23732, 24279, 24812, 25330, 25833, 26320, 26791,
+    27246, 27684, 28106, 28511, 28899, 29269, 29622, 29957,
+    30274, 30572, 30853, 31114, 31357, 31581, 31786, 31972,
+    32138, 32286, 32413, 32522, 32610, 32679, 32729, 32758,
+    32768,
+];
+
+fn sin_fp(step: u8) -> i32 {
+    let i = usize::from(step);
+    match step {
+        0..=64 => QUARTER_SIN_FP[i],
+        65..=127 => QUARTER_SIN_FP[128 - i],
+        128..=191 => -QUARTER_SIN_FP[i - 128],
+        192..=255 => -QUARTER_SIN_FP[256 - i],
+    }
+}
 
 pub fn vec_scale(vec: IVec2, factor: f32) -> Vec2 {
     vec.as_vec2() / factor
@@ -32,15 +69,17 @@ pub fn tick_step_ivec2(rate: IVec2, carry: IVec2, tick_hz: u32) -> (IVec2, IVec2
     (budget.div_euclid(hz), budget.rem_euclid(hz))
 }
 
-// TODO: figure out better math stuff for integer angle math and stuff:
-// https://stackoverflow.com/questions/77480605/nextion-calculate-inverse-tan-arctan-without-trig-functions-or-floating-point
-// https://github.com/ddribin/trigint
-//
-// Would like to avoid floating point math/rotation/etc as much as possible to allow for integer
-// angles, and integer position. But for now this is good enough.
-
-// Stepped Rotation: inspiration bevy::math::Rot2 - Which is clamped to the range (-π, π]
-const FRAC_PI_128: f32 = PI / -128.0;
+// Fixed-point variant of `tick_step_ivec2`
+pub fn tick_step_i64vec2_fp(
+    rate_fp: I64Vec2,
+    carry: I64Vec2,
+    tick_hz: u32,
+    scale: i64,
+) -> (I64Vec2, I64Vec2) {
+    let scaled_hz = I64Vec2::splat(i64::from(tick_hz) * scale);
+    let budget = rate_fp + carry;
+    (budget.div_euclid(scaled_hz), budget.rem_euclid(scaled_hz))
+}
 
 // Absolute Rotation:
 // 0   =   0º North
@@ -52,6 +91,7 @@ const FRAC_PI_128: f32 = PI / -128.0;
 pub struct AbsRot(pub u8);
 
 impl AbsRot {
+    // Render-only
     pub fn to_quat(&self) -> Quat {
         Quat::from_rotation_z(FRAC_PI_128 * f32::from(self.0))
     }
@@ -65,6 +105,7 @@ impl AbsRot {
         Self((angle / FRAC_PI_128).round().rem_euclid(256.) as u8)
     }
 
+    // TODO: float angle math to convert to integer (atan2)
     pub fn from_vec2_angle(base: IVec2, target: IVec2) -> Option<Self> {
         // TODO: this can overflow cuz its i32 so need to fix
         if (target - base) == IVec2::ZERO {
@@ -75,6 +116,11 @@ impl AbsRot {
                 Vec2::Y.angle_to((target - base).as_vec2()),
             ))
         }
+    }
+
+    // Same convention as from_vec_angle, just avoids float math
+    pub fn to_heading_fp(&self) -> IVec2 {
+        IVec2::new(sin_fp(self.0), sin_fp(self.0.wrapping_add(64)))
     }
 
     // To support an arc-width of 1, we decided to make it so that an arc is
@@ -210,6 +256,62 @@ fn test_tick_step_ivec2_several_rates() {
                 }
                 assert_eq!(total, rate, "rate {rate} at {hz}hz");
                 assert_eq!(carry, IVec2::ZERO, "rate {rate} at {hz}hz");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_tick_step_i64vec2_fp_several_rate_and_scale() {
+    // We can have the engine from 1..=128 hz probs, forcefully check them all
+    for hz in 1..=128 {
+        // Step by 32 to avoid spinning for longer than a few second
+        for x in (-256..=256).step_by(32) {
+            for y in (-256..=256).step_by(32) {
+                for scale in [1, 3, 7, 8, FP_SCALE, FP_SCALE.pow(2)] {
+                    let rate_fp = I64Vec2::new(x, y) * scale;
+                    let mut carry = I64Vec2::ZERO;
+                    let mut total = I64Vec2::ZERO;
+                    for _ in 0..hz {
+                        let (step, new_carry) = tick_step_i64vec2_fp(rate_fp, carry, hz, scale);
+                        total += step;
+                        carry = new_carry;
+                    }
+                    let expected = I64Vec2::new(x, y);
+                    assert_eq!(total, expected, "rate {rate_fp:?} at {hz}hz scale {scale}");
+                    assert_eq!(
+                        carry,
+                        I64Vec2::ZERO,
+                        "rate {rate_fp:?} at {hz}hz scale {scale}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_tick_step_i64vec2_fp_several_rate_and_scale_awkward_numbers() {
+    for hz in [1, 7, 13, 37] {
+        for x in [1, -1, 7, -7, 13, -13, 37, -37] {
+            for y in [1, -1, 7, -7, 13, -13, 37, -37] {
+                for scale in [1, 3, 7, 13, 37] {
+                    let rate_fp = I64Vec2::new(x, y);
+                    let mut carry = I64Vec2::ZERO;
+                    let mut total = I64Vec2::ZERO;
+                    for _ in 0..(i64::from(hz) * scale) {
+                        let (step, new_carry) = tick_step_i64vec2_fp(rate_fp, carry, hz, scale);
+                        total += step;
+                        carry = new_carry;
+                    }
+                    let expected = I64Vec2::new(x, y);
+                    assert_eq!(total, expected, "rate {rate_fp:?} at {hz}hz scale {scale}");
+                    assert_eq!(
+                        carry,
+                        I64Vec2::ZERO,
+                        "rate {rate_fp:?} at {hz}hz scale {scale}"
+                    );
+                }
             }
         }
     }
@@ -375,6 +477,33 @@ fn test_from_vec2_angle() {
 
     assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(1, 1)), Some(AbsRot(32)));
     assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(-1, -1)), Some(AbsRot(160)));
+}
+
+#[rustfmt::skip]
+#[test]
+fn test_to_heading_fp_directions() {
+    assert_eq!(AbsRot(0).to_heading_fp(),   IVec2::new(0, 32768));
+    assert_eq!(AbsRot(32).to_heading_fp(),  IVec2::new(23170, 23170));
+    assert_eq!(AbsRot(64).to_heading_fp(),  IVec2::new(32768, 0));
+    assert_eq!(AbsRot(96).to_heading_fp(),  IVec2::new(23170, -23170));
+    assert_eq!(AbsRot(128).to_heading_fp(), IVec2::new(0, -32768));
+    assert_eq!(AbsRot(160).to_heading_fp(), IVec2::new(-23170, -23170));
+    assert_eq!(AbsRot(192).to_heading_fp(), IVec2::new(-32768, 0));
+    assert_eq!(AbsRot(224).to_heading_fp(), IVec2::new(-23170, 23170));
+}
+
+#[test]
+fn test_to_heading_fp_aprox_quat_match() {
+    // Make sure that the fixed point angles
+    // matches the built in to_quat angles
+    for i in 0..=u8::MAX {
+        let quat = AbsRot(i)
+            .to_quat()
+            .mul_vec3(bevy::prelude::Vec3::Y)
+            .truncate();
+        let fp = AbsRot(i).to_heading_fp().as_vec2() / FP_SCALE as f32;
+        assert!((quat - fp).length() < 3e-5, "step {i}: {quat:?} vs {fp:?}");
+    }
 }
 
 #[rustfmt::skip]
