@@ -18,7 +18,10 @@ impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedUpdate,
-            (apply_movement, wrap_position.after(apply_movement))
+            (
+                apply_movement.after(crate::rotation::apply_rotation),
+                wrap_position.after(apply_movement),
+            )
                 .in_set(FixedGameSystem::GameLogic),
         )
         .add_systems(
@@ -228,7 +231,9 @@ fn calculate_lorentz_factor_fp(velocity: IVec2, velocity_limit: u32) -> i64 {
 // needed
 // TODO: May want to change this to instead wrap the game-areana and change this to be a render
 // concern
-fn wrap_position(mut query: Query<(&mut Position, &mut PositionPrevious), Changed<Position>>) {
+pub(crate) fn wrap_position(
+    mut query: Query<(&mut Position, &mut PositionPrevious), Changed<Position>>,
+) {
     for (mut pos, mut ppos) in query.iter_mut() {
         let res: IVec2 = {
             let mut ret = IVec2::new(0, 0);

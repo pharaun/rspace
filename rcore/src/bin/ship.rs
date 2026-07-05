@@ -1,4 +1,6 @@
 use avian2d::prelude::*;
+use bevy::ecs::schedule::LogLevel;
+use bevy::ecs::schedule::ScheduleBuildSettings;
 use bevy::prelude::*;
 
 use rcore::FixedGameSystem;
@@ -74,6 +76,14 @@ fn main() {
             )
                 .chain(),
         )
+        // Log unordered system with overlapping access, this
+        // makes the sim nondeterministic.
+        .edit_schedule(FixedUpdate, |schedule| {
+            schedule.set_build_settings(ScheduleBuildSettings {
+                ambiguity_detection: LogLevel::Warn,
+                ..Default::default()
+            });
+        })
         // Startup setup
         .add_systems(Startup, ship_setup)
         .run();

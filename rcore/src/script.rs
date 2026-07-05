@@ -142,7 +142,11 @@ impl Plugin for ScriptPlugins {
                 FixedUpdate,
                 // TODO: fix this to fire every so often (ie use script timer) or some other
                 // so that we can decouple this from the fixedupdate hz
-                (process_on_update, process_on_collision, process_on_contact)
+                (
+                    process_on_collision.before(process_on_contact),
+                    process_on_contact.before(process_on_update),
+                    process_on_update,
+                )
                     .in_set(FixedGameSystem::ShipLogic),
             );
     }

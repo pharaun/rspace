@@ -66,5 +66,6 @@ features = [
     "std",
     "async_executor",
     "multi_threaded",     # Run with multithreading
-    "dynamic_linking"     # Speed up dev compilation
+    "dynamic_linking",    # Speed up dev compilation
+    "debug"               # Retains ECS system/component names
 ]

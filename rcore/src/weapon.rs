@@ -41,6 +41,7 @@ impl Plugin for WeaponPlugin {
                     // TODO: do we want a post-shiplogic set -> missile -> spawn -> weapon sequencing
                     process_fire_debug_missile_message,
                 )
+                    .chain()
                     .in_set(FixedGameSystem::Weapon),
             );
     }

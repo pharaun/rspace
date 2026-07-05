@@ -16,7 +16,11 @@ impl Plugin for RadarPlugin {
         app.add_message::<ContactMessage>()
             .add_systems(
                 FixedUpdate,
-                (apply_arc, apply_radar.after(apply_arc)).in_set(FixedGameSystem::GameLogic),
+                (
+                    apply_arc.after(crate::movement::wrap_position),
+                    apply_radar.after(apply_arc),
+                )
+                    .in_set(FixedGameSystem::GameLogic),
             )
             .add_systems(
                 RunFixedMainLoop,
