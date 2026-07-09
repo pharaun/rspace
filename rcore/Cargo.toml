@@ -36,7 +36,10 @@ render = [
     "bevy/bevy_window",        # Winit dep
     "bevy/default_font",       # Embed a minimal default font for text/UI
 
-    "bevy/bevy_dev_tools",    # Fps
+    "bevy/bevy_dev_tools",     # Fps
+
+    # Bevy camera
+    "bevy/bevy_picking",       # Click and drag for camera
 ]
 
 [dependencies]

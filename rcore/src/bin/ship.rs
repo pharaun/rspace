@@ -31,12 +31,11 @@ fn main() {
     #[cfg(feature = "render")]
     {
         use rcore::render::RenderPlugin;
+        use rcore::render::CameraPlugin;
 
         app.add_plugins(DefaultPlugins)
             .add_plugins(RenderPlugin)
-            .add_systems(Startup, |mut commands: Commands| {
-                commands.spawn(Camera2d);
-            });
+            .add_plugins(CameraPlugin);
     }
 
     // Headless Setup
