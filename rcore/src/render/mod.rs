@@ -14,6 +14,7 @@ use bevy::input::mouse::{AccumulatedMouseScroll, MouseButton, MouseScrollUnit};
 use bevy::input::ButtonInput;
 use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
 use bevy::color::palettes::css::FUCHSIA;
+use bevy::window::PrimaryWindow;
 
 mod arena;
 mod gizmo;
@@ -240,6 +241,16 @@ pub struct CameraConfig {
     deadzone_radius: f32,
     // Zoom min/max
     zoom_clamp: (f32, f32),
+    // Mouse can return scroll in terms of line or pixels...
+    zoom_step_per_line: f32,
+    zoom_step_per_pixel: f32,
+    zoom_decay_rate: f32,
+    // Edge panning config
+    // The margin around the edge of the screen for panning, if
+    // camera is barely into it, move slowly but if its far into it, move faster
+    edge_margin: Vec2,
+    edge_speed: f32,
+    edge_speed_max: f32,
 }
 
 pub fn camera_setup(
@@ -254,7 +265,23 @@ pub fn camera_setup(
             // TODO: not sure if this is the correct move to have a deadzone
             // on ship follow, set it to 0 for now
             deadzone_radius: 0.0,
-            zoom_clamp: (0.25, 2.0),
+            // Tuning:
+            //  - You want ~12-24 ticks from min->max zoom
+            //      * zoom_step_per_line ~= (zoom_max - zoom_min) / (~12-24)
+            //  - 0.14 ~ 0.38 for 1.1x to 1.3x steps seem to be a sweet spot?
+            //      2^0.25 ~= 1.19
+            //      animation (via zoom decay can affect the feeling of this too)
+            zoom_clamp: (-2.0, 2.0),
+            // 0.25 per step ~= 16 ticks with a (-2 <-> 2) zoom range (0.25 to 4x)
+            zoom_step_per_line: 0.25,
+            // Seems like firefox uses ~38px, chrome ~= 50px for this
+            zoom_step_per_pixel: 0.25 / 45.0,
+            // 4 ~= supcom floaty, 8 ~= smooth, 12 ~= snappy but has some animation, 15 ~= crisp
+            zoom_decay_rate: 12.0,
+            // Margin around the edge of the window
+            edge_margin: Vec2::splat(30.0),
+            edge_speed: 0.05,
+            edge_speed_max: 100.0,
         },
         focus: Vec2::new(0.0, 0.0),
         zoom: 0.0,
@@ -278,8 +305,22 @@ fn update_camera_focus(
     time: Res<Time<Real>>,
     mut camera: Single<&mut CameraRig, With<Camera2d>>,
     key_input: Res<ButtonInput<KeyCode>>,
+    mouse_wheel_input: Res<AccumulatedMouseScroll>,
+    window_input: Single<&Window, With<PrimaryWindow>>,
 ) {
     let conf = camera.config;
+
+    // Deal with zoom from the mouse (and ideally a keyboard too)
+    if mouse_wheel_input.delta != Vec2::ZERO {
+        let step = match mouse_wheel_input.unit {
+            MouseScrollUnit::Line  => mouse_wheel_input.delta.y * conf.zoom_step_per_line,
+            MouseScrollUnit::Pixel => mouse_wheel_input.delta.y * conf.zoom_step_per_pixel,
+        };
+
+        camera.zoom = (camera.zoom - step).clamp(conf.zoom_clamp.0, conf.zoom_clamp.1);
+    }
+
+    // Deal with direction
     let mut direction = Vec2::ZERO;
 
     if key_input.pressed(KeyCode::KeyW) {
@@ -299,6 +340,49 @@ fn update_camera_focus(
     if direction != Vec2::ZERO {
         camera.mode = CameraMode::Free;
         camera.focus += direction.normalize_or_zero() * conf.target_speed * time.delta_secs();
+    } else {
+        // keyboard was not moved, check the cursor for edge panning
+        if let Some(cursor_position) = window_input.cursor_position() {
+            // Coordination:
+            // Top Left - (0,0)
+            // Bottom Right - window.size()
+            let mut direction = Vec2::ZERO;
+            let mut rel_speed: f32 = 1.0;
+            let size = window_input.size();
+
+            if cursor_position.x <= conf.edge_margin.x {
+                // Left
+                let ratio = cursor_position.x / conf.edge_margin.x;
+                rel_speed = rel_speed.min(ratio);
+                direction.x -= 1.0;
+            }
+            if cursor_position.x >= size.x - conf.edge_margin.x {
+                // Right
+                let offset = size.x - cursor_position.x;
+                let ratio = offset / conf.edge_margin.x;
+                rel_speed = rel_speed.min(ratio);
+                direction.x += 1.0;
+            }
+            if cursor_position.y <= conf.edge_margin.y {
+                // Up
+                let ratio = cursor_position.y / conf.edge_margin.y;
+                rel_speed = rel_speed.min(ratio);
+                direction.y += 1.0;
+            }
+            if cursor_position.y >= size.y - conf.edge_margin.y {
+                // Down
+                let offset = size.y - cursor_position.y;
+                let ratio = offset / conf.edge_margin.y;
+                rel_speed = rel_speed.min(ratio);
+                direction.y -= 1.0;
+            }
+
+            // Apply motion
+            if direction != Vec2::ZERO && camera.mode == CameraMode::Free {
+                let speed = conf.edge_speed_max / rel_speed.max(conf.edge_speed);
+                camera.focus += direction.normalize_or_zero() * speed * time.delta_secs();
+            }
+        }
     }
 }
 
@@ -337,9 +421,9 @@ fn resolve_follow_mode(
 
 fn apply_camera_rig(
     time: Res<Time>,
-    mut camera: Single<(&mut Transform, &CameraRig), With<Camera2d>>,
+    mut camera: Single<(&mut Transform, &mut Projection, &CameraRig), With<Camera2d>>,
 ) {
-    let (mut tran, cam) = camera.into_inner();
+    let (mut tran, mut proj, cam) = camera.into_inner();
     let conf = cam.config;
     let cam_z = tran.translation.z;
 
@@ -349,4 +433,16 @@ fn apply_camera_rig(
         conf.decay_rate,
         time.delta_secs(),
     );
+
+    // Apply camera zoom
+    if let Projection::Orthographic(ref mut ortho) = *proj {
+        // Probs can do this better?
+        let mut old_scale = ortho.scale.log2();
+        old_scale.smooth_nudge(
+            &cam.zoom,
+            conf.zoom_decay_rate,
+            time.delta_secs(),
+        );
+        ortho.scale = old_scale.exp2();
+    }
 }
