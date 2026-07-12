@@ -20,9 +20,19 @@ use rcore::script::ShipScript;
 use rcore::script::ShipStatus;
 use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
+use rcore::ship::StarterShip;
 use rcore::ship::add_ship;
 
 use rcore::TICK_HZ;
+
+#[cfg(feature = "render")]
+use rcore::render::{
+    RenderPlugin,
+    CameraPlugin,
+    CameraRig,
+    CameraMode,
+    camera_setup,
+};
 
 fn main() {
     let mut app = App::new();
@@ -30,9 +40,6 @@ fn main() {
     // Normal render Setup
     #[cfg(feature = "render")]
     {
-        use rcore::render::RenderPlugin;
-        use rcore::render::CameraPlugin;
-
         app.add_plugins(DefaultPlugins)
             .add_plugins(RenderPlugin)
             .add_plugins(CameraPlugin);
@@ -83,9 +90,29 @@ fn main() {
                 ..Default::default()
             });
         })
-        // Startup setup
-        .add_systems(Startup, ship_setup)
-        .run();
+        // Startup ship resource for spawning initial ships
+        .insert_resource(StartShip(ship_setup()));
+
+    // Deal with the ship/set first ship to be followed by default
+    #[cfg(feature = "render")]
+    {
+        app.add_systems(
+            Startup,
+            add_ships.after(camera_setup)
+        );
+    }
+
+    // Headless Setup
+    #[cfg(not(feature = "render"))]
+    {
+        app.add_systems(
+            Startup,
+            add_ships
+        );
+    }
+
+    // Run the app
+    app.run();
 }
 
 // Simple ship script
@@ -181,10 +208,13 @@ impl ShipScript for DummyShip {
     fn on_collision(&mut self) {}
 }
 
+#[derive(Resource)]
+struct StartShip(Vec<StarterShip>);
+
 // TODO: a way to init a new ship with some preset value to help script do custom per ship
 // things limit_r, target_r,
-fn ship_setup(mut commands: Commands) {
-    let ships = vec![
+fn ship_setup() -> Vec<StarterShip> {
+    vec![
         ShipBuilder::new(Script {
             script: Box::new(SimpleShip::new()),
         })
@@ -236,9 +266,31 @@ fn ship_setup(mut commands: Commands) {
         .velocity(0, 0)
         .radar_arc(1)
         .build(),
-    ];
+    ]
+}
 
-    for ship in ships {
-        add_ship(&mut commands, ship);
+#[cfg(not(feature = "render"))]
+fn add_ships(
+    ships: Res<StartShip>,
+    mut commands: Commands,
+) {
+    for ship in ships.0.iter() {
+        add_ship(&mut commands, ship.clone());
     }
+}
+
+#[cfg(feature = "render")]
+fn add_ships(
+    ships: Res<StartShip>,
+    mut camera: Single<&mut CameraRig, With<Camera2d>>,
+    mut commands: Commands,
+) {
+    let mut ship_id = vec![];
+    for ship in ships.0.iter() {
+        ship_id.push(
+            add_ship(&mut commands, ship.clone())
+        );
+    }
+
+    camera.mode = CameraMode::Follow(ship_id[0]);
 }

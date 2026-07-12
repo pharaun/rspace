@@ -383,7 +383,7 @@ impl DebugBuilder {
     }
 }
 
-pub fn add_ship(commands: &mut Commands, ship: StarterShip) {
+pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
     let radar_target = ship.radar.arc.target;
     let ship_target = ship.rotation.target.target;
     let mut transform =
@@ -461,4 +461,7 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) {
     if let Some(health) = ship.debug.health {
         spawned_ship.insert(health);
     }
+
+    // Return the entity id of the ship that just got spawned
+    spawned_ship.id()
 }

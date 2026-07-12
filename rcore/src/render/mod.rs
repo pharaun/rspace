@@ -6,6 +6,7 @@ use bevy::text::FontSmoothing;
 use bevy_prototype_lyon::plugin::BuildShapes;
 use bevy_prototype_lyon::prelude::Shape;
 use bevy_prototype_lyon::prelude::ShapePlugin;
+use avian2d::schedule::PhysicsSystems;
 
 // Input for camera
 use bevy::input::keyboard::KeyCode;
@@ -25,6 +26,9 @@ use shape::get_ship;
 use crate::ARENA;
 use crate::ARENA_SCALE;
 use crate::radar::Radar;
+use crate::radar::interpolate_arc;
+use crate::rotation::interpolate_rotation;
+use crate::movement::interpolate_movement;
 use crate::ship::Ship;
 use crate::weapon::RenderDebugWarhead;
 use crate::weapon::RenderDebugWeapon;
@@ -165,64 +169,117 @@ fn render_debug_warhead(
 pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, |mut commands: Commands| {
-            commands.spawn((
-                Camera2d,
-                MainCamera {
-                    move_speed: 1.0,
-                    max_speed: 2.0,
-                },
-            ));
-
-            commands.spawn((
-                Transform::default(),
-                CameraTarget,
-            ));
-        })
+        app.add_systems(Startup, camera_setup)
+        // TODO: System ordering:
+        // 1. update the input/target/etc in Update (or Fixed Update)
         .add_systems(
-            Update,
-            render_camera_target,
+            Update, (
+                render_camera_focus,
+                update_camera_focus,
+            )
         )
+        // 2. PostUpdate (after iterpolotation) do the camera-rig updates
         .add_systems(
-            Update,
-            (update_camera_target, update_main_camera).chain()
+            PostUpdate, (
+                resolve_follow_mode.run_if(rig_in_follow_mode),
+                // constrain_camera,
+                apply_camera_rig,
+            ).chain()
+            .after(interpolate_arc)
+            .after(interpolate_movement)
+            .after(interpolate_rotation)
+            .after(PhysicsSystems::Last)
+            .before(TransformSystems::Propagate),
         );
     }
 }
 
-// Camera target movement factor
-const TARGET_SPEED: f32 = 100.;
 
-// Snap to location rate
-const CAMERA_DECAY_RATE: f32 = 2.;
+// Camera Todo:
+// 1. make it so that the camera stays within the area bounds instead of just the target
+// 2. add better control (ie pan/drag), maybe edge move, then keyboard - wasd/arrow movement
+// 3. Add an ability to follow an target
+// 4. make it so that when the camera is about to hit the areana edge, slow down to a stop so its
+//    not jarring
+// 5. Make follow a target have some slight delay so its not super jarring but also don't want to
+//    have large swings/drifts
+// 6. figure out how to zoom in/out so that you can zoom out to view the whole arena and into a
+//    single ship
+// 7. deferred for now (but probs eventually a way to zoom out to a mini-map or a mini-map view)
+// 8. make the target invisible or not have a camera target you control, but the whole follow a
+//    target idea applies so might still want one just to have that "follow target" thing.
 
 #[derive(Component)]
-struct MainCamera {
-    pub move_speed: f32,
-    pub max_speed: f32,
+#[require(Camera2d)]
+pub struct CameraRig {
+    pub mode: CameraMode,
+    config: CameraConfig,
+    // The camera target focus
+    focus: Vec2,
+    // Log-scale zoom. 0 = default, +1 = 2x out, -1 = 2x in
+    zoom: f32,
 }
 
-#[derive(Component)]
-struct CameraTarget;
+#[derive(Debug, PartialEq)]
+pub enum CameraMode {
+    // Player controlled positioning
+    Free,
+    // Follow a entity
+    Follow(Entity),
+    // Additional Modes such as: Auto
+    // TODO: Auto mode ideas:
+}
 
-fn render_camera_target(
-    mut gizmos: Gizmos,
-    query: Query<&Transform, With<CameraTarget>>,
+#[derive(Debug, Clone, Copy)]
+pub struct CameraConfig {
+    // Camera target movement factor
+    target_speed: f32,
+    // Snap to location rate
+    decay_rate: f32,
+    // Follow deadzone (squared)
+    deadzone_radius: f32,
+    // Zoom min/max
+    zoom_clamp: (f32, f32),
+}
+
+pub fn camera_setup(
+    mut commands: Commands,
 ) {
-    for tran in query.iter() {
+    // Spawn in the main camera rig and put it at 0,0 by default
+    commands.spawn(CameraRig {
+        mode: CameraMode::Free,
+        config: CameraConfig {
+            target_speed: 100.0,
+            decay_rate: 2.0,
+            // TODO: not sure if this is the correct move to have a deadzone
+            // on ship follow, set it to 0 for now
+            deadzone_radius: 0.0,
+            zoom_clamp: (0.25, 2.0),
+        },
+        focus: Vec2::new(0.0, 0.0),
+        zoom: 0.0,
+    });
+}
+
+fn render_camera_focus(
+    mut gizmos: Gizmos,
+    query: Query<&CameraRig, With<Camera2d>>,
+) {
+    for rig in query.iter() {
         gizmos.cross_2d(
-            tran.translation.truncate(),
+            rig.focus,
             12.,
             FUCHSIA,
         );
     }
 }
 
-fn update_camera_target(
+fn update_camera_focus(
     time: Res<Time<Real>>,
-    mut target: Single<&mut Transform, With<CameraTarget>>,
+    mut camera: Single<&mut CameraRig, With<Camera2d>>,
     key_input: Res<ButtonInput<KeyCode>>,
 ) {
+    let conf = camera.config;
     let mut direction = Vec2::ZERO;
 
     if key_input.pressed(KeyCode::KeyW) {
@@ -238,25 +295,58 @@ fn update_camera_target(
         direction.x += 1.;
     }
 
-    let move_delta = direction.normalize_or_zero() * TARGET_SPEED * time.delta_secs();
-    target.translation += move_delta.extend(0.);
-
-    // Check if it will exceed any of the arena boundaries, if so, clamp it.
-    let z = target.translation.z;
-
-    target.translation = target.translation.clamp(
-        ((ARENA * IVec2::NEG_ONE).as_vec2() / (ARENA_SCALE * 2.)).extend(-z - 1.),
-        (ARENA.as_vec2() / (ARENA_SCALE * 2.)).extend(z + 1.),
-    );
+    // Update the camera rig only if a key was pressed
+    if direction != Vec2::ZERO {
+        camera.mode = CameraMode::Free;
+        camera.focus += direction.normalize_or_zero() * conf.target_speed * time.delta_secs();
+    }
 }
 
-fn update_main_camera(
-    time: Res<Time>,
-    target: Single<&Transform, (With<CameraTarget>, Without<Camera>)>,
-    mut camera: Single<(&mut Transform, &MainCamera), (With<Camera>, Without<CameraTarget>)>,
+// Utility for run_if
+fn rig_in_follow_mode(rig: Single<&CameraRig>) -> bool {
+    matches!(rig.mode, CameraMode::Follow(_))
+}
+
+fn resolve_follow_mode(
+    time: Res<Time<Real>>,
+    follow: Query<&Transform, Without<CameraRig>>,
+    mut camera: Single<&mut CameraRig, With<Camera2d>>,
 ) {
-    let Vec3 { x, y, .. } = target.translation;
+    let conf = camera.config;
+
+    // Handle finding out where a Follow(entity) is at and update
+    // the rig to focus on its current position
+    match camera.mode {
+        CameraMode::Follow(target) => match follow.get(target) {
+            Ok(tran) => {
+                let pos = tran.translation.truncate();
+                // TODO: Decide how much we want to handle lookahead or not
+                if pos.distance_squared(camera.focus) > conf.deadzone_radius {
+                    camera.focus = pos;
+                }
+            },
+            Err(_) => {
+                // Follow target entity.... is gone, it probs got despawned
+                // Go into free-mode here
+                camera.mode = CameraMode::Free;
+            },
+        },
+        _ => (),
+    }
+}
+
+fn apply_camera_rig(
+    time: Res<Time>,
+    mut camera: Single<(&mut Transform, &CameraRig), With<Camera2d>>,
+) {
     let (mut tran, cam) = camera.into_inner();
-    let direction = Vec3::new(x, y, tran.translation.z);
-    tran.translation.smooth_nudge(&direction, CAMERA_DECAY_RATE, time.delta_secs());
+    let conf = cam.config;
+    let cam_z = tran.translation.z;
+
+    // Actually apply the camera rig settings to the viewpoint camera
+    tran.translation.smooth_nudge(
+        &cam.focus.extend(cam_z),
+        conf.decay_rate,
+        time.delta_secs(),
+    );
 }
