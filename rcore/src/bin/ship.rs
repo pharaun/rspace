@@ -26,13 +26,10 @@ use rcore::ship::add_ship;
 use rcore::TICK_HZ;
 
 #[cfg(feature = "render")]
-use rcore::render::{
-    RenderPlugin,
-    CameraPlugin,
-    CameraRig,
-    CameraMode,
-    camera_setup,
-};
+use rcore::render::RenderPlugin;
+
+#[cfg(feature = "render")]
+use rcore::render::camera::{CameraMode, CameraPlugin, CameraRig, camera_setup};
 
 fn main() {
     let mut app = App::new();
@@ -96,19 +93,13 @@ fn main() {
     // Deal with the ship/set first ship to be followed by default
     #[cfg(feature = "render")]
     {
-        app.add_systems(
-            Startup,
-            add_ships.after(camera_setup)
-        );
+        app.add_systems(Startup, add_ships.after(camera_setup));
     }
 
     // Headless Setup
     #[cfg(not(feature = "render"))]
     {
-        app.add_systems(
-            Startup,
-            add_ships
-        );
+        app.add_systems(Startup, add_ships);
     }
 
     // Run the app
@@ -270,10 +261,7 @@ fn ship_setup() -> Vec<StarterShip> {
 }
 
 #[cfg(not(feature = "render"))]
-fn add_ships(
-    ships: Res<StartShip>,
-    mut commands: Commands,
-) {
+fn add_ships(ships: Res<StartShip>, mut commands: Commands) {
     for ship in ships.0.iter() {
         add_ship(&mut commands, ship.clone());
     }
@@ -287,9 +275,7 @@ fn add_ships(
 ) {
     let mut ship_id = vec![];
     for ship in ships.0.iter() {
-        ship_id.push(
-            add_ship(&mut commands, ship.clone())
-        );
+        ship_id.push(add_ship(&mut commands, ship.clone()));
     }
 
     camera.mode = CameraMode::Follow(ship_id[0]);

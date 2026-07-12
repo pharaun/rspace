@@ -127,7 +127,6 @@ pub(crate) fn apply_movement(
         &mut PositionCarry,
         &mut PositionPrevious,
     )>,
-    fixed_time: Res<Time<Fixed>>,
 ) {
     for (mut vec, mut carry_vec, rot, mut position, mut carry_position, mut previous_position) in
         query.iter_mut()

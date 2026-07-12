@@ -92,7 +92,6 @@ pub(crate) fn interpolate_rotation(
 
 #[expect(clippy::needless_pass_by_value)]
 pub(crate) fn apply_rotation(
-    time: Res<Time<Fixed>>,
     mut query: Query<(&mut TargetRotation, &mut Rotation, &mut PreviousRotation)>,
 ) {
     for (mut target_rot, mut rotation, mut previous_rotation) in query.iter_mut() {

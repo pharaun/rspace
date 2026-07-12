@@ -103,14 +103,14 @@ pub(super) fn arena_bounds_setup(mut commands: Commands) {
         });
 }
 
-pub(super) fn arena_grid(
-    mut gizmos: Gizmos,
-) {
+pub(super) fn arena_grid(mut gizmos: Gizmos) {
     // Grid so that we have a background for the camera to deal with
-    gizmos.grid_2d(
-        Isometry2d::IDENTITY,
-        UVec2::new(16, 16),
-        Vec2::new(80., 80.),
-        LinearRgba::gray(0.05),
-    ).outer_edges();
+    gizmos
+        .grid_2d(
+            Isometry2d::IDENTITY,
+            UVec2::new(16, 16),
+            Vec2::new(80., 80.),
+            LinearRgba::gray(0.05),
+        )
+        .outer_edges();
 }
