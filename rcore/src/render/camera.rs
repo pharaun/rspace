@@ -12,7 +12,15 @@ use crate::movement::interpolate_movement;
 use crate::radar::interpolate_arc;
 use crate::rotation::interpolate_rotation;
 
-// Camera plugin to keep the camera system segmented off from render for now, might fold it in
+// TODO: Camera refinement
+// 1. make it so that the camera stays within the area bounds instead of just the target
+// 2. make it so that when the camera is about to hit the areana edge, slow down to a stop so its
+//    not jarring
+// 3. Make follow a target have some slight delay so its not super jarring but also don't want to
+//    have large swings/drifts
+// 4. deferred for now (but probs eventually a way to zoom out to a mini-map or a mini-map view)
+// 5. make the target invisible or not have a camera target you control, but the whole follow a
+//    target idea applies so might still want one just to have that "follow target" thing.
 pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
@@ -38,20 +46,6 @@ impl Plugin for CameraPlugin {
             );
     }
 }
-
-// Camera Todo:
-// 1. make it so that the camera stays within the area bounds instead of just the target
-// 2. add better control (ie pan/drag), maybe edge move, then keyboard - wasd/arrow movement
-// 3. Add an ability to follow an target
-// 4. make it so that when the camera is about to hit the areana edge, slow down to a stop so its
-//    not jarring
-// 5. Make follow a target have some slight delay so its not super jarring but also don't want to
-//    have large swings/drifts
-// 6. figure out how to zoom in/out so that you can zoom out to view the whole arena and into a
-//    single ship
-// 7. deferred for now (but probs eventually a way to zoom out to a mini-map or a mini-map view)
-// 8. make the target invisible or not have a camera target you control, but the whole follow a
-//    target idea applies so might still want one just to have that "follow target" thing.
 
 #[derive(Component)]
 #[require(Camera2d)]
@@ -183,7 +177,7 @@ fn update_camera_focus(
         if rig.drag_cursor.is_some() {
             rig.mode = CameraMode::Free;
         }
-        return
+        return;
     } else {
         rig.drag_cursor = None;
     }
@@ -228,7 +222,7 @@ fn update_camera_focus(
         if direction != Vec2::ZERO && rig.mode == CameraMode::Free {
             let speed = config.edge_speed_max / rel_speed.max(config.edge_speed);
             rig.focus += direction.normalize_or_zero() * speed * time.delta_secs();
-            return
+            return;
         }
     }
 
@@ -251,7 +245,7 @@ fn update_camera_focus(
         // Update the camera rig only if a key was pressed
         rig.mode = CameraMode::Free;
         rig.focus += direction.normalize_or_zero() * config.target_speed * time.delta_secs();
-        return
+        return;
     }
 }
 
@@ -287,9 +281,7 @@ fn resolve_follow_mode(
     }
 }
 
-fn resolve_drag_pan(
-    camera: Single<(&Camera, &GlobalTransform, &mut CameraRig), With<Camera2d>>
-) {
+fn resolve_drag_pan(camera: Single<(&Camera, &GlobalTransform, &mut CameraRig), With<Camera2d>>) {
     // NOTE: Since this is ran pre TransformSystem::Propagate
     // the GlobalTransform has the previous frame transform
     let (cam, cam_prev_tran, mut rig) = camera.into_inner();
@@ -298,7 +290,7 @@ fn resolve_drag_pan(
     // is dropped
     let Some(cursor) = rig.drag_cursor else {
         rig.drag_anchor = None;
-        return
+        return;
     };
 
     // When we have an active cursor, we grab the world coordinates
@@ -329,13 +321,15 @@ fn apply_camera_rig(
         // Want to make the drag be 1:1 with mouse movement
         tran.translation = target;
     } else {
-        tran.translation.smooth_nudge(&target, config.decay_rate, time.delta_secs());
+        tran.translation
+            .smooth_nudge(&target, config.decay_rate, time.delta_secs());
     }
 
     // Apply camera zoom
     if let Projection::Orthographic(ref mut ortho) = *proj {
         let zoom_factor = rig.zoom_factor;
-        rig.zoom_scale.smooth_nudge(&zoom_factor, config.zoom_decay_rate, time.delta_secs());
+        rig.zoom_scale
+            .smooth_nudge(&zoom_factor, config.zoom_decay_rate, time.delta_secs());
         ortho.scale = rig.zoom_scale.exp2();
     }
 }
