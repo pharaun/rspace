@@ -24,6 +24,7 @@ impl Plugin for CameraPlugin {
             .add_systems(
                 PostUpdate,
                 (
+                    resolve_drag_pan,
                     resolve_follow_mode.run_if(rig_in_follow_mode),
                     // constrain_camera,
                     apply_camera_rig,
@@ -60,7 +61,13 @@ pub struct CameraRig {
     // The camera target focus
     focus: Vec2,
     // Log-scale zoom. 0 = default, +1 = 2x out, -1 = 2x in
-    zoom: f32,
+    zoom_factor: f32,
+    // Ortho projection scale. 1.0 = default
+    zoom_scale: f32,
+    // Cursor position (viewport position) for drag-pan, input-only
+    drag_cursor: Option<Vec2>,
+    // World-space drag-pan anchor, for crisp 1:1 drag
+    drag_anchor: Option<Vec2>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -124,7 +131,10 @@ pub fn camera_setup(mut commands: Commands) {
             edge_speed_max: 100.0,
         },
         focus: Vec2::new(0.0, 0.0),
-        zoom: 0.0,
+        zoom_factor: 0.0,
+        zoom_scale: 1.0,
+        drag_cursor: None,
+        drag_anchor: None,
     });
 }
 
@@ -136,24 +146,93 @@ fn render_camera_focus(mut gizmos: Gizmos, query: Query<&CameraRig, With<Camera2
 
 fn update_camera_focus(
     time: Res<Time<Real>>,
-    mut camera: Single<&mut CameraRig, With<Camera2d>>,
+    mut rig: Single<&mut CameraRig, With<Camera2d>>,
     key_input: Res<ButtonInput<KeyCode>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
     mouse_wheel_input: Res<AccumulatedMouseScroll>,
     window_input: Single<&Window, With<PrimaryWindow>>,
 ) {
-    let conf = camera.config;
+    let config = rig.config;
 
-    // Deal with zoom from the mouse (and ideally a keyboard too)
+    // Deal with zoom from the mouse
+    // TODO: support keyboard zoom
     if mouse_wheel_input.delta != Vec2::ZERO {
         let step = match mouse_wheel_input.unit {
-            MouseScrollUnit::Line => mouse_wheel_input.delta.y * conf.zoom_step_per_line,
-            MouseScrollUnit::Pixel => mouse_wheel_input.delta.y * conf.zoom_step_per_pixel,
+            MouseScrollUnit::Line => mouse_wheel_input.delta.y * config.zoom_step_per_line,
+            MouseScrollUnit::Pixel => mouse_wheel_input.delta.y * config.zoom_step_per_pixel,
         };
 
-        camera.zoom = (camera.zoom - step).clamp(conf.zoom_clamp.0, conf.zoom_clamp.1);
+        rig.zoom_factor = (rig.zoom_factor - step).clamp(config.zoom_clamp.0, config.zoom_clamp.1);
     }
 
-    // Deal with direction
+    // Ordering of the camera pan (ie which one wins over the others)
+    // - drag-pan
+    // - edge-pan
+    // - wasd-pan
+    //
+    // If drag-pan is enabled (drag=true) the other 2 are disabled
+    // If edge-pan is running, wasd-pan is disabled
+    //
+    // If a higher priority option happen, it overrides the lower
+
+    // Drag-pan (anchor-based)
+    if mouse_input.pressed(MouseButton::Left) {
+        // If we got input, the mouse *should* be within the window, but you know....
+        rig.drag_cursor = window_input.cursor_position();
+
+        if rig.drag_cursor.is_some() {
+            rig.mode = CameraMode::Free;
+        }
+        return
+    } else {
+        rig.drag_cursor = None;
+    }
+
+    // Edge-pan
+    if let Some(cursor_position) = window_input.cursor_position() {
+        // Coordination:
+        // Top Left - (0,0)
+        // Bottom Right - window.size()
+        let mut direction = Vec2::ZERO;
+        let mut rel_speed: f32 = 1.0;
+        let size = window_input.size();
+
+        if cursor_position.x <= config.edge_margin.x {
+            // Left
+            let ratio = cursor_position.x / config.edge_margin.x;
+            rel_speed = rel_speed.min(ratio);
+            direction.x -= 1.0;
+        }
+        if cursor_position.x >= size.x - config.edge_margin.x {
+            // Right
+            let offset = size.x - cursor_position.x;
+            let ratio = offset / config.edge_margin.x;
+            rel_speed = rel_speed.min(ratio);
+            direction.x += 1.0;
+        }
+        if cursor_position.y <= config.edge_margin.y {
+            // Up
+            let ratio = cursor_position.y / config.edge_margin.y;
+            rel_speed = rel_speed.min(ratio);
+            direction.y += 1.0;
+        }
+        if cursor_position.y >= size.y - config.edge_margin.y {
+            // Down
+            let offset = size.y - cursor_position.y;
+            let ratio = offset / config.edge_margin.y;
+            rel_speed = rel_speed.min(ratio);
+            direction.y -= 1.0;
+        }
+
+        // Apply motion
+        if direction != Vec2::ZERO && rig.mode == CameraMode::Free {
+            let speed = config.edge_speed_max / rel_speed.max(config.edge_speed);
+            rig.focus += direction.normalize_or_zero() * speed * time.delta_secs();
+            return
+        }
+    }
+
+    // Wasd-pan
     let mut direction = Vec2::ZERO;
 
     if key_input.pressed(KeyCode::KeyW) {
@@ -168,54 +247,11 @@ fn update_camera_focus(
     if key_input.pressed(KeyCode::KeyD) {
         direction.x += 1.;
     }
-
-    // Update the camera rig only if a key was pressed
     if direction != Vec2::ZERO {
-        camera.mode = CameraMode::Free;
-        camera.focus += direction.normalize_or_zero() * conf.target_speed * time.delta_secs();
-    } else {
-        // keyboard was not moved, check the cursor for edge panning
-        if let Some(cursor_position) = window_input.cursor_position() {
-            // Coordination:
-            // Top Left - (0,0)
-            // Bottom Right - window.size()
-            let mut direction = Vec2::ZERO;
-            let mut rel_speed: f32 = 1.0;
-            let size = window_input.size();
-
-            if cursor_position.x <= conf.edge_margin.x {
-                // Left
-                let ratio = cursor_position.x / conf.edge_margin.x;
-                rel_speed = rel_speed.min(ratio);
-                direction.x -= 1.0;
-            }
-            if cursor_position.x >= size.x - conf.edge_margin.x {
-                // Right
-                let offset = size.x - cursor_position.x;
-                let ratio = offset / conf.edge_margin.x;
-                rel_speed = rel_speed.min(ratio);
-                direction.x += 1.0;
-            }
-            if cursor_position.y <= conf.edge_margin.y {
-                // Up
-                let ratio = cursor_position.y / conf.edge_margin.y;
-                rel_speed = rel_speed.min(ratio);
-                direction.y += 1.0;
-            }
-            if cursor_position.y >= size.y - conf.edge_margin.y {
-                // Down
-                let offset = size.y - cursor_position.y;
-                let ratio = offset / conf.edge_margin.y;
-                rel_speed = rel_speed.min(ratio);
-                direction.y -= 1.0;
-            }
-
-            // Apply motion
-            if direction != Vec2::ZERO && camera.mode == CameraMode::Free {
-                let speed = conf.edge_speed_max / rel_speed.max(conf.edge_speed);
-                camera.focus += direction.normalize_or_zero() * speed * time.delta_secs();
-            }
-        }
+        // Update the camera rig only if a key was pressed
+        rig.mode = CameraMode::Free;
+        rig.focus += direction.normalize_or_zero() * config.target_speed * time.delta_secs();
+        return
     }
 }
 
@@ -226,48 +262,80 @@ fn rig_in_follow_mode(rig: Single<&CameraRig>) -> bool {
 
 fn resolve_follow_mode(
     follow: Query<&Transform, Without<CameraRig>>,
-    mut camera: Single<&mut CameraRig, With<Camera2d>>,
+    mut rig: Single<&mut CameraRig, With<Camera2d>>,
 ) {
-    let conf = camera.config;
+    let config = rig.config;
 
     // Handle finding out where a Follow(entity) is at and update
     // the rig to focus on its current position
-    match camera.mode {
+    match rig.mode {
         CameraMode::Follow(target) => match follow.get(target) {
             Ok(tran) => {
                 let pos = tran.translation.truncate();
                 // TODO: Decide how much we want to handle lookahead or not
-                if pos.distance_squared(camera.focus) > conf.deadzone_radius {
-                    camera.focus = pos;
+                if pos.distance_squared(rig.focus) > config.deadzone_radius {
+                    rig.focus = pos;
                 }
             }
             Err(_) => {
                 // Follow target entity.... is gone, it probs got despawned
                 // Go into free-mode here
-                camera.mode = CameraMode::Free;
+                rig.mode = CameraMode::Free;
             }
         },
         _ => (),
     }
 }
 
+fn resolve_drag_pan(
+    camera: Single<(&Camera, &GlobalTransform, &mut CameraRig), With<Camera2d>>
+) {
+    // NOTE: Since this is ran pre TransformSystem::Propagate
+    // the GlobalTransform has the previous frame transform
+    let (cam, cam_prev_tran, mut rig) = camera.into_inner();
+
+    // If we always run so that we can drop the anchor if the drag
+    // is dropped
+    let Some(cursor) = rig.drag_cursor else {
+        rig.drag_anchor = None;
+        return
+    };
+
+    // When we have an active cursor, we grab the world coordinates
+    // and use it as an anchor point so that we can always make sure
+    // that the world location == cursor location (aka dragging it around)
+    //
+    // NOTE: doing it this way let us use viewpoint_to_world_2d which handles
+    // all of the logic regarding zoom/dpi/viewpoint.
+    if let Ok(cursor_world) = cam.viewport_to_world_2d(cam_prev_tran, cursor) {
+        match rig.drag_anchor {
+            None => rig.drag_anchor = Some(cursor_world),
+            Some(anchor) => rig.focus += anchor - cursor_world,
+        }
+    }
+}
+
 fn apply_camera_rig(
     time: Res<Time>,
-    camera: Single<(&mut Transform, &mut Projection, &CameraRig), With<Camera2d>>,
+    camera: Single<(&mut Transform, &mut Projection, &mut CameraRig), With<Camera2d>>,
 ) {
-    let (mut tran, mut proj, cam) = camera.into_inner();
-    let conf = cam.config;
+    let (mut tran, mut proj, mut rig) = camera.into_inner();
+    let config = rig.config;
     let cam_z = tran.translation.z;
+    let target = rig.focus.extend(cam_z);
 
-    // Actually apply the camera rig settings to the viewpoint camera
-    tran.translation
-        .smooth_nudge(&cam.focus.extend(cam_z), conf.decay_rate, time.delta_secs());
+    // Check if we are in drag-pan mode or not, if not apply smoothing
+    if rig.drag_anchor.is_some() {
+        // Want to make the drag be 1:1 with mouse movement
+        tran.translation = target;
+    } else {
+        tran.translation.smooth_nudge(&target, config.decay_rate, time.delta_secs());
+    }
 
     // Apply camera zoom
     if let Projection::Orthographic(ref mut ortho) = *proj {
-        // Probs can do this better?
-        let mut old_scale = ortho.scale.log2();
-        old_scale.smooth_nudge(&cam.zoom, conf.zoom_decay_rate, time.delta_secs());
-        ortho.scale = old_scale.exp2();
+        let zoom_factor = rig.zoom_factor;
+        rig.zoom_scale.smooth_nudge(&zoom_factor, config.zoom_decay_rate, time.delta_secs());
+        ortho.scale = rig.zoom_scale.exp2();
     }
 }
