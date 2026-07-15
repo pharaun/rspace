@@ -21,6 +21,25 @@ use crate::rotation::interpolate_rotation;
 // 4. deferred for now (but probs eventually a way to zoom out to a mini-map or a mini-map view)
 // 5. make the target invisible or not have a camera target you control, but the whole follow a
 //    target idea applies so might still want one just to have that "follow target" thing.
+// 6. Add an auto mode to the camera that re-centers back on the "home playground" around stars
+//    and try to follow the focus/interesting action going on. Add something like a space bar to
+//    go back into auto mode or upon ship death idle a bit then go auto
+// 7. Tune and improve all of these values they were a bit adhoc on the settings to get the camera
+//    going.
+// 8. Add a few more keyboard options so you can WASD/arrow keys or whatever, and make it
+//    rebindable
+// 9. Make sure any entity that the camera can follow has iterpolation on otherwise the avian
+//    physics FixedUpdate will end up with annoying judder when the camera tries to follow
+// 10.Improve the zoom, right now we have zoom toward a fixed location, make it so that
+//    zoom will zoom to the cursor to enable rapid zoom out then reposition cursor and zoom in
+// 11.Fix edge pan speed, its off, it goes from 200 to 2000 pixel really quickly
+// 12.Make pan (wasd and edge pan) scale with zoom because if you are zoomed out wasd feels
+//    sluggish and when zoomed in it feels too fast.
+// 13.Add logic that upon ship-death (ie in the despawn zone/death zone on edge of map, zoom out
+//    and repan back to the action for eg).
+// 14.Since we want to encourage ship and player to stay within the happy zone even though we allow
+//    for a large map, we should have some sort of radius where the camera can move freely, then
+//    past this radius start to have a spring that drags the ship back inward.
 pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
@@ -183,6 +202,8 @@ fn update_camera_focus(
     }
 
     // Edge-pan
+    // TODO: have this turn off if its in windowed mode since its kinda
+    // meh there, better in fullscreen mode
     if let Some(cursor_position) = window_input.cursor_position() {
         // Coordination:
         // Top Left - (0,0)
