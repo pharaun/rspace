@@ -1,3 +1,4 @@
+use avian2d::prelude::*;
 use bevy::prelude::*;
 
 pub mod math;
@@ -13,6 +14,13 @@ pub mod weapon;
 pub mod render;
 
 use crate::math::AbsRot;
+
+use crate::movement::MovementPlugin;
+use crate::radar::RadarPlugin;
+use crate::rotation::RotationPlugin;
+use crate::script::ScriptPlugins;
+use crate::spawner::SpawnerPlugin;
+use crate::weapon::WeaponPlugin;
 
 // Sim timing
 // TODO: remove this when bevy default 64hz is back. Blockers:
@@ -44,4 +52,37 @@ pub enum FixedGameSystem {
 
     // This is all of the logic that has to do with weapon damage/hits/scan/health
     Weapon,
+}
+
+// We break up the game into 3 main pieces:
+// 1. Core simulation engine
+// 2. Render
+// 3. Camera
+pub struct SimulationPlugin;
+impl Plugin for SimulationPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            // TODO: fix up systems so i can bump it to bevy default 64hz
+            .insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
+            // Physics
+            .add_plugins(PhysicsPlugins::default())
+            // Game bits
+            .add_plugins(MovementPlugin)
+            .add_plugins(RadarPlugin)
+            .add_plugins(RotationPlugin)
+            .add_plugins(ScriptPlugins)
+            .add_plugins(SpawnerPlugin)
+            .add_plugins(WeaponPlugin)
+            // System set ordering
+            .configure_sets(
+                FixedUpdate,
+                (
+                    FixedGameSystem::GameLogic,
+                    FixedGameSystem::ShipLogic,
+                    FixedGameSystem::Spawn,
+                    FixedGameSystem::Weapon,
+                )
+                    .chain(),
+            );
+    }
 }

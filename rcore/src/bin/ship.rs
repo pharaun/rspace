@@ -1,17 +1,8 @@
-use avian2d::prelude::*;
 use bevy::ecs::schedule::LogLevel;
 use bevy::ecs::schedule::ScheduleBuildSettings;
 use bevy::prelude::*;
 
-use rcore::FixedGameSystem;
-
-use rcore::movement::MovementPlugin;
-use rcore::radar::RadarPlugin;
-use rcore::rotation::RotationPlugin;
-use rcore::script::ScriptPlugins;
-use rcore::spawner::SpawnerPlugin;
-use rcore::weapon::WeaponPlugin;
-
+use rcore::SimulationPlugin;
 use rcore::math::AbsRot;
 use rcore::math::RelRot;
 use rcore::script::Script;
@@ -23,62 +14,15 @@ use rcore::ship::ShipBuilder;
 use rcore::ship::StarterShip;
 use rcore::ship::add_ship;
 
-use rcore::TICK_HZ;
-
 #[cfg(feature = "render")]
-use rcore::render::RenderPlugin;
-
-#[cfg(feature = "render")]
-use rcore::render::camera::{CameraMode, CameraPlugin, CameraRig, camera_setup};
+use rcore::render::camera::{CameraMode, CameraRig};
 
 fn main() {
-    let mut app = App::new();
-
-    // Normal render Setup
-    #[cfg(feature = "render")]
-    {
-        app.add_plugins(DefaultPlugins)
-            .add_plugins(RenderPlugin)
-            .add_plugins(CameraPlugin);
-    }
-
-    // Headless Setup
-    #[cfg(not(feature = "render"))]
-    {
-        use bevy::app::ScheduleRunnerPlugin;
-        use std::time::Duration;
-
-        app.add_plugins(DefaultPlugins.set(ScheduleRunnerPlugin::run_loop(
-            Duration::from_secs_f64(1.0 / 60.0),
-        )));
-    }
-
-    // Rest of the game
-    app
-        // Physics
-        // TODO: make sure it happens post iterpolation
-        .add_plugins(PhysicsPlugins::default())
+    App::new()
+        .add_plugins(SetupPlugin)
+        // Rest of the game
+        .add_plugins(SimulationPlugin)
         //.add_plugins(PhysicsDebugPlugin::default())
-        // TODO: fix up systems so i can bump it to bevy default 64hz
-        .insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
-        // Game bits
-        .add_plugins(MovementPlugin)
-        .add_plugins(RadarPlugin)
-        .add_plugins(RotationPlugin)
-        .add_plugins(ScriptPlugins)
-        .add_plugins(SpawnerPlugin)
-        .add_plugins(WeaponPlugin)
-        // Configure the system set ordering
-        .configure_sets(
-            FixedUpdate,
-            (
-                FixedGameSystem::GameLogic,
-                FixedGameSystem::ShipLogic,
-                FixedGameSystem::Spawn,
-                FixedGameSystem::Weapon,
-            )
-                .chain(),
-        )
         // Log unordered system with overlapping access, this
         // makes the sim nondeterministic.
         .edit_schedule(FixedUpdate, |schedule| {
@@ -88,22 +32,35 @@ fn main() {
             });
         })
         // Startup ship resource for spawning initial ships
-        .insert_resource(StartShip(ship_setup()));
+        .insert_resource(StartShip(ship_setup()))
+        .run();
+}
 
-    // Deal with the ship/set first ship to be followed by default
+pub struct SetupPlugin;
+impl Plugin for SetupPlugin {
+    // Normal render Setup
     #[cfg(feature = "render")]
-    {
-        app.add_systems(Startup, add_ships.after(camera_setup));
+    fn build(&self, app: &mut App) {
+        use rcore::render::RenderPlugin;
+        use rcore::render::camera::{CameraPlugin, camera_setup};
+
+        app.add_plugins(DefaultPlugins)
+            .add_plugins(RenderPlugin)
+            .add_plugins(CameraPlugin)
+            .add_systems(Startup, add_ships.after(camera_setup));
     }
 
     // Headless Setup
     #[cfg(not(feature = "render"))]
-    {
-        app.add_systems(Startup, add_ships);
-    }
+    fn build(&self, app: &mut App) {
+        use bevy::app::ScheduleRunnerPlugin;
+        use std::time::Duration;
 
-    // Run the app
-    app.run();
+        app.add_plugins(DefaultPlugins.set(ScheduleRunnerPlugin::run_loop(
+            Duration::from_secs_f64(1.0 / 60.0),
+        )))
+        .add_systems(Startup, add_ships);
+    }
 }
 
 // Simple ship script
