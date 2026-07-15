@@ -23,10 +23,8 @@ use crate::spawner::SpawnerPlugin;
 use crate::weapon::WeaponPlugin;
 
 // Sim timing
-// TODO: remove this when bevy default 64hz is back. Blockers:
-//  - weapon cooldown
-//  - per-tick script
-pub const TICK_HZ: u32 = 2;
+// TODO: after converting to Avian2d should be able to remove this
+pub const TICK_HZ: u32 = 64;
 
 // This is the actual ship-arena
 pub const ARENA_SCALE: f32 = 10.0;

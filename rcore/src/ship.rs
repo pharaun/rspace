@@ -441,12 +441,12 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
     } else {
         spawned_ship
             .insert(DebugWeapon {
-                cooldown: 10,
+                cooldown: 128,
                 current: 0,
                 damage: 34,
             })
             .insert(DebugMissile {
-                cooldown: 10,
+                cooldown: 128,
                 current: 0,
             });
     }
