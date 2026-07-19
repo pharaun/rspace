@@ -2,11 +2,11 @@ use std::f32::consts::PI;
 use std::ops::Add;
 use std::ops::AddAssign;
 
+use avian2d::prelude::Rotation;
 use bevy::math::I64Vec2;
 use bevy::prelude::EulerRot;
 use bevy::prelude::IVec2;
 use bevy::prelude::Quat;
-use bevy::prelude::Vec2;
 
 // Fixed-point unit scale for (headings, lorentz factor) calculation
 // to remove any remaining floating point calculation in the core sim
@@ -16,7 +16,7 @@ use bevy::prelude::Vec2;
 pub const FP_SCALE: i64 = 1 << 15;
 
 // Stepped Rotation: inspiration bevy::math::Rot2 - Which is clamped to the range (-π, π]
-const FRAC_PI_128: f32 = PI / -128.0;
+const NEG_FRAC_PI_128: f32 = PI / -128.0;
 
 // Quarter sin table (0-64) for fixed point math (via FP_SCALE)
 //
@@ -44,6 +44,60 @@ fn sin_fp(step: u8) -> i32 {
     }
 }
 
+// If d is CCW of heading r, it is > 0
+// If d is at/CW of heading r, it is <= 0
+fn cross(r: AbsRot, d: I64Vec2) -> i64 {
+    let v = r.to_heading_fp().as_i64vec2();
+    v.x * d.y - v.y * d.x
+}
+
+// Fold a vector into the first quadrant:
+// x >= 0, y >= 0, Heading [0, 64]
+fn fold_i64vec2(d: I64Vec2) -> (u8, I64Vec2) {
+    if d.x >= 0 && d.y > 0 {
+        (0u8, d)
+    } else if d.x > 0 && d.y <= 0 {
+        (64, I64Vec2::new(-d.y, d.x))
+    } else if d.x <= 0 && d.y < 0 {
+        (128, -d)
+    } else {
+        (192, I64Vec2::new(d.y, -d.x))
+    }
+}
+
+// Largest AbsRot(k) in [0, 63] where cross is <= 0
+// This means the angle is [k, k+1]
+fn binary_search_angle(d: I64Vec2) -> u8 {
+    let mut low = 0u8;
+    let mut high = 63u8;
+    while low < high {
+        let middle = (low + high).div_ceil(2);
+        if cross(AbsRot(middle), d) <= 0 {
+            low = middle;
+        } else {
+            high = middle - 1;
+        }
+    }
+    low
+}
+
+// Binary search -> 1/256th heading.
+// Safe for |delta| up to 2^47
+#[expect(clippy::similar_names)]
+fn from_i64vec2_angle(delta: I64Vec2) -> AbsRot {
+    let (quadrant, d) = fold_i64vec2(delta);
+    let low = binary_search_angle(d);
+
+    // Round up to which of the [low, low + 1] angles
+    // from binary_search. If there are ties, bias it CCW
+    // use cross products (|d| * sin(distance)).
+    let cw_dist = -cross(AbsRot(low), d);
+    let ccw_dist = cross(AbsRot(low + 1), d);
+    let step = if cw_dist > ccw_dist { low + 1 } else { low };
+
+    AbsRot(quadrant.wrapping_add(step))
+}
+
 // Bresenham-style integer rate integration
 //  - split a per-second rate into a per-tick rate
 //  - carry the remainder for next call
@@ -52,25 +106,6 @@ fn sin_fp(step: u8) -> i32 {
 pub fn tick_step(rate: u32, carry: u32, tick_hz: u32) -> (u32, u32) {
     let budget = rate + carry;
     (budget / tick_hz, budget % tick_hz)
-}
-
-// IVec2 version of tick_step
-pub fn tick_step_ivec2(rate: IVec2, carry: IVec2, tick_hz: u32) -> (IVec2, IVec2) {
-    let hz = IVec2::splat(tick_hz.cast_signed());
-    let budget = rate + carry;
-    (budget.div_euclid(hz), budget.rem_euclid(hz))
-}
-
-// Fixed-point variant of `tick_step_ivec2`
-pub fn tick_step_i64vec2_fp(
-    rate_fp: I64Vec2,
-    carry: I64Vec2,
-    tick_hz: u32,
-    scale: i64,
-) -> (I64Vec2, I64Vec2) {
-    let scaled_hz = I64Vec2::splat(i64::from(tick_hz) * scale);
-    let budget = rate_fp + carry;
-    (budget.div_euclid(scaled_hz), budget.rem_euclid(scaled_hz))
 }
 
 // Absolute Rotation:
@@ -82,41 +117,48 @@ pub fn tick_step_i64vec2_fp(
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub struct AbsRot(pub u8);
 
+// TODO: move the render only + test only entries over to their own modules/space to avoid
+// polluting the top level AbsRot
 impl AbsRot {
     // Render-only
     pub fn to_quat(&self) -> Quat {
         Quat::from_rotation_z(self.to_radians())
     }
 
+    // Test-only
     pub fn from_quat(quat: Quat) -> Self {
         Self::from_angle(quat.to_euler(EulerRot::ZYX).0)
     }
 
-    // Look into replacing this with a fixed cos/sin table for
-    // Avian2d rotation for bit-same simulation.
+    // Render-only
     pub fn to_radians(&self) -> f32 {
-        FRAC_PI_128 * f32::from(self.0)
+        NEG_FRAC_PI_128 * f32::from(self.0)
     }
 
+    // Render-only
     pub fn from_angle(angle: f32) -> Self {
         #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        Self((angle / FRAC_PI_128).round().rem_euclid(256.) as u8)
+        Self((angle / NEG_FRAC_PI_128).round().rem_euclid(256.) as u8)
     }
 
-    // TODO: float angle math to convert to integer (atan2)
+    // Convert from AbsRot to Avian2d Rotations (reusing the fixed point sin/cos tables)
+    pub fn to_rotation(&self) -> Rotation {
+        #[expect(clippy::cast_precision_loss)]
+        let heading = self.to_heading_fp().as_vec2() / FP_SCALE as f32;
+        Rotation::from_sin_cos(-heading.x, heading.y)
+    }
+
+    // TODO: look into having a Vec2 version to avoid Position truncations
     pub fn from_vec2_angle(base: IVec2, target: IVec2) -> Option<Self> {
-        // TODO: this can overflow cuz its i32 so need to fix
-        if (target - base) == IVec2::ZERO {
+        let delta = target.as_i64vec2() - base.as_i64vec2();
+        if delta == I64Vec2::ZERO {
             None
         } else {
             // IVec2(X, Y) (+Y = 0, +X = 64, -Y = 128, -X = 192)
-            Some(Self::from_angle(
-                Vec2::Y.angle_to((target - base).as_vec2()),
-            ))
+            Some(from_i64vec2_angle(delta))
         }
     }
 
-    // Same convention as from_vec_angle, just avoids float math
     pub fn to_heading_fp(&self) -> IVec2 {
         IVec2::new(sin_fp(self.0), sin_fp(self.0.wrapping_add(64)))
     }
@@ -154,13 +196,6 @@ impl AbsRot {
     pub fn angle_between(&self, target: Self) -> RelRot {
         // i8 == [-128, 127] so it biases ccw at 128.
         RelRot(target.0.wrapping_sub(self.0).cast_signed())
-    }
-
-    pub fn transform_slerp(&self, end: Self, f: f32) -> Quat {
-        // Force the slerp to respect the ccw bias of angle_between
-        let delta = self.angle_between(end);
-        Quat::from_rotation_z(FRAC_PI_128 * (f32::from(self.0) + f32::from(delta.0) * f))
-        //self.to_quat().slerp(end.to_quat(), f)
     }
 }
 
@@ -218,86 +253,6 @@ fn test_tick_step_several_rates() {
     }
 }
 
-#[test]
-fn test_tick_step_ivec2_several_rates() {
-    // We can have the engine from 1..=128 hz probs, forcefully check them all
-    for hz in 1..=128 {
-        // Step by 32 to avoid spinning for longer than a few second
-        for x in (-256..=256).step_by(32) {
-            for y in (-256..=256).step_by(32) {
-                let rate = IVec2::new(x, y);
-                let mut carry = IVec2::ZERO;
-                let mut total = IVec2::ZERO;
-
-                // To force the carry == 0 we loop till "1 second" has passed
-                for _ in 0..hz {
-                    let (step, new_carry) = tick_step_ivec2(rate, carry, hz);
-                    total += step;
-                    carry = new_carry;
-                }
-                assert_eq!(total, rate, "rate {rate} at {hz}hz");
-                assert_eq!(carry, IVec2::ZERO, "rate {rate} at {hz}hz");
-            }
-        }
-    }
-}
-
-#[test]
-fn test_tick_step_i64vec2_fp_several_rate_and_scale() {
-    // We can have the engine from 1..=128 hz probs, forcefully check them all
-    for hz in 1..=128 {
-        // Step by 32 to avoid spinning for longer than a few second
-        for x in (-256..=256).step_by(32) {
-            for y in (-256..=256).step_by(32) {
-                for scale in [1, 3, 7, 8, FP_SCALE, FP_SCALE.pow(2)] {
-                    let rate_fp = I64Vec2::new(x, y) * scale;
-                    let mut carry = I64Vec2::ZERO;
-                    let mut total = I64Vec2::ZERO;
-                    for _ in 0..hz {
-                        let (step, new_carry) = tick_step_i64vec2_fp(rate_fp, carry, hz, scale);
-                        total += step;
-                        carry = new_carry;
-                    }
-                    let expected = I64Vec2::new(x, y);
-                    assert_eq!(total, expected, "rate {rate_fp:?} at {hz}hz scale {scale}");
-                    assert_eq!(
-                        carry,
-                        I64Vec2::ZERO,
-                        "rate {rate_fp:?} at {hz}hz scale {scale}"
-                    );
-                }
-            }
-        }
-    }
-}
-
-#[test]
-fn test_tick_step_i64vec2_fp_several_rate_and_scale_awkward_numbers() {
-    for hz in [1, 7, 13, 37] {
-        for x in [1, -1, 7, -7, 13, -13, 37, -37] {
-            for y in [1, -1, 7, -7, 13, -13, 37, -37] {
-                for scale in [1, 3, 7, 13, 37] {
-                    let rate_fp = I64Vec2::new(x, y);
-                    let mut carry = I64Vec2::ZERO;
-                    let mut total = I64Vec2::ZERO;
-                    for _ in 0..(i64::from(hz) * scale) {
-                        let (step, new_carry) = tick_step_i64vec2_fp(rate_fp, carry, hz, scale);
-                        total += step;
-                        carry = new_carry;
-                    }
-                    let expected = I64Vec2::new(x, y);
-                    assert_eq!(total, expected, "rate {rate_fp:?} at {hz}hz scale {scale}");
-                    assert_eq!(
-                        carry,
-                        I64Vec2::ZERO,
-                        "rate {rate_fp:?} at {hz}hz scale {scale}"
-                    );
-                }
-            }
-        }
-    }
-}
-
 #[rustfmt::skip]
 #[test]
 fn test_to_quat() {
@@ -347,7 +302,6 @@ fn test_from_quat() {
 
 #[test]
 fn test_from_to_quat_roundtrip() {
-    // u8 is small enough to just test it all.
     for i in 0..=u8::MAX {
         assert_eq!(
             AbsRot::from_quat(AbsRot(i).to_quat()),
@@ -390,32 +344,6 @@ fn test_angle_between() {
     assert_eq!(AbsRot(10).angle_between(AbsRot(200)), RelRot(-66));
 }
 
-#[cfg(test)]
-fn assert_rot_eq(a: Quat, b: Quat) {
-    let diff = a.dot(b).abs();
-    assert!(
-        diff > 0.999_99,
-        "rotations differ: {a:?} vs {b:?} - differ by: {diff}"
-    );
-}
-
-#[rustfmt::skip]
-#[test]
-fn test_transform_slerp_biases_ccw() {
-    // Easy exact angles to validate quickly
-    assert_eq!(AbsRot(0).transform_slerp(AbsRot(64), 0.),  AbsRot(0).to_quat());
-    assert_eq!(AbsRot(0).transform_slerp(AbsRot(64), 0.5), AbsRot(32).to_quat());
-    assert_eq!(AbsRot(0).transform_slerp(AbsRot(64), 1.),  AbsRot(64).to_quat());
-
-    // Check the 256/0 rotation
-    assert_eq!(AbsRot(200).transform_slerp(AbsRot(10), 0.5), AbsRot(233).to_quat());
-
-    // Check that it biases CCW like angle_between
-    assert_rot_eq(AbsRot(0).transform_slerp(AbsRot(128), 0.25), AbsRot(224).to_quat());
-    assert_rot_eq(AbsRot(0).transform_slerp(AbsRot(128), 0.5),  AbsRot(192).to_quat());
-    assert_rot_eq(AbsRot(0).transform_slerp(AbsRot(128), 0.75), AbsRot(160).to_quat());
-}
-
 #[test]
 fn test_clamp() {
     assert_eq!(RelRot(5).clamp(0), RelRot(0));
@@ -431,6 +359,61 @@ fn test_clamp() {
     // [-128, 127] bias, check that 127 catches both sides
     assert_eq!(RelRot(-128).clamp(127), RelRot(-127));
     assert_eq!(RelRot(127).clamp(127), RelRot(127));
+}
+
+#[rustfmt::skip]
+#[test]
+fn test_to_rotation_exact() {
+    assert_eq!((AbsRot(0).to_rotation().sin,   AbsRot(0).to_rotation().cos),   (0., 1.));
+    assert_eq!((AbsRot(64).to_rotation().sin,  AbsRot(64).to_rotation().cos),  (-1., 0.));
+    assert_eq!((AbsRot(128).to_rotation().sin, AbsRot(128).to_rotation().cos), (0., -1.));
+    assert_eq!((AbsRot(192).to_rotation().sin, AbsRot(192).to_rotation().cos), (1., 0.));
+}
+
+#[test]
+fn test_to_rotation_aprox_radians_match() {
+    for i in 0..=u8::MAX {
+        let table = AbsRot(i).to_rotation();
+        let float = Rotation::radians(AbsRot(i).to_radians());
+        // Validate that the table is within margin of error to the libm sin/cos numbers
+        assert!(
+            (table.sin - float.sin).abs() < 3e-5 && (table.cos - float.cos).abs() < 3e-5,
+            "step {i}: {table:?} vs {float:?}"
+        );
+    }
+}
+
+#[test]
+fn test_from_vec2_angle_roundtrip() {
+    for i in 0..=u8::MAX {
+        let heading = AbsRot(i).to_heading_fp();
+        assert_eq!(
+            AbsRot::from_vec2_angle(IVec2::ZERO, heading),
+            Some(AbsRot(i)),
+            "step {i}"
+        );
+    }
+}
+
+#[test]
+fn test_from_vec2_angle_matches_atan2() {
+    use bevy::prelude::Vec2;
+
+    // Spot-check a dense grid against the libm atan2 implement
+    for x in -60..=60 {
+        for y in -60..=60 {
+            if x == 0 && y == 0 {
+                continue;
+            }
+            let delta = IVec2::new(x, y);
+            let float_ref = AbsRot::from_angle(Vec2::Y.angle_to(delta.as_vec2()));
+            assert_eq!(
+                AbsRot::from_vec2_angle(IVec2::ZERO, delta),
+                Some(float_ref),
+                "delta {delta}"
+            );
+        }
+    }
 }
 
 #[test]

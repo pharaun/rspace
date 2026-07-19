@@ -6,7 +6,6 @@ use bevy_prototype_lyon::prelude::Stroke;
 
 use bevy::prelude::*;
 
-use crate::ARENA;
 use crate::math::AbsRot;
 
 // TODO: add an Arena Marker for ships and stuff for objects we want to have warping
@@ -15,7 +14,7 @@ use crate::math::AbsRot;
 struct ArenaMarker;
 
 pub(super) fn arena_bounds_setup(mut commands: Commands) {
-    let display = ARENA.as_vec2();
+    let display = Vec2::new(10240., 6400.);
 
     // Arena Bounds
     let path = ShapePath::new()

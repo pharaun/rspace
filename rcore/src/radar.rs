@@ -1,8 +1,13 @@
+use avian2d::interpolation::RotationInterpolation;
+use avian2d::interpolation::TranslationInterpolation;
+use avian2d::prelude::Position;
 use bevy::prelude::*;
 
+use crate::attach::AttachedTo;
 use crate::math::AbsRot;
-use crate::rotation::NoRotationPropagation;
-use avian2d::prelude::Position;
+use crate::rotation::Heading;
+use crate::rotation::TargetHeading;
+use crate::rotation::apply_rotation;
 
 use crate::FixedGameSystem;
 
@@ -13,75 +18,78 @@ pub const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
 pub struct RadarPlugin;
 impl Plugin for RadarPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<ContactMessage>()
-            .add_systems(
-                FixedUpdate,
-                (
-                    apply_arc.after(crate::movement::wrap_position),
-                    apply_radar.after(apply_arc),
-                )
-                    .in_set(FixedGameSystem::GameLogic),
-            )
-            .add_systems(
-                RunFixedMainLoop,
-                (interpolate_arc.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),),
-            );
+        app.add_message::<ContactMessage>().add_systems(
+            FixedUpdate,
+            (apply_arc_width, apply_radar)
+                .chain()
+                .after(apply_rotation)
+                .in_set(FixedGameSystem::GameLogic),
+        );
     }
 }
 
+// TODO: look at some sort of arc_iterpolation for growing/shrinking the arc render wise
 #[derive(Bundle, Clone)]
 pub struct RadarBundle {
-    pub arc: Arc,
     pub radar: Radar,
-    pub noprop: NoRotationPropagation,
+    pub arc: ArcWidth,
+    // Rotation
+    pub heading: Heading,
+    pub target: TargetHeading,
+    pub rotation_interpolation: RotationInterpolation,
+    pub translation_interpolation: TranslationInterpolation,
 }
 
 impl RadarBundle {
     pub fn new(current: AbsRot, target: AbsRot, current_arc: u8, target_arc: u8) -> Self {
         Self {
-            arc: Arc {
-                current,
-                target,
-                current_arc,
-                target_arc,
-            },
             radar: Radar,
-            noprop: NoRotationPropagation,
+            arc: ArcWidth {
+                current: current_arc,
+                target: target_arc,
+            },
+            // Rotation system
+            heading: Heading(current),
+            target: TargetHeading {
+                // NOTE: Insta rotation, can adjust later
+                limit: u16::MAX,
+                target,
+                carry: 0,
+            },
+            rotation_interpolation: RotationInterpolation,
+            translation_interpolation: TranslationInterpolation,
         }
     }
 
     pub fn rotation(&mut self, rotation: AbsRot) {
-        self.arc.current = rotation;
-        self.arc.target = rotation;
+        self.heading.0 = rotation;
+        self.target.target = rotation;
+        self.target.carry = 0;
     }
 
     pub fn arc(&mut self, arc: u8) {
-        self.arc.current_arc = arc;
-        self.arc.target_arc = arc;
+        self.arc.current = arc;
+        self.arc.target = arc;
     }
 }
 
-// There are other components such as shields that wants to reuse the arc subsystem
-// TODO: Reuse the Arc component for defining the Shield generator and shield arc
+// Arc Width:
+// TODO: move to a better location because shield uses this as well
+//
+// Half-arc:
+// - 0 == 1/256th of an arc
+// - 1 == 3/256th of an arc
+// - 127 = 255/256th of an arc
 #[derive(Component, Clone, Copy, Default)]
-pub struct Arc {
-    // TODO: Can probs pull out the AbsRot and reuse Rotation component
-    pub current: AbsRot,
-    pub target: AbsRot,
-
-    // Half-arc:
-    // - 0 == 1/256th of an arc
-    // - 1 == 3/256th of an arc
-    // - 127 = 255/256th of an arc
-    pub current_arc: u8,
-    pub target_arc: u8,
+pub struct ArcWidth {
+    pub current: u8,
+    pub target: u8,
 }
 
 #[derive(Component, Clone, Copy)]
 pub struct ArcDebug;
 
 // TODO:
-// - radar rotation system
 // - radar arc2length via area rule system?
 // - radar detection system -> emits contact events.
 // - Script subsystem listen for contact event and act upon it
@@ -101,7 +109,7 @@ pub struct ArcDebug;
 // - This approach is basically "converting" each entities into a polaris coordination from your
 // ship/radar
 #[derive(Component, Clone, Copy)]
-#[require(Arc)]
+#[require(ArcWidth)]
 pub struct Radar;
 
 #[derive(Component, Clone, Copy)]
@@ -128,47 +136,28 @@ pub enum ArcCheck {
     SamePosition,
 }
 
-// Handles rendering
-// Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
-// Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
-// - Since we do have velocity information so we should be able to do better interpolation
-#[expect(clippy::needless_pass_by_value)]
-pub(crate) fn interpolate_arc(
-    mut query: Query<(&mut Transform, &Arc)>,
-    fixed_time: Res<Time<Fixed>>,
-) {
-    // How much of a "partial timestep" has accumulated since the last fixed timestep run.
-    // Between `0.0` and `1.0`.
-    let overstep = fixed_time.overstep_fraction();
-
-    for (mut transform, arc) in &mut query {
-        transform.rotation = arc.current.transform_slerp(arc.target, overstep);
-    }
-}
-
-// Handle arc
-pub(crate) fn apply_arc(mut query: Query<&mut Arc>) {
+// Handle arc width changes:
+// - Instant (like headings right now)A
+pub(crate) fn apply_arc_width(mut query: Query<&mut ArcWidth>) {
     for mut arc in query.iter_mut() {
-        // Update arc rotation & arc width
         arc.current = arc.target;
-        arc.current_arc = arc.target_arc;
     }
 }
 
 // TODO: split this and setup system ordering but for now.
 pub(crate) fn apply_radar(
     mut message: MessageWriter<ContactMessage>,
-    query: Query<(&Arc, &ChildOf), With<Radar>>,
+    query: Query<(&Heading, &ArcWidth, &AttachedTo), With<Radar>>,
     ship_query: Query<(Entity, &Position)>,
 ) {
-    for (arc, child_of) in query.iter() {
+    for (heading, arc, attached_to) in query.iter() {
         // Scan through all target on field, and calculate their distance and angle,
         // if within the arc store it in a list till we know the closest contact
         let mut best_target: Option<(Entity, IVec2)> = None;
 
         // TODO: abstract this logic to a helper class (gizmo debug wants this too and we will have
         // other radar types)
-        let (base_ship, base_position) = ship_query.get(child_of.parent()).expect("child");
+        let (base_ship, base_position) = ship_query.get(attached_to.0).expect("attached");
         for (target_ship, target_position) in ship_query.iter() {
             if base_ship == target_ship {
                 continue;
@@ -178,8 +167,8 @@ pub(crate) fn apply_radar(
                 within_radar(
                     base_position.0.as_ivec2(),
                     target_position.0.as_ivec2(),
+                    heading.0,
                     arc.current,
-                    arc.current_arc,
                     DISTANCE_SQUARED
                 ),
                 RadarContact::Contact

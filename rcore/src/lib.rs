@@ -1,6 +1,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
+pub mod attach;
 pub mod math;
 pub mod movement;
 pub mod radar;
@@ -15,6 +16,7 @@ pub mod render;
 
 use crate::math::AbsRot;
 
+use crate::attach::AttachPlugin;
 use crate::movement::MovementPlugin;
 use crate::radar::RadarPlugin;
 use crate::rotation::RotationPlugin;
@@ -25,9 +27,6 @@ use crate::weapon::WeaponPlugin;
 // Sim timing
 // TODO: after converting to Avian2d should be able to remove this
 pub const TICK_HZ: u32 = 64;
-
-// This is the actual ship-arena
-const ARENA: IVec2 = IVec2::new(10240, 6400);
 
 // Systemset to help group systems in a defined order of operation since we now have systems that
 // depends on previous systems, and this will help avoid the 1+ frame delay when using events
@@ -65,6 +64,7 @@ impl Plugin for SimulationPlugin {
             .add_plugins(PhysicsPlugins::default())
             .insert_resource(Gravity(Vec2::ZERO))
             // Game bits
+            .add_plugins(AttachPlugin)
             .add_plugins(MovementPlugin)
             .add_plugins(RadarPlugin)
             .add_plugins(RotationPlugin)

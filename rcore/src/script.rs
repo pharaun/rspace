@@ -5,12 +5,12 @@ use dyn_clone::DynClone;
 
 use std::fmt;
 
+use crate::attach::Attachments;
 use crate::movement::Thrust;
 use crate::rotation::Heading;
 use crate::rotation::TargetHeading;
 use avian2d::prelude::Position;
 
-use crate::radar::Arc as CompArc;
 use crate::radar::ContactMessage;
 use crate::radar::Radar;
 use crate::weapon::FireDebugMissileMessage;
@@ -217,21 +217,28 @@ fn process_on_contact(
 // per frame ShipAction event that gets sent out to all sort of subsystem and they check
 // if its relevant, and if so they update theirselves, otherwise they skip, this may
 // be a better way since it would let us to self-contain the logic into each area's systems?
-#[expect(clippy::needless_pass_by_value, clippy::too_many_arguments)]
+#[expect(
+    clippy::needless_pass_by_value,
+    clippy::too_many_arguments,
+    clippy::type_complexity
+)]
 fn process_on_update(
     time: Res<Time>,
     mut timer: ResMut<ScriptTimer>,
     mut query: Query<(Entity, &mut Script)>,
-    mut ship_query: Query<(
-        &LinearVelocity,
-        &mut Thrust,
-        &Position,
-        &mut TargetHeading,
-        &Heading,
-        &Children,
-    )>,
+    mut ship_query: Query<
+        (
+            &LinearVelocity,
+            &mut Thrust,
+            &Position,
+            &mut TargetHeading,
+            &Heading,
+            &Attachments,
+        ),
+        Without<Radar>,
+    >,
     target_query: Query<Entity>,
-    mut radar_query: Query<&mut CompArc, With<Radar>>,
+    mut radar_query: Query<&mut TargetHeading, With<Radar>>,
     mut l_message: MessageWriter<FireDebugWeaponMessage>,
     mut w_message: MessageWriter<FireDebugWarheadMessage>,
     mut m_message: MessageWriter<FireDebugMissileMessage>,
@@ -257,10 +264,10 @@ fn process_on_update(
             let mut heading = ship_query.get_mut(entity).expect("heading").3;
             heading.target += res.heading;
 
-            // Radar is on the children entity of the ship
-            let children = ship_query.get(entity).expect("radar").5;
-            for child_entity in children {
-                if let Ok(mut radar) = radar_query.get_mut(*child_entity) {
+            // Radar is on an attachment to the ship
+            let attachments = ship_query.get(entity).expect("radar").5;
+            for attachment in attachments.iter() {
+                if let Ok(mut radar) = radar_query.get_mut(attachment) {
                     radar.target += res.radar_heading;
                 }
             }

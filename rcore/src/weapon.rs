@@ -6,10 +6,13 @@ use crate::FixedGameSystem;
 
 use avian2d::prelude::Position;
 
-use crate::radar::Arc;
+use crate::attach::Attachments;
+use crate::math::FP_SCALE;
 use crate::radar::ArcCheck;
+use crate::radar::ArcWidth;
 use crate::radar::within_arc;
 use crate::rotation::Heading;
+use crate::rotation::TargetHeading;
 use crate::script::Script;
 use crate::ship::ShipBuilder;
 use crate::spawner::SpawnMessage;
@@ -151,17 +154,18 @@ pub struct FireDebugMissileMessage(pub Entity);
 pub fn process_damage_event(
     trigger: On<DamageEvent>,
     mut commands: Commands,
-    mut query: Query<(&mut Health, &Position, &Children), Without<Shield>>,
-    mut shield_query: Query<(&mut Health, &Shield, &Arc)>,
+    mut query: Query<(&mut Health, &Position, &Attachments), Without<Shield>>,
+    mut shield_query: Query<(&mut Health, &Shield, &Heading, &ArcWidth)>,
 ) {
     let ship = trigger.event().target;
-    if let Ok((mut health, ship_pos, children)) = query.get_mut(ship) {
+    if let Ok((mut health, ship_pos, attachments)) = query.get_mut(ship) {
         let mut ship_damage: u16 = trigger.event().dmg;
 
-        // Scan through the children to find the shield if there is one.
+        // Scan through the attachments to find the shield if there is one.
         // TODO: support multiple shield, for now assume one.
-        for child in children.iter() {
-            if let Ok((mut shield_health, shield, arc)) = shield_query.get_mut(child) {
+        for attachment in attachments.iter() {
+            if let Ok((mut shield_health, shield, heading, arc)) = shield_query.get_mut(attachment)
+            {
                 // Check if the shield is not at 0 health
                 if shield_health.current == 0 {
                     // Pass on full damage
@@ -173,8 +177,8 @@ pub fn process_damage_event(
                 match within_arc(
                     ship_pos.0.as_ivec2(),
                     trigger.event().pos,
+                    heading.0,
                     arc.current,
-                    arc.current_arc,
                 ) {
                     ArcCheck::InsideArc => {
                         // Split incoming damage into shield and ship damage
@@ -326,13 +330,8 @@ pub fn process_fire_debug_missile_message(
             let (pos, rot, parent_script) = parent_ship.get(*ship).expect("parent");
 
             // Calculate the position of the future missile
-            let offset = pos.0.as_ivec2()
-                + rot
-                    .0
-                    .to_quat()
-                    .mul_vec3(Vec3::Y * 400.)
-                    .truncate()
-                    .as_ivec2();
+            let offset =
+                pos.0.as_ivec2() + (rot.0.to_heading_fp().as_i64vec2() * 400 / FP_SCALE).as_ivec2();
 
             // 4. send it on its merry way
             let missile = ShipBuilder::new(parent_script.clone())
@@ -357,9 +356,11 @@ pub fn process_fire_debug_missile_message(
 // own weapon to your shield?
 #[derive(Bundle, Clone)]
 pub struct ShieldBundle {
-    pub arc: Arc,
     pub shield: Shield,
     pub health: Health,
+    pub heading: Heading,
+    pub target: TargetHeading,
+    pub arc: ArcWidth,
 }
 
 impl ShieldBundle {
@@ -372,28 +373,34 @@ impl ShieldBundle {
         health: u16,
     ) -> Self {
         Self {
-            arc: Arc {
-                current,
-                target,
-                current_arc,
-                target_arc,
-            },
             shield: Shield { damage_reduce },
             health: Health {
                 current: health,
                 maximum: health,
             },
+            heading: Heading(current),
+            target: TargetHeading {
+                // NOTE: Insta rotation, can adjust later
+                limit: u16::MAX,
+                target,
+                carry: 0,
+            },
+            arc: ArcWidth {
+                current: current_arc,
+                target: target_arc,
+            },
         }
     }
 
     pub fn rotation(&mut self, rotation: AbsRot) {
-        self.arc.current = rotation;
-        self.arc.target = rotation;
+        self.heading.0 = rotation;
+        self.target.target = rotation;
+        self.target.carry = 0;
     }
 
     pub fn arc(&mut self, arc: u8) {
-        self.arc.current_arc = arc;
-        self.arc.target_arc = arc;
+        self.arc.current = arc;
+        self.arc.target = arc;
     }
 
     pub fn damage_reduce(&mut self, damage_reduce: f32) {
@@ -407,8 +414,7 @@ impl ShieldBundle {
 }
 
 #[derive(Component, Clone, Copy)]
-#[require(Arc)]
-#[require(Health)]
+#[require(ArcWidth, Heading, Health)]
 pub struct Shield {
     damage_reduce: f32,
 }

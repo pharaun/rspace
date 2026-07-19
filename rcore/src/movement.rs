@@ -1,25 +1,17 @@
 use avian2d::interpolation::TranslationInterpolation;
 use avian2d::prelude::*;
-use bevy_transform_interpolation::TranslationEasingState;
-
-use crate::FixedGameSystem;
-use crate::rotation::Heading;
-
-use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
-use crate::ARENA;
+use crate::FixedGameSystem;
 use crate::math::FP_SCALE;
+use crate::rotation::Heading;
 
 pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedUpdate,
-            (
-                apply_thrust.after(crate::rotation::apply_rotation),
-                wrap_position.after(apply_thrust),
-            )
+            (apply_thrust.after(crate::rotation::apply_rotation),)
                 .in_set(FixedGameSystem::GameLogic),
         );
     }
@@ -72,9 +64,8 @@ pub struct MovDebug;
 #[expect(clippy::needless_pass_by_value)]
 fn apply_thrust(mut query: Query<(&mut LinearVelocity, &Heading, &Thrust)>, time: Res<Time>) {
     for (mut velocity, heading, thrust) in query.iter_mut() {
-        // heading is fp^1 scaled
-        let heading_acceleration =
-            heading.0.to_heading_fp().as_i64vec2() * i64::from(thrust.acceleration);
+        let acceleration =
+            heading.0.to_heading_fp().as_vec2() / (FP_SCALE as f32) * thrust.acceleration as f32;
 
         // Apply Lorentz factor only if it will increase the velocity,
         // this is not realistic but permits easy deceleration for the ship
@@ -82,115 +73,44 @@ fn apply_thrust(mut query: Query<(&mut LinearVelocity, &Heading, &Thrust)>, time
         //
         // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
         // do so. Could optionally allow for a heading change while preserving the current velocity
-        let heading_dot = i128_dot2(velocity.0.as_ivec2(), heading_acceleration);
-
-        let factor = if heading_dot >= 0 {
-            calculate_lorentz_factor_fp(velocity.0.as_ivec2(), thrust.velocity_limit)
+        let factor = if velocity.0.dot(acceleration) >= 0.0 {
+            #[expect(clippy::cast_precision_loss)]
+            lorentz_factor(velocity.0, thrust.velocity_limit as f32)
         } else {
-            FP_SCALE
+            1.0
         };
 
-        // Integrate the heading_accleeration into velocity
-        // factor is fp^1, acceleration is fp^1 for fp^2
-        let factor_acceleration = (heading_acceleration * factor) / FP_SCALE;
-        velocity.0 += factor_acceleration.as_vec2() / (FP_SCALE as f32) * time.delta_secs();
+        velocity.0 += acceleration * factor * time.delta_secs();
     }
-}
-
-fn i128_dot2(a: IVec2, b: I64Vec2) -> i128 {
-    i128::from(a.x) * i128::from(b.x) + i128::from(a.y) * i128::from(b.y)
 }
 
 // Lorentz: Y = 1 / Sqrt(1 - v^2/c^2)
 //
-// This is scaled by FP_SCALE (to permit integer math).
-// vel: (0,0) == FP_SCALE,
-// vel: (limit, limit) == 0
-//
-// As it approaches limit, the factor approach zero.
-fn calculate_lorentz_factor_fp(velocity: IVec2, velocity_limit: u32) -> i64 {
-    // The c^2 term
-    let c_2 = u64::from(velocity_limit).pow(2);
-    if c_2 == 0 {
-        return 0;
+// vel: (0,0) == 1.0,
+// vel: (limit, limit) == 0.0
+fn lorentz_factor(velocity: Vec2, c: f32) -> f32 {
+    if c == 0.0 {
+        return 0.0;
     }
-
-    // The v^2 term
-    // TODO: can overflow at (MIN, MIN) domain
-    let v_2 = velocity.as_i64vec2().length_squared().unsigned_abs();
-
-    // Compute the factor + scale it, this is why the original one went
-    // from sqrt(1 - v^2/c^2) -> sqrt((c^2 - v^2)/v^2) so that we can apply
-    // the FP_SCALE^2 when the factor is at 1, before sqrt
-    let factor_2 = u128::from(c_2.saturating_sub(v_2))
-        * u128::from(FP_SCALE.pow(2).cast_unsigned())
-        / u128::from(c_2);
-
-    #[expect(clippy::cast_possible_truncation)]
-    {
-        factor_2.isqrt() as i64
-    }
+    // Note we are dropping the invert (1 / lorentz_factor)
+    // since we can just multiply by the factor
+    (1.0 - velocity.length_squared() / (c * c)).max(0.0).sqrt()
 }
 
-// The gizmo renders are based off the wrapped ship position which is 1:1 at the moment.
-//
-// TODO: make sure this only affects transforms for things within the arena, maybe an arena tag is
-// needed
-// TODO: May want to change this to instead wrap the game-areana and change this to be a render
-// concern
-pub(crate) fn wrap_position(
-    mut query: Query<(&mut Position, &mut TranslationEasingState), Changed<Position>>,
-) {
-    for (mut pos, mut easing) in query.iter_mut() {
-        let arena = ARENA.as_vec2();
-        let res: Vec2 = {
-            let mut ret = Vec2::ZERO;
-
-            if pos.0.y < -(arena.y / 2.) {
-                ret.y += arena.y;
-            } else if pos.0.y > (arena.y / 2.) {
-                ret.y -= arena.y;
-            }
-
-            if pos.0.x < -(arena.x / 2.) {
-                ret.x += arena.x;
-            } else if pos.0.x > (arena.x / 2.) {
-                ret.x -= arena.x;
-            }
-            ret
-        };
-        if res == Vec2::ZERO {
-            continue;
-        }
-        pos.0 += res;
-
-        // Update iterpolation by the wrap
-        let offset = res.extend(0.);
-        if let Some(start) = easing.start.as_mut() {
-            *start += offset;
-        }
-        if let Some(end) = easing.end.as_mut() {
-            *end += offset;
-        }
-    }
-}
-
+#[expect(clippy::float_cmp)]
 #[test]
-fn test_calculate_lorentz_factor_fp() {
-    // 0 velocity -> FP_SCALE (aka 1.0)
-    assert_eq!(calculate_lorentz_factor_fp(IVec2::ZERO, 100), FP_SCALE);
+fn test_lorentz_factor() {
+    // 0 velocity -> 1.0
+    assert_eq!(lorentz_factor(Vec2::ZERO, 100.), 1.0);
 
     // Check velocity beyond limit -> 0
-    assert_eq!(calculate_lorentz_factor_fp(IVec2::new(0, 100), 100), 0);
-    assert_eq!(calculate_lorentz_factor_fp(IVec2::new(300, -400), 100), 0);
+    assert_eq!(lorentz_factor(Vec2::new(0., 100.), 100.), 0.0);
+    assert_eq!(lorentz_factor(Vec2::new(300., -400.), 100.), 0.0);
 
     // Check limit == 0 == 0 factor
-    assert_eq!(calculate_lorentz_factor_fp(IVec2::new(1, 0), 0), 0);
-    assert_eq!(calculate_lorentz_factor_fp(IVec2::ZERO, 0), 0);
+    assert_eq!(lorentz_factor(Vec2::new(1., 0.), 0.), 0.0);
+    assert_eq!(lorentz_factor(Vec2::ZERO, 0.), 0.0);
 
-    // Check the calculation (sqrt(3/4) and multiplied by the scale
-    assert_eq!(
-        calculate_lorentz_factor_fp(IVec2::new(0, 50), 100),
-        28377, // sqrt(3/4) * FP_SCALE
-    );
+    // Check that sqrt(3/4) == exact 0.75
+    assert_eq!(lorentz_factor(Vec2::new(0., 50.), 100.), 0.75_f32.sqrt());
 }

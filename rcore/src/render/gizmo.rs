@@ -7,6 +7,9 @@ use crate::movement::Thrust;
 use avian2d::prelude::LinearVelocity;
 use avian2d::prelude::Position;
 
+use crate::attach::AttachedTo;
+
+use crate::rotation::Heading;
 use crate::rotation::RotDebug;
 use crate::rotation::TargetHeading;
 
@@ -15,8 +18,8 @@ use crate::weapon::HealthDebug;
 use crate::weapon::Shield;
 use crate::weapon::ShieldHealthDebug;
 
-use crate::radar::Arc;
 use crate::radar::ArcDebug;
+use crate::radar::ArcWidth;
 use crate::radar::RadarContact;
 use crate::radar::RadarDebug;
 
@@ -86,21 +89,21 @@ pub(super) fn movement(
 #[expect(clippy::similar_names)]
 pub(super) fn arc(
     mut gizmos: Gizmos,
-    query: Query<(&Arc, &ChildOf), With<ArcDebug>>,
+    query: Query<(&Heading, &TargetHeading, &ArcWidth, &AttachedTo), With<ArcDebug>>,
     parent_query: Query<&Transform>,
 ) {
-    for (arc, child_of) in query.iter() {
+    for (heading, target_heading, arc, attached_to) in query.iter() {
         // Need the ship translation to position the arc gizmo right
         let base = parent_query
-            .get(child_of.parent())
-            .expect("child")
+            .get(attached_to.0)
+            .expect("attached")
             .translation
             .truncate();
-        let heading = arc.current;
-        let target = arc.target;
+        let heading = heading.0;
+        let target = target_heading.target;
 
-        let cw_arc = heading.cw_edge(arc.current_arc);
-        let ccw_arc = heading.ccw_edge(arc.current_arc);
+        let cw_arc = heading.cw_edge(arc.current);
+        let ccw_arc = heading.ccw_edge(arc.current);
 
         // Current heading
         gizmos.line_2d(
@@ -144,13 +147,13 @@ pub(super) fn arc(
 
 pub(super) fn radar(
     mut gizmos: Gizmos,
-    query: Query<(&Arc, &ChildOf), With<RadarDebug>>,
+    query: Query<(&Heading, &ArcWidth, &AttachedTo), With<RadarDebug>>,
     parent_query: Query<(&Transform, &Position)>,
 ) {
-    for (arc, child_of) in query.iter() {
+    for (heading, arc, attached_to) in query.iter() {
         // Need the ship translation to position the radar gizmo right
         let (base, base_pos) = {
-            let (base, pos) = parent_query.get(child_of.parent()).expect("child");
+            let (base, pos) = parent_query.get(attached_to.0).expect("attached");
             (base.translation.truncate(), pos)
         };
 
@@ -172,8 +175,8 @@ pub(super) fn radar(
             let color = match within_radar(
                 base_pos.0.as_ivec2(),
                 target_pos.0.as_ivec2(),
+                heading.0,
                 arc.current,
-                arc.current_arc,
                 crate::radar::DISTANCE_SQUARED,
             ) {
                 RadarContact::Contact => bevy::color::palettes::css::GREEN,
@@ -197,8 +200,9 @@ pub(super) fn rotation(
         let heading = tran.rotation;
         let qtarget = target.target.to_quat();
 
-        let cw_limit = heading * AbsRot(target.limit).to_quat();
-        let ccw_limit = heading * AbsRot(255 - target.limit).to_quat();
+        let limit = u8::try_from(target.limit).unwrap_or(u8::MAX);
+        let cw_limit = heading * AbsRot(limit).to_quat();
+        let ccw_limit = heading * AbsRot(255 - limit).to_quat();
 
         // Current heading
         gizmos.line_2d(
@@ -267,13 +271,13 @@ pub(super) fn health(
 #[expect(clippy::type_complexity)]
 pub(super) fn shield_health(
     mut gizmos: Gizmos,
-    query: Query<(&Health, &ChildOf), (With<ShieldHealthDebug>, With<Shield>)>,
-    ship_query: Query<&Transform>,
+    query: Query<(&Health, &AttachedTo), (With<ShieldHealthDebug>, With<Shield>)>,
+    parent_query: Query<&Transform>,
 ) {
-    for (health, child_of) in query.iter() {
-        let base = ship_query
-            .get(child_of.parent())
-            .expect("child")
+    for (health, attached_to) in query.iter() {
+        let base = parent_query
+            .get(attached_to.0)
+            .expect("attached")
             .translation
             .truncate();
 

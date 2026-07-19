@@ -2,10 +2,10 @@ use bevy::prelude::*;
 
 use avian2d::prelude::*;
 
+use crate::attach::AttachOffset;
+use crate::attach::AttachedTo;
 use crate::math::AbsRot;
 use crate::script::Script;
-
-use crate::ARENA;
 
 use crate::movement::MovDebug;
 use crate::movement::MovementBundle;
@@ -174,12 +174,6 @@ impl ShipBuilder {
     // Settings
     pub fn position(mut self, x: i32, y: i32) -> Self {
         self.movement.position(x, y);
-        // Warn if its outside arena bounds since it will then warp the next frame
-        if !(-(ARENA.y / 2)..=(ARENA.y / 2)).contains(&y)
-            || !(-(ARENA.x / 2)..=(ARENA.x / 2)).contains(&x)
-        {
-            println!("WARNING: Set position outside of arena bounds - x: {x:?}, y: {y:?}");
-        }
         self
     }
 
@@ -205,7 +199,7 @@ impl ShipBuilder {
         self
     }
 
-    pub fn rotation_limit(mut self, limit: u8) -> Self {
+    pub fn rotation_limit(mut self, limit: u16) -> Self {
         self.rotation.target.limit = limit;
         self
     }
@@ -382,10 +376,11 @@ impl DebugBuilder {
 }
 
 pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
-    let radar_target = ship.radar.arc.target;
-    let ship_target = ship.rotation.target.target;
-    let mut transform = Transform::from_translation(ship.movement.position.0.extend(0.));
-    transform.rotate(ship_target.to_quat());
+    let radar_heading = ship.radar.heading.0;
+    let ship_heading = ship.rotation.heading.0;
+    let ship_translation = ship.movement.position.0.extend(0.);
+    let mut transform = Transform::from_translation(ship_translation);
+    transform.rotate(ship_heading.to_quat());
 
     // Probs worth restructuring
     let mut spawned_ship = commands.spawn((transform,));
@@ -400,37 +395,18 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
         .insert(ship.health)
         // TODO: probs want collision groups (ie ship vs missile vs other ships)
         .insert(Collider::circle(150.0))
-        .insert(CollisionEventsEnabled)
-        // Insert the graphics for the radar dish
-        .with_children(|parent| {
-            let mut transform = Transform::from_translation(Vec2::new(0., -20.).extend(1.));
-            // TODO: this is probs wrong and needs to be fixed
-            transform.rotate(radar_target.to_quat());
+        .insert(CollisionEventsEnabled);
 
-            // TODO: fix this render, since if ship spawns in with a radar set one way
-            // the shape/render doesn't update to point in that way so its a bug
-            let mut spawned_radar = parent.spawn((transform, ship.radar));
-
-            if let Some(radar) = ship.debug.radar {
-                spawned_radar.insert(radar);
-            }
-
-            if let Some(arc) = ship.debug.radar_arc {
-                spawned_radar.insert(arc);
-            }
-        })
-        // Insert shielding
-        .with_children(|parent| {
-            let mut spawned_shield = parent.spawn((ship.shield,));
-
-            if let Some(shield_health) = ship.debug.shield_health {
-                spawned_shield.insert(shield_health);
-            }
-
-            if let Some(arc) = ship.debug.shield_arc {
-                spawned_shield.insert(arc);
-            }
-        });
+    // Ship debug
+    if let Some(mov) = ship.debug.mov {
+        spawned_ship.insert(mov);
+    }
+    if let Some(rot) = ship.debug.rot {
+        spawned_ship.insert(rot);
+    }
+    if let Some(health) = ship.debug.health {
+        spawned_ship.insert(health);
+    }
 
     // Weapons
     if let Some(warhead) = ship.warhead {
@@ -448,17 +424,37 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
             });
     }
 
-    // Debug components
-    if let Some(mov) = ship.debug.mov {
-        spawned_ship.insert(mov);
+    let ship_id = spawned_ship.id();
+
+    // Radar
+    let radar_offset = Vec2::new(0., -20.).extend(1.);
+    let mut radar_transform = Transform::from_translation(ship_translation + radar_offset);
+    radar_transform.rotate(radar_heading.to_quat());
+
+    let mut ship_radar = commands.spawn((
+        radar_transform,
+        ship.radar,
+        AttachedTo(ship_id),
+        AttachOffset(radar_offset),
+    ));
+
+    if let Some(radar) = ship.debug.radar {
+        ship_radar.insert(radar);
     }
-    if let Some(rot) = ship.debug.rot {
-        spawned_ship.insert(rot);
+    if let Some(arc) = ship.debug.radar_arc {
+        ship_radar.insert(arc);
     }
-    if let Some(health) = ship.debug.health {
-        spawned_ship.insert(health);
+
+    // Shielding
+    let mut ship_shield = commands.spawn((ship.shield, AttachedTo(ship_id)));
+
+    if let Some(shield_health) = ship.debug.shield_health {
+        ship_shield.insert(shield_health);
+    }
+    if let Some(arc) = ship.debug.shield_arc {
+        ship_shield.insert(arc);
     }
 
     // Return the entity id of the ship that just got spawned
-    spawned_ship.id()
+    ship_id
 }

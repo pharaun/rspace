@@ -9,8 +9,6 @@ use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::window::PrimaryWindow;
 
-use crate::radar::interpolate_arc;
-
 // TODO: Camera refinement
 // 1. make it so that the camera stays within the area bounds instead of just the target
 // 2. make it so that when the camera is about to hit the areana edge, slow down to a stop so its
@@ -56,7 +54,6 @@ impl Plugin for CameraPlugin {
                     apply_camera_rig,
                 )
                     .chain()
-                    .after(interpolate_arc)
                     // Handles transform/rotation (technically dead, here for doc)
                     .after(TransformEasingSystems::Ease)
                     .after(PhysicsSystems::Last)

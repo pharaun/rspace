@@ -13,11 +13,9 @@ impl Plugin for RotationPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedUpdate,
-            (apply_rotation.in_set(FixedGameSystem::GameLogic),),
-        )
-        .add_systems(
-            PostUpdate,
-            (disable_rotation_propagation.after(TransformSystems::Propagate),),
+            (apply_rotation, propagate_heading_transform)
+                .chain()
+                .in_set(FixedGameSystem::GameLogic),
         );
     }
 }
@@ -31,7 +29,7 @@ pub struct RotationBundle {
 }
 
 impl RotationBundle {
-    pub fn new(rotation: AbsRot, target: AbsRot, limit: u8) -> Self {
+    pub fn new(rotation: AbsRot, target: AbsRot, limit: u16) -> Self {
         Self {
             target: TargetHeading {
                 limit,
@@ -39,41 +37,41 @@ impl RotationBundle {
                 carry: 0,
             },
             heading: Heading(rotation),
-            rotation: Rotation::radians(rotation.to_radians()),
+            rotation: rotation.to_rotation(),
             interpolation: RotationInterpolation,
         }
     }
 
     pub fn rotation(&mut self, rotation: AbsRot) {
         self.target.target = rotation;
+        self.target.carry = 0;
         self.heading.0 = rotation;
-        self.rotation = Rotation::radians(rotation.to_radians());
+        self.rotation = rotation.to_rotation();
     }
 }
 
+// Used by any system that uses 1/256th of an arc rotation system (radar, shield, ships)
 #[derive(Component, Clone, Copy)]
 #[require(Heading)]
 pub struct TargetHeading {
-    pub limit: u8, // rotation per second
+    pub limit: u16, // rotation steps per second (>= 8192 is instant)
     pub target: AbsRot,
     pub carry: u32, // sub tick rotation
 }
 
-// Canonical heading of the ship, simulation reads this. Avian Rotation
-// is for physics/everything else.
+// Canonical heading, simulation reads this. Avian Rotation is for physics/everything else.
 //
 // NOTE: Do not add `AngularVelocity` to the ship.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Heading(pub AbsRot);
 
-#[derive(Component, Clone)]
-pub struct NoRotationPropagation;
-
 #[derive(Component, Clone, Copy)]
 pub struct RotDebug;
 
-pub(crate) fn apply_rotation(mut query: Query<(&mut TargetHeading, &mut Heading, &mut Rotation)>) {
-    for (mut target_heading, mut heading, mut rotation) in query.iter_mut() {
+pub(crate) fn apply_rotation(
+    mut query: Query<(&mut TargetHeading, &mut Heading, Option<&mut Rotation>)>,
+) {
+    for (mut target_heading, mut heading, opt_rotation) in query.iter_mut() {
         // If heading is the same as the target heading, bail
         if heading.0 == target_heading.target {
             continue;
@@ -87,6 +85,11 @@ pub(crate) fn apply_rotation(mut query: Query<(&mut TargetHeading, &mut Heading,
         );
         target_heading.carry = carry;
 
+        // NOTE: [limit >= 8192) == instant rotation.
+        // Caveat: exact 180-degree flip causes weird slerp bias issue
+        //
+        // Consider clamping max rotation to 127, and this will break exact
+        // 128 rotations, in one shot, but if its a slower rotation.... meh.
         let angle = heading
             .0
             .angle_between(target_heading.target)
@@ -94,24 +97,21 @@ pub(crate) fn apply_rotation(mut query: Query<(&mut TargetHeading, &mut Heading,
 
         heading.0 += angle;
 
-        // Mirror it into avian for physics/everything else
-        *rotation = Rotation::radians(heading.0.to_radians());
+        // Mirror it into avian for physics/etc..
+        // Arc modules don't have rigid body so they don't have Rotation
+        if let Some(mut rotation) = opt_rotation {
+            *rotation = heading.0.to_rotation();
+        }
     }
 }
 
-pub(crate) fn disable_rotation_propagation(
-    query: Query<(&Children, &Transform)>,
-    mut child_query: Query<(&Transform, &mut GlobalTransform), With<NoRotationPropagation>>,
+// Arc modules (radar/shield) don't have Avian Rotation, Update render transform
+// directly for these. (The others are handled by Avian).
+#[expect(clippy::type_complexity)]
+pub(crate) fn propagate_heading_transform(
+    mut query: Query<(&Heading, &mut Transform), (Changed<Heading>, Without<Rotation>)>,
 ) {
-    for (childrens, parent_tran) in query.iter() {
-        for child_entity in childrens.iter() {
-            if let Ok((child_tran, mut child_global_tran)) = child_query.get_mut(child_entity) {
-                *child_global_tran = child_global_tran
-                    .compute_transform()
-                    .with_rotation(child_tran.rotation)
-                    .with_translation(parent_tran.translation + child_tran.translation)
-                    .into();
-            }
-        }
+    for (heading, mut transform) in query.iter_mut() {
+        transform.rotation = heading.0.to_quat();
     }
 }
