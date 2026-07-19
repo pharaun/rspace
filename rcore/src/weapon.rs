@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use crate::FixedGameSystem;
 
-use crate::movement::Position;
+use avian2d::prelude::Position;
 
 use crate::radar::Arc;
 use crate::radar::ArcCheck;
@@ -171,7 +171,7 @@ pub fn process_damage_event(
 
                 // Check if the damage source is covered by the shield arc
                 match within_arc(
-                    ship_pos.0,
+                    ship_pos.0.as_ivec2(),
                     trigger.event().pos,
                     arc.current,
                     arc.current_arc,
@@ -258,7 +258,7 @@ pub fn process_fire_debug_weapon_message(
             // emit damage event to the target
             commands.trigger(DamageEvent {
                 target: *target,
-                pos: ship_pos.0,
+                pos: ship_pos.0.as_ivec2(),
                 dmg: weapon.damage,
             });
         }
@@ -291,10 +291,10 @@ pub fn process_fire_debug_warhead_message(
                     continue;
                 }
 
-                if base_position.0.distance_squared(target_position.0) < DISTANCE_SQUARED {
+                if base_position.0.distance_squared(target_position.0) < DISTANCE_SQUARED as f32 {
                     commands.trigger(DamageEvent {
                         target: target_ship,
-                        pos: base_position.0,
+                        pos: base_position.0.as_ivec2(),
                         dmg: warhead.damage,
                     });
                 }
@@ -326,7 +326,7 @@ pub fn process_fire_debug_missile_message(
             let (pos, rot, parent_script) = parent_ship.get(*ship).expect("parent");
 
             // Calculate the position of the future missile
-            let offset = pos.0
+            let offset = pos.0.as_ivec2()
                 + rot
                     .0
                     .to_quat()

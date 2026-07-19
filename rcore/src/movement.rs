@@ -1,15 +1,17 @@
+use avian2d::interpolation::TranslationInterpolation;
+use avian2d::prelude::*;
+use bevy_transform_interpolation::TranslationEasingState;
+
 use crate::FixedGameSystem;
 use crate::math::AbsRot;
 use crate::math::tick_step_i64vec2_fp;
 use crate::math::tick_step_ivec2;
-use crate::math::vec_scale;
 use crate::rotation::Rotation;
 
 use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
 use crate::ARENA;
-use crate::ARENA_SCALE;
 use crate::TICK_HZ;
 use crate::math::FP_SCALE;
 
@@ -23,37 +25,36 @@ impl Plugin for MovementPlugin {
                 wrap_position.after(apply_movement),
             )
                 .in_set(FixedGameSystem::GameLogic),
-        )
-        .add_systems(
-            RunFixedMainLoop,
-            (interpolate_movement.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),),
         );
     }
 }
 
 #[derive(Bundle, Clone)]
 pub struct MovementBundle {
+    pub rigid_body: RigidBody,
     pub velocity: Velocity,
     pub position: Position,
-    pub previous: PositionPrevious,
+    pub carry: PositionCarry,
+    pub interpolation: TranslationInterpolation,
 }
 
 impl MovementBundle {
     pub fn new(position: IVec2, velocity: IVec2, velocity_limit: u32, acceleration: i32) -> Self {
         Self {
+            rigid_body: RigidBody::Kinematic,
             velocity: Velocity {
                 acceleration,
                 velocity,
                 velocity_limit,
             },
-            position: Position(position),
-            previous: PositionPrevious(position),
+            position: Position(position.as_vec2()),
+            carry: PositionCarry(IVec2::ZERO),
+            interpolation: TranslationInterpolation,
         }
     }
 
     pub fn position(&mut self, x: i32, y: i32) {
-        self.position.0 = IVec2::new(x, y);
-        self.previous.0 = IVec2::new(x, y);
+        self.position.0 = IVec2::new(x, y).as_vec2();
     }
 }
 
@@ -70,16 +71,6 @@ pub struct Velocity {
     pub velocity_limit: u32,
 }
 
-// Simulation position,
-// Transform is separate and a visual layer, we need to redo the code to better
-// separate the rendering layer from the simulation layer
-#[derive(Component, Default, Clone, Copy)]
-#[require(PositionPrevious, PositionCarry)]
-pub struct Position(pub IVec2);
-
-#[derive(Component, Default, Clone, Copy)]
-pub struct PositionPrevious(pub IVec2);
-
 // Experiment with sub-tick integration (bresenham-style carries)
 #[derive(Component, Default, Clone, Copy)]
 pub struct PositionCarry(pub IVec2);
@@ -91,31 +82,6 @@ pub struct VelocityCarry(pub I64Vec2);
 #[derive(Component, Clone, Copy)]
 pub struct MovDebug;
 
-// Handles rendering
-// Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
-// Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
-// - Since we do have velocity information so we should be able to do better interpolation
-#[expect(clippy::needless_pass_by_value)]
-pub(crate) fn interpolate_movement(
-    mut query: Query<(&mut Transform, &Position, &PositionPrevious)>,
-    fixed_time: Res<Time<Fixed>>,
-) {
-    // How much of a "partial timestep" has accumulated since the last fixed timestep run.
-    // Between `0.0` and `1.0`.
-    let overstep = fixed_time.overstep_fraction();
-
-    for (mut transform, position, previous_position) in &mut query {
-        // Scale
-        let scaled_position = vec_scale(position.0, ARENA_SCALE);
-        let scaled_previous_position = vec_scale(previous_position.0, ARENA_SCALE);
-
-        // Linearly interpolate the translation from the old position to the current one.
-        transform.translation = scaled_previous_position
-            .lerp(scaled_position, overstep)
-            .extend(0.);
-    }
-}
-
 // TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
 #[expect(clippy::needless_pass_by_value)]
 pub(crate) fn apply_movement(
@@ -125,14 +91,9 @@ pub(crate) fn apply_movement(
         &Rotation,
         &mut Position,
         &mut PositionCarry,
-        &mut PositionPrevious,
     )>,
 ) {
-    for (mut vec, mut carry_vec, rot, mut position, mut carry_position, mut previous_position) in
-        query.iter_mut()
-    {
-        previous_position.0 = position.0;
-
+    for (mut vec, mut carry_vec, rot, mut position, mut carry_position) in query.iter_mut() {
         // Handle lorentz limited acceleration
         let (velocity, carry) = lorentz_acceleration(
             vec.velocity,
@@ -148,7 +109,7 @@ pub(crate) fn apply_movement(
         // Calculate position integration
         let (step, carry) = tick_step_ivec2(vec.velocity, carry_position.0, TICK_HZ);
         carry_position.0 = carry;
-        position.0 += step;
+        position.0 += step.as_vec2();
     }
 }
 
@@ -231,30 +192,39 @@ fn calculate_lorentz_factor_fp(velocity: IVec2, velocity_limit: u32) -> i64 {
 // TODO: May want to change this to instead wrap the game-areana and change this to be a render
 // concern
 pub(crate) fn wrap_position(
-    mut query: Query<(&mut Position, &mut PositionPrevious), Changed<Position>>,
+    mut query: Query<(&mut Position, &mut TranslationEasingState), Changed<Position>>,
 ) {
-    for (mut pos, mut ppos) in query.iter_mut() {
-        let res: IVec2 = {
-            let mut ret = IVec2::new(0, 0);
+    for (mut pos, mut easing) in query.iter_mut() {
+        let arena = ARENA.as_vec2();
+        let res: Vec2 = {
+            let mut ret = Vec2::ZERO;
 
-            if pos.0.y < -(ARENA.y / 2) {
-                ret.y += ARENA.y;
-            } else if pos.0.y > (ARENA.y / 2) {
-                ret.y -= ARENA.y;
+            if pos.0.y < -(arena.y / 2.) {
+                ret.y += arena.y;
+            } else if pos.0.y > (arena.y / 2.) {
+                ret.y -= arena.y;
             }
 
-            if pos.0.x < -(ARENA.x / 2) {
-                ret.x += ARENA.x;
-            } else if pos.0.x > (ARENA.x / 2) {
-                ret.x -= ARENA.x;
+            if pos.0.x < -(arena.x / 2.) {
+                ret.x += arena.x;
+            } else if pos.0.x > (arena.x / 2.) {
+                ret.x -= arena.x;
             }
             ret
         };
-        pos.0.y += res.y;
-        ppos.0.y += res.y;
+        if res == Vec2::ZERO {
+            continue;
+        }
+        pos.0 += res;
 
-        pos.0.x += res.x;
-        ppos.0.x += res.x;
+        // Update iterpolation by the wrap
+        let offset = res.extend(0.);
+        if let Some(start) = easing.start.as_mut() {
+            *start += offset;
+        }
+        if let Some(end) = easing.end.as_mut() {
+            *end += offset;
+        }
     }
 }
 

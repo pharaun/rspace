@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
 use crate::math::AbsRot;
-use crate::movement::Position;
 use crate::rotation::NoRotationPropagation;
+use avian2d::prelude::Position;
 
 use crate::FixedGameSystem;
 
@@ -176,8 +176,8 @@ pub(crate) fn apply_radar(
 
             if matches!(
                 within_radar(
-                    base_position.0,
-                    target_position.0,
+                    base_position.0.as_ivec2(),
+                    target_position.0.as_ivec2(),
                     arc.current,
                     arc.current_arc,
                     DISTANCE_SQUARED
@@ -186,14 +186,17 @@ pub(crate) fn apply_radar(
             ) {
                 // Is this contact better than current winner?
                 if let Some((_, best_position)) = best_target {
-                    let target_distance = base_position.0.distance_squared(target_position.0);
-                    let best_distance = base_position.0.distance_squared(best_position);
+                    let target_distance = base_position
+                        .0
+                        .as_ivec2()
+                        .distance_squared(target_position.0.as_ivec2());
+                    let best_distance = base_position.0.as_ivec2().distance_squared(best_position);
 
                     if target_distance <= best_distance {
-                        best_target = Some((target_ship, target_position.0));
+                        best_target = Some((target_ship, target_position.0.as_ivec2()));
                     }
                 } else {
-                    best_target = Some((target_ship, target_position.0));
+                    best_target = Some((target_ship, target_position.0.as_ivec2()));
                 }
             }
         }

@@ -16,7 +16,6 @@ use arena::arena_bounds_setup;
 use shape::get_radar;
 use shape::get_ship;
 
-use crate::ARENA_SCALE;
 use crate::radar::Radar;
 use crate::ship::Ship;
 use crate::weapon::RenderDebugWarhead;
@@ -142,7 +141,7 @@ fn render_debug_warhead(
         // TODO: render the beam thicker
         gizmos.circle_2d(
             Isometry2d::from_translation(render.origin),
-            crate::weapon::DISTANCE as f32 / ARENA_SCALE,
+            crate::weapon::DISTANCE as f32,
             bevy::color::palettes::css::RED,
         );
 

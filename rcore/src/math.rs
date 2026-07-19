@@ -44,14 +44,6 @@ fn sin_fp(step: u8) -> i32 {
     }
 }
 
-pub fn vec_scale(vec: IVec2, factor: f32) -> Vec2 {
-    vec.as_vec2() / factor
-}
-
-pub fn un_vec_scale(vec: Vec2, factor: f32) -> IVec2 {
-    (vec * factor).round().as_ivec2()
-}
-
 // Bresenham-style integer rate integration
 //  - split a per-second rate into a per-tick rate
 //  - carry the remainder for next call
@@ -197,23 +189,6 @@ impl RelRot {
         // Since its always <128 thanks to clamp above its a valid i8
         let bound = clamp.cast_signed();
         Self(self.0.clamp(-bound, bound))
-    }
-}
-
-#[test]
-fn test_vec_scale_roundtrip() {
-    // Make sure the code rounds properly and not just truncate it, there
-    // are some factors that causes it to be off by one. Such as: 7, 10, 49...
-    for factor in 1..=100 {
-        // Might as well exhaustively test an large arena
-        for x in -20_000..=20_000 {
-            let vec = IVec2::new(x, -x);
-            assert_eq!(
-                un_vec_scale(vec_scale(vec, factor as f32), factor as f32),
-                vec,
-                "x={x} factor={factor}"
-            );
-        }
     }
 }
 

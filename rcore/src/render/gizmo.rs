@@ -1,13 +1,10 @@
 use bevy::prelude::*;
 
-use crate::ARENA_SCALE;
-
 use crate::math::AbsRot;
-use crate::math::vec_scale;
 
 use crate::movement::MovDebug;
-use crate::movement::Position;
 use crate::movement::Velocity;
+use avian2d::prelude::Position;
 
 use crate::rotation::RotDebug;
 use crate::rotation::TargetRotation;
@@ -36,14 +33,14 @@ fn render_bar_gizmos(
 
     for v_off in 1..10 {
         gizmos.line_2d(
-            position + Vec2::new(-(width / 2.), 5. - v_off as f32),
-            position + Vec2::new(bar_offset, 5. - v_off as f32),
+            position + Vec2::new(-(width / 2.), 50. - (v_off as f32 * 10.)),
+            position + Vec2::new(bar_offset, 50. - (v_off as f32 * 10.)),
             bar_color,
         );
     }
     gizmos.rect_2d(
         Isometry2d::from_translation(position),
-        Vec2::new(width, 10.),
+        Vec2::new(width, 100.),
         bevy::color::palettes::css::RED,
     );
 }
@@ -52,30 +49,30 @@ pub(super) fn movement(query: Query<(&Transform, &Velocity), With<MovDebug>>, mu
     for (tran, vel) in query.iter() {
         let base = tran.translation.truncate();
         let heading = tran.rotation;
-        let velocity = vel.velocity;
+        let velocity = vel.velocity.as_vec2();
         let acceleration = heading
             .mul_vec3(Vec3::Y * (vel.acceleration as f32))
             .truncate();
 
         // Current heading
         gizmos.line_2d(
-            base + heading.mul_vec3(Vec3::Y * 30.).truncate(),
-            base + heading.mul_vec3(Vec3::Y * 60.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 300.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 600.).truncate(),
             bevy::color::palettes::css::RED,
         );
 
         // Velocity direction
         gizmos.line_2d(
-            base + vec_scale(velocity, 1.).normalize() * 30.,
-            base + vec_scale(velocity, 1.).normalize() * 50.,
+            base + velocity.normalize() * 300.,
+            base + velocity.normalize() * 500.,
             bevy::color::palettes::css::GREEN,
         );
 
         // Acceleration direction
         if vel.acceleration > 0 {
             gizmos.line_2d(
-                base + acceleration.normalize() * 30.,
-                base + acceleration.normalize() * 40.,
+                base + acceleration.normalize() * 300.,
+                base + acceleration.normalize() * 400.,
                 bevy::color::palettes::css::YELLOW,
             );
         }
@@ -103,39 +100,39 @@ pub(super) fn arc(
 
         // Current heading
         gizmos.line_2d(
-            base + heading.to_quat().mul_vec3(Vec3::Y * 110.).truncate(),
-            base + heading.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            base + heading.to_quat().mul_vec3(Vec3::Y * 1100.).truncate(),
+            base + heading.to_quat().mul_vec3(Vec3::Y * 1400.).truncate(),
             bevy::color::palettes::css::RED,
         );
 
         // Target heading
         gizmos.line_2d(
-            base + target.to_quat().mul_vec3(Vec3::Y * 110.).truncate(),
-            base + target.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
+            base + target.to_quat().mul_vec3(Vec3::Y * 1100.).truncate(),
+            base + target.to_quat().mul_vec3(Vec3::Y * 1300.).truncate(),
             bevy::color::palettes::css::GREEN,
         );
 
         // Arc - only current for now
         gizmos.line_2d(
-            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
-            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 1300.).truncate(),
+            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 1400.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
         gizmos.short_arc_2d_between(
             base,
-            base + heading.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
-            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            base + heading.to_quat().mul_vec3(Vec3::Y * 1400.).truncate(),
+            base + cw_arc.to_quat().mul_vec3(Vec3::Y * 1400.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
         gizmos.line_2d(
-            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 130.).truncate(),
-            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 1300.).truncate(),
+            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 1400.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
         gizmos.short_arc_2d_between(
             base,
-            base + heading.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
-            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 140.).truncate(),
+            base + heading.to_quat().mul_vec3(Vec3::Y * 1400.).truncate(),
+            base + ccw_arc.to_quat().mul_vec3(Vec3::Y * 1400.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
     }
@@ -156,7 +153,7 @@ pub(super) fn radar(
         // Draw distance & contact status
         gizmos.circle_2d(
             Isometry2d::from_translation(base),
-            (crate::radar::DISTANCE as f32) / ARENA_SCALE,
+            crate::radar::DISTANCE as f32,
             bevy::color::palettes::css::GREEN,
         );
 
@@ -169,8 +166,8 @@ pub(super) fn radar(
 
             // Find out if its a contact, if so color the lines
             let color = match within_radar(
-                base_pos.0,
-                target_pos.0,
+                base_pos.0.as_ivec2(),
+                target_pos.0.as_ivec2(),
                 arc.current,
                 arc.current_arc,
                 crate::radar::DISTANCE_SQUARED,
@@ -201,45 +198,45 @@ pub(super) fn rotation(
 
         // Current heading
         gizmos.line_2d(
-            base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + heading.mul_vec3(Vec3::Y * 100.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 700.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 1000.).truncate(),
             bevy::color::palettes::css::RED,
         );
 
         // Target heading
         gizmos.line_2d(
-            base + qtarget.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + qtarget.mul_vec3(Vec3::Y * 90.).truncate(),
+            base + qtarget.mul_vec3(Vec3::Y * 700.).truncate(),
+            base + qtarget.mul_vec3(Vec3::Y * 900.).truncate(),
             bevy::color::palettes::css::GREEN,
         );
         gizmos.short_arc_2d_between(
             base,
-            base + heading.mul_vec3(Vec3::Y * 80.).truncate(),
-            base + qtarget.mul_vec3(Vec3::Y * 80.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 800.).truncate(),
+            base + qtarget.mul_vec3(Vec3::Y * 800.).truncate(),
             bevy::color::palettes::css::GREEN,
         );
 
         // Limit + Arcs for rotation direction
         gizmos.line_2d(
-            base + cw_limit.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + cw_limit.mul_vec3(Vec3::Y * 80.).truncate(),
+            base + cw_limit.mul_vec3(Vec3::Y * 700.).truncate(),
+            base + cw_limit.mul_vec3(Vec3::Y * 800.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
         gizmos.short_arc_2d_between(
             base,
-            base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + cw_limit.mul_vec3(Vec3::Y * 70.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 700.).truncate(),
+            base + cw_limit.mul_vec3(Vec3::Y * 700.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
         gizmos.line_2d(
-            base + ccw_limit.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + ccw_limit.mul_vec3(Vec3::Y * 80.).truncate(),
+            base + ccw_limit.mul_vec3(Vec3::Y * 700.).truncate(),
+            base + ccw_limit.mul_vec3(Vec3::Y * 800.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
         gizmos.short_arc_2d_between(
             base,
-            base + heading.mul_vec3(Vec3::Y * 70.).truncate(),
-            base + ccw_limit.mul_vec3(Vec3::Y * 70.).truncate(),
+            base + heading.mul_vec3(Vec3::Y * 700.).truncate(),
+            base + ccw_limit.mul_vec3(Vec3::Y * 700.).truncate(),
             bevy::color::palettes::css::YELLOW,
         );
     }
@@ -255,8 +252,8 @@ pub(super) fn health(
 
         render_bar_gizmos(
             &mut gizmos,
-            base + Vec2::new(0., -25.),
-            35.,
+            base + Vec2::new(0., -250.),
+            350.,
             f32::from(health.current) / f32::from(health.maximum),
             bevy::color::palettes::css::GREEN,
         );
@@ -278,8 +275,8 @@ pub(super) fn shield_health(
 
         render_bar_gizmos(
             &mut gizmos,
-            base + Vec2::new(0., -35.),
-            35.,
+            base + Vec2::new(0., -350.),
+            350.,
             f32::from(health.current) / f32::from(health.maximum),
             bevy::color::palettes::css::BLUE,
         );

@@ -173,7 +173,17 @@ fn ship_setup() -> Vec<StarterShip> {
         .rotation_limit(16)
         .radar(AbsRot(0))
         .radar_arc(32)
-        .debug(DebugBuilder::new().radar_arc().build())
+        .debug(
+            DebugBuilder::new()
+                .radar()
+                .radar_arc()
+                .movement()
+                .rotation()
+                .health()
+                .shield_health()
+                .shield_arc()
+                .build(),
+        )
         .build(),
         ShipBuilder::new(Script {
             script: Box::new(DummyShip),

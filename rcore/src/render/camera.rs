@@ -1,3 +1,4 @@
+use avian2d::interpolation::TransformEasingSystems;
 use avian2d::schedule::PhysicsSystems;
 use bevy::prelude::*;
 
@@ -8,7 +9,6 @@ use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::window::PrimaryWindow;
 
-use crate::movement::interpolate_movement;
 use crate::radar::interpolate_arc;
 use crate::rotation::interpolate_rotation;
 
@@ -58,7 +58,7 @@ impl Plugin for CameraPlugin {
                 )
                     .chain()
                     .after(interpolate_arc)
-                    .after(interpolate_movement)
+                    .after(TransformEasingSystems::Ease)
                     .after(interpolate_rotation)
                     .after(PhysicsSystems::Last)
                     .before(TransformSystems::Propagate),
@@ -120,7 +120,7 @@ pub fn camera_setup(mut commands: Commands) {
     commands.spawn(CameraRig {
         mode: CameraMode::Free,
         config: CameraConfig {
-            target_speed: 100.0,
+            target_speed: 1000.0,
             decay_rate: 2.0,
             // TODO: not sure if this is the correct move to have a deadzone
             // on ship follow, set it to 0 for now
@@ -141,7 +141,7 @@ pub fn camera_setup(mut commands: Commands) {
             // Margin around the edge of the window
             edge_margin: Vec2::splat(30.0),
             edge_speed: 0.05,
-            edge_speed_max: 100.0,
+            edge_speed_max: 1000.0,
         },
         focus: Vec2::new(0.0, 0.0),
         zoom_factor: 0.0,
@@ -153,7 +153,7 @@ pub fn camera_setup(mut commands: Commands) {
 
 fn render_camera_focus(mut gizmos: Gizmos, query: Query<&CameraRig, With<Camera2d>>) {
     for rig in query.iter() {
-        gizmos.cross_2d(rig.focus, 12., FUCHSIA);
+        gizmos.cross_2d(rig.focus, 120., FUCHSIA);
     }
 }
 
@@ -348,9 +348,10 @@ fn apply_camera_rig(
 
     // Apply camera zoom
     if let Projection::Orthographic(ref mut ortho) = *proj {
+        let arena_scale = 10.;
         let zoom_factor = rig.zoom_factor;
         rig.zoom_scale
             .smooth_nudge(&zoom_factor, config.zoom_decay_rate, time.delta_secs());
-        ortho.scale = rig.zoom_scale.exp2();
+        ortho.scale = arena_scale * rig.zoom_scale.exp2();
     }
 }

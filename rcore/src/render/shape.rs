@@ -14,10 +14,10 @@ pub(super) fn get_ship(class: ShipClass, fill: Srgba, stroke: Srgba) -> Shape {
     let ship_path = match class {
         ShipClass::Large => todo!(),
         ShipClass::Medium => ShapePath::new()
-            .move_to(Vec2::new(0.0, 20.0))
-            .line_to(Vec2::new(10.0, -20.0))
-            .line_to(Vec2::new(0.0, -10.0))
-            .line_to(Vec2::new(-10.0, -20.0))
+            .move_to(Vec2::new(0.0, 200.0))
+            .line_to(Vec2::new(100.0, -200.0))
+            .line_to(Vec2::new(0.0, -100.0))
+            .line_to(Vec2::new(-100.0, -200.0))
             .close(),
         ShipClass::Small => todo!(),
         ShipClass::Tiny => todo!(),
@@ -25,23 +25,23 @@ pub(super) fn get_ship(class: ShipClass, fill: Srgba, stroke: Srgba) -> Shape {
 
     ShapeBuilder::with(&ship_path)
         .fill(Fill::color(fill))
-        .stroke(Stroke::new(stroke, 2.0))
+        .stroke(Stroke::new(stroke, 20.0))
         .build()
 }
 
 pub(super) fn get_radar(stroke: Srgba) -> Shape {
     let radar_path = ShapePath::new()
-        .move_to(Vec2::new(5.0, 0.0))
+        .move_to(Vec2::new(50.0, 0.0))
         .arc(
             Vec2::new(0.0, 0.0),
-            Vec2::new(5.0, 4.5),
+            Vec2::new(50.0, 45.0),
             f32::to_radians(-180.0),
             f32::to_radians(0.0),
         )
-        .move_to(Vec2::new(0.0, 2.0))
-        .line_to(Vec2::new(0.0, -4.5));
+        .move_to(Vec2::new(0.0, 20.0))
+        .line_to(Vec2::new(0.0, -45.0));
 
     ShapeBuilder::with(&radar_path)
-        .stroke(Stroke::new(stroke, 1.5))
+        .stroke(Stroke::new(stroke, 15.0))
         .build()
 }

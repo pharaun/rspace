@@ -27,7 +27,6 @@ use crate::weapon::WeaponPlugin;
 pub const TICK_HZ: u32 = 64;
 
 // This is the actual ship-arena
-pub const ARENA_SCALE: f32 = 10.0;
 const ARENA: IVec2 = IVec2::new(10240, 6400);
 
 // Systemset to help group systems in a defined order of operation since we now have systems that
@@ -64,6 +63,7 @@ impl Plugin for SimulationPlugin {
             .insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
             // Physics
             .add_plugins(PhysicsPlugins::default())
+            .insert_resource(Gravity(Vec2::ZERO))
             // Game bits
             .add_plugins(MovementPlugin)
             .add_plugins(RadarPlugin)

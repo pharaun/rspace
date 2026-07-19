@@ -5,10 +5,10 @@ use dyn_clone::DynClone;
 
 use std::fmt;
 
-use crate::movement::Position;
 use crate::movement::Velocity;
 use crate::rotation::Rotation;
 use crate::rotation::TargetRotation;
+use avian2d::prelude::Position;
 
 use crate::radar::Arc as CompArc;
 use crate::radar::ContactMessage;
@@ -190,10 +190,11 @@ fn process_on_contact(
             let ContactMessage(e1, e2) = contact_message;
             // TODO: right now with the ContactEvent being copies it leads to aliased query here,
             // This should be fixed once we have proper contact event that does not refer to self
-            if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2])
+            if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) =
+                query.get_many_mut([*e1, *e2])
             {
                 // E1 knows where e2 is
-                e1_script.script.on_contact(e2_pos.0, e2_entity);
+                e1_script.script.on_contact(e2_pos.0.as_ivec2(), e2_entity);
             } else {
                 println!("ERROR - SCRIPT - {contact_message:?}");
             }
@@ -240,7 +241,7 @@ fn process_on_update(
             let ship = ship_query.get(entity).expect("ship");
 
             let ship_status = ShipStatus {
-                position: ship.1.0,
+                position: ship.1.0.as_ivec2(),
                 velocity: ship.0.velocity,
                 acceleration: ship.0.acceleration,
                 heading: ship.3.0,

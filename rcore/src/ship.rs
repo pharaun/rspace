@@ -3,11 +3,9 @@ use bevy::prelude::*;
 use avian2d::prelude::*;
 
 use crate::math::AbsRot;
-use crate::math::vec_scale;
 use crate::script::Script;
 
 use crate::ARENA;
-use crate::ARENA_SCALE;
 
 use crate::movement::MovDebug;
 use crate::movement::MovementBundle;
@@ -386,8 +384,7 @@ impl DebugBuilder {
 pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
     let radar_target = ship.radar.arc.target;
     let ship_target = ship.rotation.target.target;
-    let mut transform =
-        Transform::from_translation(vec_scale(ship.movement.position.0, ARENA_SCALE).extend(0.));
+    let mut transform = Transform::from_translation(ship.movement.position.0.extend(0.));
     transform.rotate(ship_target.to_quat());
 
     // Probs worth restructuring
@@ -402,11 +399,11 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
         // Health
         .insert(ship.health)
         // TODO: probs want collision groups (ie ship vs missile vs other ships)
-        .insert(Collider::circle(15.0))
+        .insert(Collider::circle(150.0))
         .insert(CollisionEventsEnabled)
         // Insert the graphics for the radar dish
         .with_children(|parent| {
-            let mut transform = Transform::from_translation(Vec2::new(0., -2.).extend(1.));
+            let mut transform = Transform::from_translation(Vec2::new(0., -20.).extend(1.));
             // TODO: this is probs wrong and needs to be fixed
             transform.rotate(radar_target.to_quat());
 
