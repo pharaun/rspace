@@ -3,16 +3,12 @@ use avian2d::prelude::*;
 use bevy_transform_interpolation::TranslationEasingState;
 
 use crate::FixedGameSystem;
-use crate::math::AbsRot;
-use crate::math::tick_step_i64vec2_fp;
-use crate::math::tick_step_ivec2;
 use crate::rotation::Rotation;
 
 use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
 use crate::ARENA;
-use crate::TICK_HZ;
 use crate::math::FP_SCALE;
 
 pub struct MovementPlugin;
@@ -21,8 +17,8 @@ impl Plugin for MovementPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                apply_movement.after(crate::rotation::apply_rotation),
-                wrap_position.after(apply_movement),
+                apply_thrust.after(crate::rotation::apply_rotation),
+                wrap_position.after(apply_thrust),
             )
                 .in_set(FixedGameSystem::GameLogic),
         );
@@ -32,9 +28,9 @@ impl Plugin for MovementPlugin {
 #[derive(Bundle, Clone)]
 pub struct MovementBundle {
     pub rigid_body: RigidBody,
-    pub velocity: Velocity,
+    pub velocity: LinearVelocity,
+    pub thrust: Thrust,
     pub position: Position,
-    pub carry: PositionCarry,
     pub interpolation: TranslationInterpolation,
 }
 
@@ -42,13 +38,12 @@ impl MovementBundle {
     pub fn new(position: IVec2, velocity: IVec2, velocity_limit: u32, acceleration: i32) -> Self {
         Self {
             rigid_body: RigidBody::Kinematic,
-            velocity: Velocity {
+            velocity: LinearVelocity(velocity.as_vec2()),
+            thrust: Thrust {
                 acceleration,
-                velocity,
                 velocity_limit,
             },
             position: Position(position.as_vec2()),
-            carry: PositionCarry(IVec2::ZERO),
             interpolation: TranslationInterpolation,
         }
     }
@@ -62,96 +57,48 @@ impl MovementBundle {
 // I want to have RCS so that there can be a small amount of lateral and backward movement
 // but you would still need the main engine for heavy acceleration.
 #[derive(Component, Clone, Copy)]
-#[require(Position, VelocityCarry)]
-pub struct Velocity {
+#[require(Position, LinearVelocity)]
+pub struct Thrust {
     pub acceleration: i32,
-    pub velocity: IVec2,
 
     // TODO: improve how the limits works better
     pub velocity_limit: u32,
 }
-
-// Experiment with sub-tick integration (bresenham-style carries)
-#[derive(Component, Default, Clone, Copy)]
-pub struct PositionCarry(pub IVec2);
-
-// Fixed point floats for handling sub-tick acceleration
-#[derive(Component, Default, Clone, Copy)]
-pub struct VelocityCarry(pub I64Vec2);
 
 #[derive(Component, Clone, Copy)]
 pub struct MovDebug;
 
 // TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
 #[expect(clippy::needless_pass_by_value)]
-pub(crate) fn apply_movement(
-    mut query: Query<(
-        &mut Velocity,
-        &mut VelocityCarry,
-        &Rotation,
-        &mut Position,
-        &mut PositionCarry,
-    )>,
-) {
-    for (mut vec, mut carry_vec, rot, mut position, mut carry_position) in query.iter_mut() {
-        // Handle lorentz limited acceleration
-        let (velocity, carry) = lorentz_acceleration(
-            vec.velocity,
-            carry_vec.0,
-            rot.0,
-            vec.acceleration,
-            vec.velocity_limit,
-            TICK_HZ,
-        );
-        carry_vec.0 = carry;
-        vec.velocity = velocity;
+fn apply_thrust(mut query: Query<(&mut LinearVelocity, &Rotation, &Thrust)>, time: Res<Time>) {
+    for (mut velocity, rotation, thrust) in query.iter_mut() {
+        // heading is fp^1 scaled
+        let heading_acceleration =
+            rotation.0.to_heading_fp().as_i64vec2() * i64::from(thrust.acceleration);
 
-        // Calculate position integration
-        let (step, carry) = tick_step_ivec2(vec.velocity, carry_position.0, TICK_HZ);
-        carry_position.0 = carry;
-        position.0 += step.as_vec2();
+        // Apply Lorentz factor only if it will increase the velocity,
+        // this is not realistic but permits easy deceleration for the ship
+        // Inspiration: https://stackoverflow.com/a/2891162
+        //
+        // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
+        // do so. Could optionally allow for a heading change while preserving the current velocity
+        let heading_dot = i128_dot2(velocity.0.as_ivec2(), heading_acceleration);
+
+        let factor = if heading_dot >= 0 {
+            calculate_lorentz_factor_fp(velocity.0.as_ivec2(), thrust.velocity_limit)
+        } else {
+            FP_SCALE
+        };
+
+        // Integrate the heading_accleeration into velocity
+        // factor is fp^1, acceleration is fp^1 for fp^2
+        let factor_acceleration = (heading_acceleration * factor) / FP_SCALE;
+        velocity.0 += factor_acceleration.as_vec2() / (FP_SCALE as f32) * time.delta_secs();
     }
 }
 
 fn i128_dot2(a: IVec2, b: I64Vec2) -> i128 {
     i128::from(a.x) * i128::from(b.x) + i128::from(a.y) * i128::from(b.y)
-}
-
-// Integer velocity integration, using fixed-point math for the heading
-// along with fixed point lorentz factor to damper it
-fn lorentz_acceleration(
-    velocity: IVec2,
-    carry: I64Vec2,
-    rotation: AbsRot,
-    acceleration: i32,
-    velocity_limit: u32,
-    tick_hz: u32,
-) -> (IVec2, I64Vec2) {
-    // TODO: support ivec2 acceleration
-    let heading_acceleration = rotation.to_heading_fp().as_i64vec2() * i64::from(acceleration);
-
-    // Apply Lorentz factor only if it will increase the velocity,
-    // this is not realistic but permits easy deceleration for the ship
-    // Inspiration: https://stackoverflow.com/a/2891162
-    //
-    // NOTE: This will make direction change be sluggish unless the ship decelerate enough to
-    // do so. Could optionally allow for a heading change while preserving the current velocity
-    let heading_dot = i128_dot2(velocity, heading_acceleration);
-
-    let factor = if heading_dot >= 0 {
-        calculate_lorentz_factor_fp(velocity, velocity_limit)
-    } else {
-        FP_SCALE
-    };
-
-    // Integrate the heading_acceleration into the velocity
-    let (step, carry) = tick_step_i64vec2_fp(
-        heading_acceleration * factor,
-        carry,
-        tick_hz,
-        FP_SCALE.pow(2),
-    );
-    (velocity + step.as_ivec2(), carry)
 }
 
 // Lorentz: Y = 1 / Sqrt(1 - v^2/c^2)

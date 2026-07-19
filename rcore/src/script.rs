@@ -5,7 +5,7 @@ use dyn_clone::DynClone;
 
 use std::fmt;
 
-use crate::movement::Velocity;
+use crate::movement::Thrust;
 use crate::rotation::Rotation;
 use crate::rotation::TargetRotation;
 use avian2d::prelude::Position;
@@ -223,7 +223,8 @@ fn process_on_update(
     mut timer: ResMut<ScriptTimer>,
     mut query: Query<(Entity, &mut Script)>,
     mut ship_query: Query<(
-        &mut Velocity,
+        &LinearVelocity,
+        &mut Thrust,
         &Position,
         &mut TargetRotation,
         &Rotation,
@@ -241,23 +242,23 @@ fn process_on_update(
             let ship = ship_query.get(entity).expect("ship");
 
             let ship_status = ShipStatus {
-                position: ship.1.0.as_ivec2(),
-                velocity: ship.0.velocity,
-                acceleration: ship.0.acceleration,
-                heading: ship.3.0,
+                position: ship.2.0.as_ivec2(),
+                velocity: ship.0.0.as_ivec2(),
+                acceleration: ship.1.acceleration,
+                heading: ship.4.0,
             };
 
             let res = ship_script.script.on_update(&ship_status);
 
             // Always apply
-            let mut velocity = ship_query.get_mut(entity).expect("vel").0;
-            velocity.acceleration = res.acceleration;
+            let mut thrust = ship_query.get_mut(entity).expect("thrust").1;
+            thrust.acceleration = res.acceleration;
 
-            let mut rotation = ship_query.get_mut(entity).expect("rot").2;
+            let mut rotation = ship_query.get_mut(entity).expect("rot").3;
             rotation.target += res.heading;
 
             // Radar is on the children entity of the ship
-            let children = ship_query.get(entity).expect("radar").4;
+            let children = ship_query.get(entity).expect("radar").5;
             for child_entity in children {
                 if let Ok(mut radar) = radar_query.get_mut(*child_entity) {
                     radar.target += res.radar_heading;

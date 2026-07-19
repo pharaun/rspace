@@ -3,7 +3,8 @@ use bevy::prelude::*;
 use crate::math::AbsRot;
 
 use crate::movement::MovDebug;
-use crate::movement::Velocity;
+use crate::movement::Thrust;
+use avian2d::prelude::LinearVelocity;
 use avian2d::prelude::Position;
 
 use crate::rotation::RotDebug;
@@ -45,13 +46,16 @@ fn render_bar_gizmos(
     );
 }
 
-pub(super) fn movement(query: Query<(&Transform, &Velocity), With<MovDebug>>, mut gizmos: Gizmos) {
-    for (tran, vel) in query.iter() {
+pub(super) fn movement(
+    query: Query<(&Transform, &LinearVelocity, &Thrust), With<MovDebug>>,
+    mut gizmos: Gizmos,
+) {
+    for (tran, vel, thrust) in query.iter() {
         let base = tran.translation.truncate();
         let heading = tran.rotation;
-        let velocity = vel.velocity.as_vec2();
+        let velocity = vel.0;
         let acceleration = heading
-            .mul_vec3(Vec3::Y * (vel.acceleration as f32))
+            .mul_vec3(Vec3::Y * (thrust.acceleration as f32))
             .truncate();
 
         // Current heading
@@ -69,7 +73,7 @@ pub(super) fn movement(query: Query<(&Transform, &Velocity), With<MovDebug>>, mu
         );
 
         // Acceleration direction
-        if vel.acceleration > 0 {
+        if thrust.acceleration > 0 {
             gizmos.line_2d(
                 base + acceleration.normalize() * 300.,
                 base + acceleration.normalize() * 400.,

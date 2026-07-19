@@ -184,17 +184,17 @@ impl ShipBuilder {
     }
 
     pub fn velocity(mut self, x: i32, y: i32) -> Self {
-        self.movement.velocity.velocity = IVec2::new(x, y);
+        self.movement.velocity.0 = IVec2::new(x, y).as_vec2();
         self
     }
 
     pub fn acceleration(mut self, acceleration: i32) -> Self {
-        self.movement.velocity.acceleration = acceleration;
+        self.movement.thrust.acceleration = acceleration;
         self
     }
 
     pub fn velocity_limit(mut self, limit: u32) -> Self {
-        self.movement.velocity.velocity_limit = limit;
+        self.movement.thrust.velocity_limit = limit;
         self
     }
 
