@@ -196,9 +196,8 @@ fn update_camera_focus(
             rig.mode = CameraMode::Free;
         }
         return;
-    } else {
-        rig.drag_cursor = None;
     }
+    rig.drag_cursor = None;
 
     // Edge-pan
     // TODO: have this turn off if its in windowed mode since its kinda
@@ -265,7 +264,6 @@ fn update_camera_focus(
         // Update the camera rig only if a key was pressed
         rig.mode = CameraMode::Free;
         rig.focus += direction.normalize_or_zero() * config.target_speed * time.delta_secs();
-        return;
     }
 }
 
@@ -282,8 +280,8 @@ fn resolve_follow_mode(
 
     // Handle finding out where a Follow(entity) is at and update
     // the rig to focus on its current position
-    match rig.mode {
-        CameraMode::Follow(target) => match follow.get(target) {
+    if let CameraMode::Follow(target) = rig.mode {
+        match follow.get(target) {
             Ok(tran) => {
                 let pos = tran.translation.truncate();
                 // TODO: Decide how much we want to handle lookahead or not
@@ -296,8 +294,7 @@ fn resolve_follow_mode(
                 // Go into free-mode here
                 rig.mode = CameraMode::Free;
             }
-        },
-        _ => (),
+        }
     }
 }
 

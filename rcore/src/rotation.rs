@@ -72,7 +72,6 @@ pub struct NoRotationPropagation;
 #[derive(Component, Clone, Copy)]
 pub struct RotDebug;
 
-#[expect(clippy::needless_pass_by_value)]
 pub(crate) fn apply_rotation(mut query: Query<(&mut TargetHeading, &mut Heading, &mut Rotation)>) {
     for (mut target_heading, mut heading, mut rotation) in query.iter_mut() {
         // If heading is the same as the target heading, bail

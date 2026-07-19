@@ -234,6 +234,7 @@ fn add_ships(ships: Res<StartShip>, mut commands: Commands) {
     }
 }
 
+#[expect(clippy::explicit_iter_loop)]
 #[cfg(feature = "render")]
 fn add_ships(
     ships: Res<StartShip>,
