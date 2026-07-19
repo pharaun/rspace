@@ -10,7 +10,6 @@ use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::window::PrimaryWindow;
 
 use crate::radar::interpolate_arc;
-use crate::rotation::interpolate_rotation;
 
 // TODO: Camera refinement
 // 1. make it so that the camera stays within the area bounds instead of just the target
@@ -58,8 +57,8 @@ impl Plugin for CameraPlugin {
                 )
                     .chain()
                     .after(interpolate_arc)
+                    // Handles transform/rotation (technically dead, here for doc)
                     .after(TransformEasingSystems::Ease)
-                    .after(interpolate_rotation)
                     .after(PhysicsSystems::Last)
                     .before(TransformSystems::Propagate),
             );

@@ -8,7 +8,7 @@ use avian2d::prelude::LinearVelocity;
 use avian2d::prelude::Position;
 
 use crate::rotation::RotDebug;
-use crate::rotation::TargetRotation;
+use crate::rotation::TargetHeading;
 
 use crate::weapon::Health;
 use crate::weapon::HealthDebug;
@@ -190,7 +190,7 @@ pub(super) fn radar(
 #[expect(clippy::similar_names)]
 pub(super) fn rotation(
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &TargetRotation), With<RotDebug>>,
+    query: Query<(&Transform, &TargetHeading), With<RotDebug>>,
 ) {
     for (tran, target) in query.iter() {
         let base = tran.translation.truncate();

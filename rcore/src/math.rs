@@ -85,11 +85,17 @@ pub struct AbsRot(pub u8);
 impl AbsRot {
     // Render-only
     pub fn to_quat(&self) -> Quat {
-        Quat::from_rotation_z(FRAC_PI_128 * f32::from(self.0))
+        Quat::from_rotation_z(self.to_radians())
     }
 
     pub fn from_quat(quat: Quat) -> Self {
         Self::from_angle(quat.to_euler(EulerRot::ZYX).0)
+    }
+
+    // Look into replacing this with a fixed cos/sin table for
+    // Avian2d rotation for bit-same simulation.
+    pub fn to_radians(&self) -> f32 {
+        FRAC_PI_128 * f32::from(self.0)
     }
 
     pub fn from_angle(angle: f32) -> Self {

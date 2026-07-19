@@ -9,7 +9,7 @@ use avian2d::prelude::Position;
 use crate::radar::Arc;
 use crate::radar::ArcCheck;
 use crate::radar::within_arc;
-use crate::rotation::Rotation;
+use crate::rotation::Heading;
 use crate::script::Script;
 use crate::ship::ShipBuilder;
 use crate::spawner::SpawnMessage;
@@ -311,7 +311,7 @@ pub fn process_fire_debug_warhead_message(
 pub fn process_fire_debug_missile_message(
     mut fire_debug_missile_message: MessageReader<FireDebugMissileMessage>,
     mut parent_missile: Query<&mut DebugMissile>,
-    parent_ship: Query<(&Position, &Rotation, &Script)>,
+    parent_ship: Query<(&Position, &Heading, &Script)>,
     mut spawn_ship: MessageWriter<SpawnMessage>,
 ) {
     for FireDebugMissileMessage(ship) in fire_debug_missile_message.read() {

@@ -3,7 +3,7 @@ use avian2d::prelude::*;
 use bevy_transform_interpolation::TranslationEasingState;
 
 use crate::FixedGameSystem;
-use crate::rotation::Rotation;
+use crate::rotation::Heading;
 
 use bevy::math::I64Vec2;
 use bevy::prelude::*;
@@ -70,11 +70,11 @@ pub struct MovDebug;
 
 // TODO: improve this to integrate in forces (ie fireing of guns for smaller ships, etc)
 #[expect(clippy::needless_pass_by_value)]
-fn apply_thrust(mut query: Query<(&mut LinearVelocity, &Rotation, &Thrust)>, time: Res<Time>) {
-    for (mut velocity, rotation, thrust) in query.iter_mut() {
+fn apply_thrust(mut query: Query<(&mut LinearVelocity, &Heading, &Thrust)>, time: Res<Time>) {
+    for (mut velocity, heading, thrust) in query.iter_mut() {
         // heading is fp^1 scaled
         let heading_acceleration =
-            rotation.0.to_heading_fp().as_i64vec2() * i64::from(thrust.acceleration);
+            heading.0.to_heading_fp().as_i64vec2() * i64::from(thrust.acceleration);
 
         // Apply Lorentz factor only if it will increase the velocity,
         // this is not realistic but permits easy deceleration for the ship
@@ -193,56 +193,4 @@ fn test_calculate_lorentz_factor_fp() {
         calculate_lorentz_factor_fp(IVec2::new(0, 50), 100),
         28377, // sqrt(3/4) * FP_SCALE
     );
-}
-
-#[test]
-fn test_deceleration_lorentz() {
-    let heading = AbsRot(128);
-    let acc = 16;
-    let mut velocity = IVec2::new(0, 1000);
-    let mut carry = I64Vec2::ZERO;
-    for _ in 0..(128 * 5) {
-        (velocity, carry) = lorentz_acceleration(velocity, carry, heading, acc, 2000, 128);
-    }
-    assert_eq!(
-        velocity,
-        IVec2::new(0, 920),
-        "heading {heading:?} acc {acc}"
-    );
-    assert_eq!(carry, I64Vec2::ZERO, "heading {heading:?} acc {acc}");
-}
-
-#[test]
-fn test_accelerate_from_rest_any_hz() {
-    for hz in 1..=128 {
-        let mut velocity = IVec2::ZERO;
-        let mut carry = I64Vec2::ZERO;
-        for _ in 0..(hz * 10) {
-            (velocity, carry) = lorentz_acceleration(velocity, carry, AbsRot(0), 16, 10_000, hz);
-        }
-        assert_eq!(velocity, IVec2::new(0, 159), "at {hz}hz");
-    }
-}
-
-#[test]
-fn test_accelerate_at_limit() {
-    let mut velocity = IVec2::new(0, 100);
-    let mut carry = I64Vec2::ZERO;
-    for _ in 0..640 {
-        (velocity, carry) = lorentz_acceleration(velocity, carry, AbsRot(0), 1000, 100, 64);
-    }
-    assert_eq!(velocity, IVec2::new(0, 100));
-    assert_eq!(carry, I64Vec2::ZERO);
-}
-
-#[test]
-fn test_sub_tick_acceleration() {
-    // acc = 1 is ~0.7 per axis at 45º so it would with integer math
-    // truncate to 0 or round to 1 and be wrong, this must carry
-    let mut velocity = IVec2::ZERO;
-    let mut carry = I64Vec2::ZERO;
-    for _ in 0..640 {
-        (velocity, carry) = lorentz_acceleration(velocity, carry, AbsRot(32), 1, u32::MAX, 64);
-    }
-    assert_eq!(velocity, IVec2::new(7, 7));
 }

@@ -6,8 +6,8 @@ use dyn_clone::DynClone;
 use std::fmt;
 
 use crate::movement::Thrust;
-use crate::rotation::Rotation;
-use crate::rotation::TargetRotation;
+use crate::rotation::Heading;
+use crate::rotation::TargetHeading;
 use avian2d::prelude::Position;
 
 use crate::radar::Arc as CompArc;
@@ -226,8 +226,8 @@ fn process_on_update(
         &LinearVelocity,
         &mut Thrust,
         &Position,
-        &mut TargetRotation,
-        &Rotation,
+        &mut TargetHeading,
+        &Heading,
         &Children,
     )>,
     target_query: Query<Entity>,
@@ -254,8 +254,8 @@ fn process_on_update(
             let mut thrust = ship_query.get_mut(entity).expect("thrust").1;
             thrust.acceleration = res.acceleration;
 
-            let mut rotation = ship_query.get_mut(entity).expect("rot").3;
-            rotation.target += res.heading;
+            let mut heading = ship_query.get_mut(entity).expect("heading").3;
+            heading.target += res.heading;
 
             // Radar is on the children entity of the ship
             let children = ship_query.get(entity).expect("radar").5;

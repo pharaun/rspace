@@ -1,3 +1,5 @@
+use avian2d::interpolation::RotationInterpolation;
+use avian2d::prelude::Rotation;
 use bevy::prelude::*;
 
 use crate::FixedGameSystem;
@@ -14,10 +16,6 @@ impl Plugin for RotationPlugin {
             (apply_rotation.in_set(FixedGameSystem::GameLogic),),
         )
         .add_systems(
-            RunFixedMainLoop,
-            (interpolate_rotation.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),),
-        )
-        .add_systems(
             PostUpdate,
             (disable_rotation_propagation.after(TransformSystems::Propagate),),
         );
@@ -26,45 +24,47 @@ impl Plugin for RotationPlugin {
 
 #[derive(Bundle, Clone)]
 pub struct RotationBundle {
-    pub target: TargetRotation,
+    pub target: TargetHeading,
+    pub heading: Heading,
     pub rotation: Rotation,
-    pub previous: PreviousRotation,
+    pub interpolation: RotationInterpolation,
 }
 
 impl RotationBundle {
     pub fn new(rotation: AbsRot, target: AbsRot, limit: u8) -> Self {
         Self {
-            target: TargetRotation {
+            target: TargetHeading {
                 limit,
                 target,
                 carry: 0,
             },
-            rotation: Rotation(rotation),
-            previous: PreviousRotation(rotation),
+            heading: Heading(rotation),
+            rotation: Rotation::radians(rotation.to_radians()),
+            interpolation: RotationInterpolation,
         }
     }
 
     pub fn rotation(&mut self, rotation: AbsRot) {
         self.target.target = rotation;
-        self.rotation.0 = rotation;
-        self.previous.0 = rotation;
+        self.heading.0 = rotation;
+        self.rotation = Rotation::radians(rotation.to_radians());
     }
 }
 
 #[derive(Component, Clone, Copy)]
-#[require(Rotation)]
-pub struct TargetRotation {
+#[require(Heading)]
+pub struct TargetHeading {
     pub limit: u8, // rotation per second
     pub target: AbsRot,
     pub carry: u32, // sub tick rotation
 }
 
+// Canonical heading of the ship, simulation reads this. Avian Rotation
+// is for physics/everything else.
+//
+// NOTE: Do not add `AngularVelocity` to the ship.
 #[derive(Component, Default, Clone, Copy)]
-#[require(PreviousRotation)]
-pub struct Rotation(pub AbsRot);
-
-#[derive(Component, Default, Clone, Copy)]
-pub struct PreviousRotation(pub AbsRot);
+pub struct Heading(pub AbsRot);
 
 #[derive(Component, Clone)]
 pub struct NoRotationPropagation;
@@ -72,46 +72,31 @@ pub struct NoRotationPropagation;
 #[derive(Component, Clone, Copy)]
 pub struct RotDebug;
 
-// Handles rendering
-// Lifted from: https://github.com/Jondolf/bevy_transform_interpolation/tree/main
-// Consider: https://github.com/Jondolf/bevy_transform_interpolation/blob/main/src/hermite.rs
-// - Since we do have velocity information so we should be able to do better interpolation
 #[expect(clippy::needless_pass_by_value)]
-pub(crate) fn interpolate_rotation(
-    mut query: Query<(&mut Transform, &Rotation, &PreviousRotation)>,
-    fixed_time: Res<Time<Fixed>>,
-) {
-    // How much of a "partial timestep" has accumulated since the last fixed timestep run.
-    // Between `0.0` and `1.0`.
-    let overstep = fixed_time.overstep_fraction();
-
-    for (mut transform, rotation, previous_rotation) in &mut query {
-        transform.rotation = previous_rotation.0.transform_slerp(rotation.0, overstep);
-    }
-}
-
-#[expect(clippy::needless_pass_by_value)]
-pub(crate) fn apply_rotation(
-    mut query: Query<(&mut TargetRotation, &mut Rotation, &mut PreviousRotation)>,
-) {
-    for (mut target_rot, mut rotation, mut previous_rotation) in query.iter_mut() {
-        previous_rotation.0 = rotation.0;
-
-        // If rotation is the same as the target rotation, bail
-        if rotation.0 == target_rot.target {
+pub(crate) fn apply_rotation(mut query: Query<(&mut TargetHeading, &mut Heading, &mut Rotation)>) {
+    for (mut target_heading, mut heading, mut rotation) in query.iter_mut() {
+        // If heading is the same as the target heading, bail
+        if heading.0 == target_heading.target {
             continue;
         }
 
-        // Calculate the carry so sub-tick rotation isn't lost
-        let (step, carry) = tick_step(u32::from(target_rot.limit), target_rot.carry, TICK_HZ);
-        target_rot.carry = carry;
-        // let limit = f32::from(target_rot.limit) * time.delta_secs();
+        // Calculate the carry so sub-tick heading rotation isn't lost
+        let (step, carry) = tick_step(
+            u32::from(target_heading.limit),
+            target_heading.carry,
+            TICK_HZ,
+        );
+        target_heading.carry = carry;
 
-        let angle = rotation
+        let angle = heading
             .0
-            .angle_between(target_rot.target)
+            .angle_between(target_heading.target)
             .clamp(u8::try_from(step).unwrap_or(u8::MAX));
-        rotation.0 += angle;
+
+        heading.0 += angle;
+
+        // Mirror it into avian for physics/everything else
+        *rotation = Rotation::radians(heading.0.to_radians());
     }
 }
 
