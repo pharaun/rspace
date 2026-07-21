@@ -133,14 +133,16 @@ impl ShipScript for SimpleShip {
     }
 
     fn on_contact(&mut self, target_pos: IVec2, target_entity: Entity) {
+        if self.target_e != Some(target_entity) {
+            println!(
+                "on_contact - target.x: {:?}, target.y: {:?}",
+                target_pos.x, target_pos.y
+            );
+        }
+
         self.target_x = target_pos.x;
         self.target_y = target_pos.y;
         self.target_e = Some(target_entity);
-
-        println!(
-            "on_contact - target.x: {:?}, target.y: {:?}",
-            target_pos.x, target_pos.y
-        );
     }
 
     fn on_collision(&mut self) {
@@ -232,6 +234,7 @@ fn ship_setup() -> Vec<StarterShip> {
     ]
 }
 
+#[expect(clippy::explicit_iter_loop)]
 #[cfg(not(feature = "render"))]
 fn add_ships(ships: Res<StartShip>, mut commands: Commands) {
     for ship in ships.0.iter() {

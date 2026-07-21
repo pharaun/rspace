@@ -247,10 +247,13 @@ pub fn process_fire_debug_weapon_message(
         if let Ok((mut weapon, ship_pos)) = query.get_mut(*ship)
             && weapon.current == 0
         {
-            weapon.current = weapon.cooldown;
-
             // Fetch the ship & target position
-            let [ship_tran, target_tran] = position.get_many([*ship, *target]).expect("position");
+            // Target can be despawned by a earlier weapon system. So double check
+            let Ok([ship_tran, target_tran]) = position.get_many([*ship, *target]) else {
+                continue;
+            };
+
+            weapon.current = weapon.cooldown;
 
             // Setup the weapon render
             commands.spawn(RenderDebugWeapon {
@@ -373,7 +376,8 @@ impl ShieldBundle {
         health: u16,
     ) -> Self {
         Self {
-            shield: Shield { damage_reduce },
+            // Clamped to 0-1 cuz over 1 makes the damage split underflow
+            shield: Shield { damage_reduce: damage_reduce.clamp(0.0, 1.0) },
             health: Health {
                 current: health,
                 maximum: health,
@@ -404,7 +408,7 @@ impl ShieldBundle {
     }
 
     pub fn damage_reduce(&mut self, damage_reduce: f32) {
-        self.shield.damage_reduce = damage_reduce;
+        self.shield.damage_reduce = damage_reduce.clamp(0.0, 1.0);
     }
 
     pub fn health(&mut self, health: u16) {

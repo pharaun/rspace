@@ -74,6 +74,10 @@ pub(crate) fn apply_rotation(
     for (mut target_heading, mut heading, opt_rotation) in query.iter_mut() {
         // If heading is the same as the target heading, bail
         if heading.0 == target_heading.target {
+            // Drop the carry
+            if target_heading.carry != 0 {
+                target_heading.carry = 0;
+            }
             continue;
         }
 

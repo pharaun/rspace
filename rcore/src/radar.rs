@@ -12,8 +12,8 @@ use crate::rotation::apply_rotation;
 use crate::FixedGameSystem;
 
 // TODO: dynamic radar distance, for now fixed
-pub const DISTANCE: i32 = 4000;
-pub const DISTANCE_SQUARED: i32 = DISTANCE.pow(2);
+pub const DISTANCE: i64 = 4000;
+pub const DISTANCE_SQUARED: i64 = DISTANCE.pow(2);
 
 pub struct RadarPlugin;
 impl Plugin for RadarPlugin {
@@ -155,37 +155,36 @@ pub(crate) fn apply_radar(
         // if within the arc store it in a list till we know the closest contact
         let mut best_target: Option<(Entity, IVec2)> = None;
 
+        // Tolerate a missing parent; module-stripping damage is a todo
+        let Ok((base_ship, base_position)) = ship_query.get(attached_to.0) else {
+            continue;
+        };
+        let base = base_position.0.as_ivec2();
+
         // TODO: abstract this logic to a helper class (gizmo debug wants this too and we will have
         // other radar types)
-        let (base_ship, base_position) = ship_query.get(attached_to.0).expect("attached");
         for (target_ship, target_position) in ship_query.iter() {
             if base_ship == target_ship {
                 continue;
             }
+            let target = target_position.0.as_ivec2();
 
             if matches!(
-                within_radar(
-                    base_position.0.as_ivec2(),
-                    target_position.0.as_ivec2(),
-                    heading.0,
-                    arc.current,
-                    DISTANCE_SQUARED
-                ),
+                within_radar(base, target, heading.0, arc.current, DISTANCE_SQUARED),
                 RadarContact::Contact
             ) {
                 // Is this contact better than current winner?
-                if let Some((_, best_position)) = best_target {
-                    let target_distance = base_position
-                        .0
-                        .as_ivec2()
-                        .distance_squared(target_position.0.as_ivec2());
-                    let best_distance = base_position.0.as_ivec2().distance_squared(best_position);
-
-                    if target_distance <= best_distance {
-                        best_target = Some((target_ship, target_position.0.as_ivec2()));
+                // Tiebreaks based off entity to preserve replay orders
+                if let Some((best_ship, best_position)) = best_target {
+                    let target_distance = base.as_i64vec2().distance_squared(target.as_i64vec2());
+                    let best_distance = base
+                        .as_i64vec2()
+                        .distance_squared(best_position.as_i64vec2());
+                    if (target_distance, target_ship) < (best_distance, best_ship) {
+                        best_target = Some((target_ship, target));
                     }
                 } else {
-                    best_target = Some((target_ship, target_position.0.as_ivec2()));
+                    best_target = Some((target_ship, target));
                 }
             }
         }
@@ -202,9 +201,10 @@ pub fn within_radar(
     target: IVec2,
     radar_heading: AbsRot,
     radar_arc: u8,
-    distance_squared: i32,
+    distance_squared: i64,
 ) -> RadarContact {
-    if base.distance_squared(target) > distance_squared {
+    // Widen to prevent overflow
+    if base.as_i64vec2().distance_squared(target.as_i64vec2()) > distance_squared {
         return RadarContact::TooFar;
     }
     match within_arc(base, target, radar_heading, radar_arc) {

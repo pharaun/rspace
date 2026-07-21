@@ -321,8 +321,10 @@ fn resolve_drag_pan(camera: Single<(&Camera, &GlobalTransform, &mut CameraRig), 
     }
 }
 
+// Make sure this system is in Update + use real clock so that camera can keep on moving
+// when the game is paused
 fn apply_camera_rig(
-    time: Res<Time>,
+    time: Res<Time<Real>>,
     camera: Single<(&mut Transform, &mut Projection, &mut CameraRig), With<Camera2d>>,
 ) {
     let (mut tran, mut proj, mut rig) = camera.into_inner();

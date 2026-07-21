@@ -142,6 +142,9 @@ impl Plugin for ScriptPlugins {
                 FixedUpdate,
                 // TODO: fix this to fire every so often (ie use script timer) or some other
                 // so that we can decouple this from the fixedupdate hz
+                //
+                // The problem is right now collision/contact is every frame due to the
+                // Message queue being frame based and dropped after a frame.
                 (
                     process_on_collision.before(process_on_contact),
                     process_on_contact.before(process_on_update),
@@ -153,51 +156,43 @@ impl Plugin for ScriptPlugins {
 }
 
 fn process_on_collision(
-    time: Res<Time>,
-    mut timer: ResMut<ScriptTimer>,
     mut collision_events: MessageReader<CollisionStart>,
     mut query: Query<(Entity, &mut Script)>,
 ) {
-    if timer.0.tick(time.delta()).just_finished() {
-        // Handle collision events first
-        for event in collision_events.read() {
-            if let Ok([(_, e1_script), (_, e2_script)]) =
-                query.get_many_mut([event.collider1, event.collider2])
-            {
-                for mut ship_script in [e1_script, e2_script] {
-                    // Invoke collision handler
-                    ship_script.script.on_collision();
-                }
-            } else {
-                println!(
-                    "ERROR - SCRIPT - CollisionStart({:?}, {:?})",
-                    event.collider1, event.collider2
-                );
+    // Handle collision events first
+    for event in collision_events.read() {
+        if let Ok([(_, e1_script), (_, e2_script)]) =
+            query.get_many_mut([event.collider1, event.collider2])
+        {
+            for mut ship_script in [e1_script, e2_script] {
+                // Invoke collision handler
+                ship_script.script.on_collision();
             }
+        } else {
+            println!(
+                "ERROR - SCRIPT - CollisionStart({:?}, {:?})",
+                event.collider1, event.collider2
+            );
         }
     }
 }
 
 fn process_on_contact(
-    time: Res<Time>,
-    mut timer: ResMut<ScriptTimer>,
     mut contact_messages: MessageReader<ContactMessage>,
     mut query: Query<(Entity, &Position, &mut Script)>,
 ) {
-    if timer.0.tick(time.delta()).just_finished() {
-        // Invoke the script for contact
-        for contact_message in contact_messages.read() {
-            let ContactMessage(e1, e2) = contact_message;
-            // TODO: right now with the ContactEvent being copies it leads to aliased query here,
-            // This should be fixed once we have proper contact event that does not refer to self
-            if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) =
-                query.get_many_mut([*e1, *e2])
-            {
-                // E1 knows where e2 is
-                e1_script.script.on_contact(e2_pos.0.as_ivec2(), e2_entity);
-            } else {
-                println!("ERROR - SCRIPT - {contact_message:?}");
-            }
+    // Invoke the script for contact
+    for contact_message in contact_messages.read() {
+        let ContactMessage(e1, e2) = contact_message;
+        // TODO: right now with the ContactEvent being copies it leads to aliased query here,
+        // This should be fixed once we have proper contact event that does not refer to self
+        if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) =
+            query.get_many_mut([*e1, *e2])
+        {
+            // E1 knows where e2 is
+            e1_script.script.on_contact(e2_pos.0.as_ivec2(), e2_entity);
+        } else {
+            println!("ERROR - SCRIPT - {contact_message:?}");
         }
     }
 }
@@ -233,7 +228,7 @@ fn process_on_update(
             &Position,
             &mut TargetHeading,
             &Heading,
-            &Attachments,
+            Option<&Attachments>,
         ),
         Without<Radar>,
     >,
@@ -265,10 +260,11 @@ fn process_on_update(
             heading.target += res.heading;
 
             // Radar is on an attachment to the ship
-            let attachments = ship_query.get(entity).expect("radar").5;
-            for attachment in attachments.iter() {
-                if let Ok(mut radar) = radar_query.get_mut(attachment) {
-                    radar.target += res.radar_heading;
+            if let Some(attachments) = ship_query.get(entity).expect("radar").5 {
+                for attachment in attachments.iter() {
+                    if let Ok(mut radar) = radar_query.get_mut(attachment) {
+                        radar.target += res.radar_heading;
+                    }
                 }
             }
 

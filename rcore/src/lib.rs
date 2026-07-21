@@ -27,7 +27,6 @@ use crate::time::TimeControlPlugin;
 use crate::weapon::WeaponPlugin;
 
 // Sim timing
-// TODO: after converting to Avian2d should be able to remove this
 pub const TICK_HZ: u32 = 64;
 
 // Systemset to help group systems in a defined order of operation since we now have systems that
@@ -60,7 +59,6 @@ pub struct SimulationPlugin;
 impl Plugin for SimulationPlugin {
     fn build(&self, app: &mut App) {
         app
-            // TODO: fix up systems so i can bump it to bevy default 64hz
             .insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
             // Physics
             .add_plugins(PhysicsPlugins::default())

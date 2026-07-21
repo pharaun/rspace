@@ -69,11 +69,14 @@ pub(super) fn movement(
         );
 
         // Velocity direction
-        gizmos.line_2d(
-            base + velocity.normalize() * 300.,
-            base + velocity.normalize() * 500.,
-            bevy::color::palettes::css::GREEN,
-        );
+        let vel_dir = velocity.normalize_or_zero();
+        if vel_dir != Vec2::ZERO {
+            gizmos.line_2d(
+                base + vel_dir * 300.,
+                base + vel_dir * 500.,
+                bevy::color::palettes::css::GREEN,
+            );
+        }
 
         // Acceleration direction
         if thrust.acceleration > 0 {
