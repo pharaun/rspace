@@ -13,6 +13,7 @@ use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::StarterShip;
 use rcore::ship::add_ship;
+use rcore::time::TimeMsg;
 
 #[cfg(feature = "render")]
 use rcore::render::camera::{CameraMode, CameraRig};
@@ -59,7 +60,11 @@ impl Plugin for SetupPlugin {
         app.add_plugins(DefaultPlugins.set(ScheduleRunnerPlugin::run_loop(
             Duration::from_secs_f64(1.0 / 60.0),
         )))
-        .add_systems(Startup, add_ships);
+        .add_systems(Startup, add_ships)
+        .add_systems(Startup, |mut writer: MessageWriter<TimeMsg>| {
+            // 16x speedup
+            writer.write(TimeMsg::Speed(4));
+        });
     }
 }
 

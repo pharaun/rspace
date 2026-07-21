@@ -10,6 +10,7 @@ pub mod script;
 pub mod ship;
 pub mod spawner;
 pub mod weapon;
+pub mod time;
 
 #[cfg(feature = "render")]
 pub mod render;
@@ -22,6 +23,7 @@ use crate::radar::RadarPlugin;
 use crate::rotation::RotationPlugin;
 use crate::script::ScriptPlugins;
 use crate::spawner::SpawnerPlugin;
+use crate::time::TimeControlPlugin;
 use crate::weapon::WeaponPlugin;
 
 // Sim timing
@@ -63,6 +65,8 @@ impl Plugin for SimulationPlugin {
             // Physics
             .add_plugins(PhysicsPlugins::default())
             .insert_resource(Gravity(Vec2::ZERO))
+            // Simulation Control
+            .add_plugins(TimeControlPlugin)
             // Game bits
             .add_plugins(AttachPlugin)
             .add_plugins(MovementPlugin)
