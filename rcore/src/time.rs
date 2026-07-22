@@ -13,13 +13,34 @@ pub enum TimeMsg {
     Step(u32),
 }
 
+// Center game-tick counter
+#[derive(Resource)]
+pub struct Ticks(u64);
+
+impl Ticks {
+    pub fn elapsed(&self, start: u64) -> u64 {
+        self.0.wrapping_sub(start)
+    }
+
+    pub fn is_ready(&self, start: u64, cooldown: u64) -> bool {
+        self.elapsed(start) >= cooldown
+    }
+}
+
 pub struct TimeControlPlugin;
 impl Plugin for TimeControlPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_message::<TimeMsg>()
+            .insert_resource(Ticks(0))
             // Must happen outside of FixedUpdate since it manages FixedUpdate timings
-            .add_systems(PreUpdate, apply_time_command);
+            .add_systems(PreUpdate, apply_time_command)
+            .add_systems(
+                FixedFirst,
+                |mut ticks: ResMut<Ticks>| {
+                    ticks.0 = ticks.0.wrapping_add(1);
+                }
+            );
     }
 }
 

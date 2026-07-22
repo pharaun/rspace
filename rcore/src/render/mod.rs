@@ -121,22 +121,27 @@ struct TimeControlMarker;
 fn setup_time_control(
     mut commands: Commands,
 ) {
-    let display = Vec2::new(10240., 6400.);
-
-    commands.spawn((
-        Text2d::new("1x"),
-        Transform::from_xyz(
-            -(display.x / 2.0 + 400.),
-            -(display.y / 2.0 + 180.),
-            -0.9
-        ).with_scale(Vec3::splat(8.)),
-        TimeControlMarker,
-    ));
+    commands.spawn(Node {
+        position_type: PositionType::Absolute,
+        left: Val::Px(20.),
+        bottom: Val::Px(20.),
+        ..default()
+    })
+    .with_children(|parent| {
+        parent.spawn((
+            Text::new("   1x -  Running"),
+            TextFont {
+                font_size: FontSize::Px(18.),
+                ..default()
+            },
+            TimeControlMarker,
+        ));
+    });
 }
 
 fn render_time_control(
     time: Res<Time<Virtual>>,
-    mut text: Single<&mut Text2d, With<TimeControlMarker>>,
+    mut text: Single<&mut Text, With<TimeControlMarker>>,
 ) {
     let exp = match time.relative_speed().log2().round() as i8 {
         -4 => "1/16x",
@@ -151,9 +156,9 @@ fn render_time_control(
         _  => " Err ",
     };
     let pause = if time.is_paused() {
-        " Paused "
+        "Paused "
     } else {
-        " Running"
+        "Running"
     };
     text.0 = format!("{exp} - {pause}");
 }
