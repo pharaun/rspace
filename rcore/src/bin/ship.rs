@@ -13,7 +13,6 @@ use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::StarterShip;
 use rcore::ship::add_ship;
-use rcore::time::TimeMsg;
 
 #[cfg(feature = "render")]
 use rcore::render::camera::{CameraMode, CameraRig};
@@ -56,6 +55,7 @@ impl Plugin for SetupPlugin {
     fn build(&self, app: &mut App) {
         use bevy::app::ScheduleRunnerPlugin;
         use std::time::Duration;
+        use rcore::time::TimeMsg;
 
         app.add_plugins(DefaultPlugins.set(ScheduleRunnerPlugin::run_loop(
             Duration::from_secs_f64(1.0 / 60.0),

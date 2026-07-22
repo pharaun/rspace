@@ -16,6 +16,7 @@ use arena::arena_bounds_setup;
 use shape::get_radar;
 use shape::get_ship;
 
+use crate::time::TimeMsg;
 use crate::radar::Radar;
 use crate::ship::Ship;
 use crate::weapon::RenderDebugWarhead;
@@ -54,7 +55,10 @@ impl Plugin for RenderPlugin {
                 },
             })
             // Startup setup (ie arena)
-            .add_systems(Startup, arena_bounds_setup)
+            .add_systems(
+                Startup,
+                (arena_bounds_setup, setup_time_control),
+            )
             // Handle assigning a lyon shape to entities
             .add_systems(
                 PostUpdate,
@@ -70,9 +74,14 @@ impl Plugin for RenderPlugin {
                     gizmo::rotation,
                     gizmo::health,
                     gizmo::shield_health,
-                    // Arena gizmo
                     arena::arena_grid,
+                    render_time_control,
                 ),
+            )
+            // Time controls
+            .add_systems(
+                PreUpdate,
+                manage_time_control,
             )
             // Temporary weapon render via gizmos
             .add_systems(
@@ -83,6 +92,70 @@ impl Plugin for RenderPlugin {
                 ),
             );
     }
+}
+
+fn manage_time_control(
+    key_input: Res<ButtonInput<KeyCode>>,
+    time: Res<Time<Virtual>>,
+    mut message: MessageWriter<TimeMsg>,
+) {
+    let exp = time.relative_speed().log2().round() as i8;
+
+    if key_input.just_pressed(KeyCode::Space) {
+        message.write(TimeMsg::Pause(!time.is_paused()));
+    }
+    if key_input.just_pressed(KeyCode::BracketLeft) {
+        message.write(TimeMsg::Speed(exp - 1));
+    }
+    if key_input.just_pressed(KeyCode::BracketRight) {
+        message.write(TimeMsg::Speed(exp + 1));
+    }
+    if key_input.just_pressed(KeyCode::Period) {
+        message.write(TimeMsg::Step(1));
+    }
+}
+
+#[derive(Component)]
+struct TimeControlMarker;
+
+fn setup_time_control(
+    mut commands: Commands,
+) {
+    let display = Vec2::new(10240., 6400.);
+
+    commands.spawn((
+        Text2d::new("1x"),
+        Transform::from_xyz(
+            -(display.x / 2.0 + 400.),
+            -(display.y / 2.0 + 180.),
+            -0.9
+        ).with_scale(Vec3::splat(8.)),
+        TimeControlMarker,
+    ));
+}
+
+fn render_time_control(
+    time: Res<Time<Virtual>>,
+    mut text: Single<&mut Text2d, With<TimeControlMarker>>,
+) {
+    let exp = match time.relative_speed().log2().round() as i8 {
+        -4 => "1/16x",
+        -3 => " 1/8x",
+        -2 => " 1/4x",
+        -1 => " 1/2x",
+        0  => "   1x",
+        1  => "   2x",
+        2  => "   4x",
+        3  => "   8x",
+        4  => "  16x",
+        _  => " Err ",
+    };
+    let pause = if time.is_paused() {
+        " Paused "
+    } else {
+        " Running"
+    };
+    text.0 = format!("{exp} - {pause}");
 }
 
 fn apply_ship_shape(query: Query<(Entity, &Ship), Without<Shape>>, mut commands: Commands) {
