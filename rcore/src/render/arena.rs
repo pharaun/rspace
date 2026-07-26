@@ -125,13 +125,19 @@ impl Plugin for ArenaPlugin {
             .add_plugins(Material2dPlugin::<ArenaMaterial>::default())
             .add_systems(
                 Startup,
-                arena_bounds_setup,
+                (
+                    //arena_bounds_setup,
+                    spawn_background,
+                ),
             )
             .add_systems(
                 Update,
                 arena_grid,
+            )
+            .add_systems(
+                PostUpdate,
+                update_background,
             );
-
     }
 }
 
@@ -163,7 +169,53 @@ impl Material2d for ArenaMaterial {
 #[derive(Component)]
 struct ArenaBackground;
 
+fn spawn_background(
+    mut mesh: ResMut<Assets<Mesh>>,
+    mut material: ResMut<Assets<ArenaMaterial>>,
+    camera: Single<Entity, With<Camera2d>>,
+    mut commands: Commands,
+) {
+    // This background rectangle is a child of camera so that
+    // the global transform propagation takes care of moving it
+    // with the camera. We do need to handle resizing it though.
+    commands.spawn((
+        ArenaBackground,
+        Mesh2d(mesh.add(Rectangle::new(1.0, 1.0))),
+        MeshMaterial2d(material.add(ArenaMaterial {
+            arena: ArenaUniform::default(),
+        })),
+        // Place this as close to the back as possible
+        Transform::from_xyz(0.0, 0.0, -999.0),
+        ChildOf(*camera),
+    ));
+}
 
+fn update_background(
+    camera: Single<(&Projection, &GlobalTransform), With<Camera2d>>,
+    back: Single<(&mut Transform, &MeshMaterial2d<ArenaMaterial>), With<ArenaBackground>>,
+    mut material: ResMut<Assets<ArenaMaterial>>,
+) {
+    let (projection, cam_tran) = camera.into_inner();
+    let Projection::Orthographic(ortho) = projection else {
+        return;
+    };
+
+    // Slightly larger than display area
+    let display = ortho.area.half_size() * 1.02;
+    let cam_pos = cam_tran.translation().truncate();
+
+    // Updated uniform
+    let uniform = ArenaUniform {
+        cam_pos
+    };
+
+    // Update the backdrop sizing + uniform
+    let (mut background, material_handle) = back.into_inner();
+    background.scale = (display * 2.0).extend(1.0);
+    if let Some(mut m) = material.get_mut(&material_handle.0) {
+        m.arena = uniform;
+    }
+}
 
 
 
