@@ -12,7 +12,6 @@ pub mod camera;
 mod gizmo;
 mod shape;
 
-use arena::arena_bounds_setup;
 use shape::get_radar;
 use shape::get_ship;
 
@@ -54,10 +53,12 @@ impl Plugin for RenderPlugin {
                     },
                 },
             })
-            // Startup setup (ie arena)
+            // Arena systems
+            .add_plugins(arena::ArenaPlugin)
+            // Startup setup
             .add_systems(
                 Startup,
-                (arena_bounds_setup, setup_time_control),
+                setup_time_control,
             )
             // Handle assigning a lyon shape to entities
             .add_systems(
@@ -74,7 +75,6 @@ impl Plugin for RenderPlugin {
                     gizmo::rotation,
                     gizmo::health,
                     gizmo::shield_health,
-                    arena::arena_grid,
                     render_time_control,
                 ),
             )

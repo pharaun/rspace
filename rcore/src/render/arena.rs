@@ -5,15 +5,19 @@ use bevy_prototype_lyon::prelude::ShapePath;
 use bevy_prototype_lyon::prelude::Stroke;
 
 use bevy::prelude::*;
+use bevy::sprite_render::Material2d;
+use bevy::sprite_render::AlphaMode2d;
+use bevy::sprite_render::Material2dPlugin;
+use bevy::render::render_resource::ShaderType;
+use bevy::render::render_resource::AsBindGroup;
+use bevy::shader::ShaderRef;
 
 use crate::math::AbsRot;
 
-// TODO: add an Arena Marker for ships and stuff for objects we want to have warping
-// enabled for, versus objects we don't.
 #[derive(Component)]
 struct ArenaMarker;
 
-pub(super) fn arena_bounds_setup(mut commands: Commands) {
+fn arena_bounds_setup(mut commands: Commands) {
     let display = Vec2::new(10240., 6400.);
 
     // Arena Bounds
@@ -51,7 +55,7 @@ pub(super) fn arena_bounds_setup(mut commands: Commands) {
         ArenaMarker,
     ));
 
-    // Axis Labels
+    // Axis Labels (Probs want it on the UI instead) since we can move around.
     commands.spawn((
         Text2d::new("+X"),
         Transform::from_xyz(display.x / 2.0 + 150., 0., -0.9).with_scale(Vec3::splat(10.)),
@@ -102,7 +106,7 @@ pub(super) fn arena_bounds_setup(mut commands: Commands) {
         });
 }
 
-pub(super) fn arena_grid(mut gizmos: Gizmos) {
+fn arena_grid(mut gizmos: Gizmos) {
     // Grid so that we have a background for the camera to deal with
     gizmos
         .grid_2d(
@@ -113,3 +117,69 @@ pub(super) fn arena_grid(mut gizmos: Gizmos) {
         )
         .outer_edges();
 }
+
+pub(super) struct ArenaPlugin;
+impl Plugin for ArenaPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_plugins(Material2dPlugin::<ArenaMaterial>::default())
+            .add_systems(
+                Startup,
+                arena_bounds_setup,
+            )
+            .add_systems(
+                Update,
+                arena_grid,
+            );
+
+    }
+}
+
+//--------------------------------------------------------------------------------
+// Shaders
+//--------------------------------------------------------------------------------
+
+#[derive(ShaderType, Clone, Copy, Default)]
+struct ArenaUniform {
+    pub cam_pos: Vec2,
+}
+
+#[derive(Asset, TypePath, AsBindGroup, Clone)]
+struct ArenaMaterial {
+    #[uniform(0)]
+    pub arena: ArenaUniform,
+}
+
+impl Material2d for ArenaMaterial {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/arena.wgsl".into()
+    }
+
+    fn alpha_mode(&self) -> AlphaMode2d {
+        AlphaMode2d::Opaque
+    }
+}
+
+#[derive(Component)]
+struct ArenaBackground;
+
+
+
+
+
+// Shader todo for the Arena background shader:
+// input:
+//  - list[vec2(x, y)...] - origin? - Ie in a regular game its 0,0 by default, then for each "sun" that is
+//  added there's another item in this list 0, 1 ~= 0,0 then 2 and more is 2 pos onward up
+//
+//  - vec2(x, y) - camera location (to know where we are in the arena for rendering the effect
+//  - float - something like camera zoom to match up how zoomed in/out we are with the camera
+//
+//  - list[vec2(s, e)..] - list of rings (ie start/end distance from the origin, where in like
+//  simple case of 1 origin its a stacked ring ie 0 or more ring, where in more than 1 origin case
+//  it is merged together smoothly as the zones for eg (or not)
+//
+//  - list[vec3(rgb)...] - color for each ring i think?
+//
+//  after that i'm not sure. but for the initial case do the 0/1 star case which is always 1 pos,
+//  usually (0,0) but want to allow others by default.
