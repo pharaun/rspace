@@ -5,6 +5,7 @@ use bevy_prototype_lyon::prelude::ShapePath;
 use bevy_prototype_lyon::prelude::Stroke;
 
 use bevy::prelude::*;
+use bevy::camera::CameraUpdateSystems;
 use bevy::sprite_render::Material2d;
 use bevy::sprite_render::AlphaMode2d;
 use bevy::sprite_render::Material2dPlugin;
@@ -123,20 +124,19 @@ impl Plugin for ArenaPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_plugins(Material2dPlugin::<ArenaMaterial>::default())
-            .add_systems(
-                Startup,
-                (
-                    //arena_bounds_setup,
-                    spawn_background,
-                ),
-            )
+            //.add_systems(Startup, arena_bounds_setup)
+            .add_systems(PostStartup, spawn_background)
             .add_systems(
                 Update,
                 arena_grid,
             )
+            // Get projection from camera (CameraUpdateSystem), but apply it
+            // before transform propagation for the scale to take.
             .add_systems(
                 PostUpdate,
-                update_background,
+                update_background
+                    .after(CameraUpdateSystems)
+                    .before(TransformSystems::Propagate),
             );
     }
 }
@@ -145,9 +145,11 @@ impl Plugin for ArenaPlugin {
 // Shaders
 //--------------------------------------------------------------------------------
 
+// NOTE: always pad to 16 bytes
 #[derive(ShaderType, Clone, Copy, Default)]
 struct ArenaUniform {
     pub cam_pos: Vec2,
+    _pad: Vec2,
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
@@ -199,19 +201,17 @@ fn update_background(
     let Projection::Orthographic(ortho) = projection else {
         return;
     };
-
-    // Slightly larger than display area
-    let display = ortho.area.half_size() * 1.02;
     let cam_pos = cam_tran.translation().truncate();
 
     // Updated uniform
     let uniform = ArenaUniform {
-        cam_pos
+        cam_pos,
+        ..default()
     };
 
     // Update the backdrop sizing + uniform
     let (mut background, material_handle) = back.into_inner();
-    background.scale = (display * 2.0).extend(1.0);
+    background.scale = (ortho.area.size()).extend(1.0);
     if let Some(mut m) = material.get_mut(&material_handle.0) {
         m.arena = uniform;
     }

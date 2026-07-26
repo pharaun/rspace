@@ -40,6 +40,8 @@ render = [
 
     "bevy/file_watcher",       # Asset file watcher
     "bevy/bevy_dev_tools",     # Fps
+
+    "bevy/x11",                # winit wants a linux backend, x11 dlopen only so builds on headless linux
 ]
 
 [dependencies]
