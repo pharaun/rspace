@@ -3,6 +3,8 @@ use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::dev_tools::fps_overlay::FrameTimeGraphConfig;
 use bevy::prelude::*;
 use bevy::text::FontSmoothing;
+use bevy::render::view::screenshot::save_to_disk;
+use bevy::render::view::screenshot::Screenshot;
 use bevy_prototype_lyon::plugin::BuildShapes;
 use bevy_prototype_lyon::prelude::Shape;
 use bevy_prototype_lyon::prelude::ShapePlugin;
@@ -81,7 +83,10 @@ impl Plugin for RenderPlugin {
             // Time controls
             .add_systems(
                 PreUpdate,
-                manage_time_control,
+                (
+                    manage_time_control,
+                    manage_screenshots,
+                ),
             )
             // Temporary weapon render via gizmos
             .add_systems(
@@ -91,6 +96,25 @@ impl Plugin for RenderPlugin {
                     render_debug_warhead.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
                 ),
             );
+    }
+}
+
+fn manage_screenshots(
+    key_input: Res<ButtonInput<KeyCode>>,
+    mut counter: Local<u32>,
+    mut commands: Commands,
+) {
+    if key_input.just_pressed(KeyCode::Backslash) {
+        let path = format!("./screenshot-{}.png", *counter);
+        *counter += 1;
+        commands
+            .spawn(
+                Screenshot::primary_window()
+            )
+            .observe(
+                save_to_disk(path)
+            );
+
     }
 }
 

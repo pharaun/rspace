@@ -37,6 +37,7 @@ render = [
     "bevy/bevy_winit",         # Window management (cross-platform Winit backend)
     "bevy/bevy_window",        # Winit dep
     "bevy/default_font",       # Embed a minimal default font for text/UI
+    "bevy/png",                # Screenshot feature to save a png to disk
 
     "bevy/file_watcher",       # Asset file watcher
     "bevy/bevy_dev_tools",     # Fps
