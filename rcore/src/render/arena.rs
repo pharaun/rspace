@@ -235,3 +235,7 @@ fn update_background(
 //
 //  after that i'm not sure. but for the initial case do the 0/1 star case which is always 1 pos,
 //  usually (0,0) but want to allow others by default.
+#[test]
+fn test_uniform_sizing() {
+    assert_eq!(<ArenaUniform as ShaderType>::min_size().get(), 16);
+}
