@@ -4,14 +4,14 @@ use bevy_prototype_lyon::prelude::ShapeBuilder;
 use bevy_prototype_lyon::prelude::ShapePath;
 use bevy_prototype_lyon::prelude::Stroke;
 
-use bevy::prelude::*;
 use bevy::camera::CameraUpdateSystems;
-use bevy::sprite_render::Material2d;
-use bevy::sprite_render::AlphaMode2d;
-use bevy::sprite_render::Material2dPlugin;
-use bevy::render::render_resource::ShaderType;
+use bevy::prelude::*;
 use bevy::render::render_resource::AsBindGroup;
+use bevy::render::render_resource::ShaderType;
 use bevy::shader::ShaderRef;
+use bevy::sprite_render::AlphaMode2d;
+use bevy::sprite_render::Material2d;
+use bevy::sprite_render::Material2dPlugin;
 
 use crate::math::AbsRot;
 
@@ -122,14 +122,10 @@ fn arena_grid(mut gizmos: Gizmos) {
 pub(super) struct ArenaPlugin;
 impl Plugin for ArenaPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_plugins(Material2dPlugin::<ArenaMaterial>::default())
+        app.add_plugins(Material2dPlugin::<ArenaMaterial>::default())
             //.add_systems(Startup, arena_bounds_setup)
             .add_systems(PostStartup, spawn_background)
-            .add_systems(
-                Update,
-                arena_grid,
-            )
+            .add_systems(Update, arena_grid)
             // Get projection from camera (CameraUpdateSystem), but apply it
             // before transform propagation for the scale to take.
             .add_systems(
@@ -216,8 +212,6 @@ fn update_background(
         m.arena = uniform;
     }
 }
-
-
 
 // Shader todo for the Arena background shader:
 // input:

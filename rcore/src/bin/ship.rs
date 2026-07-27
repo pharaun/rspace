@@ -54,8 +54,8 @@ impl Plugin for SetupPlugin {
     #[cfg(not(feature = "render"))]
     fn build(&self, app: &mut App) {
         use bevy::app::ScheduleRunnerPlugin;
-        use std::time::Duration;
         use rcore::time::TimeMsg;
+        use std::time::Duration;
 
         app.add_plugins(DefaultPlugins.set(ScheduleRunnerPlugin::run_loop(
             Duration::from_secs_f64(1.0 / 60.0),

@@ -186,8 +186,7 @@ fn process_on_contact(
         let ContactMessage(e1, e2) = contact_message;
         // TODO: right now with the ContactEvent being copies it leads to aliased query here,
         // This should be fixed once we have proper contact event that does not refer to self
-        if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) =
-            query.get_many_mut([*e1, *e2])
+        if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2])
         {
             // E1 knows where e2 is
             e1_script.script.on_contact(e2_pos.0.as_ivec2(), e2_entity);

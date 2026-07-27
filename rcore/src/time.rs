@@ -30,17 +30,13 @@ impl Ticks {
 pub struct TimeControlPlugin;
 impl Plugin for TimeControlPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_message::<TimeMsg>()
+        app.add_message::<TimeMsg>()
             .insert_resource(Ticks(0))
             // Must happen outside of FixedUpdate since it manages FixedUpdate timings
             .add_systems(PreUpdate, apply_time_command)
-            .add_systems(
-                FixedFirst,
-                |mut ticks: ResMut<Ticks>| {
-                    ticks.0 = ticks.0.wrapping_add(1);
-                }
-            );
+            .add_systems(FixedFirst, |mut ticks: ResMut<Ticks>| {
+                ticks.0 = ticks.0.wrapping_add(1);
+            });
     }
 }
 
@@ -58,14 +54,12 @@ fn apply_time_command(
         match msg {
             TimeMsg::Speed(s) => next_speed = Some(s),
             TimeMsg::Pause(b) => pause = Some(b),
-            TimeMsg::Step(n)  => *backlog = backlog.saturating_add(n),
+            TimeMsg::Step(n) => *backlog = backlog.saturating_add(n),
         }
     }
 
     if let Some(s) = next_speed {
-        time.set_relative_speed(
-            2f32.powi(s.clamp(-4, 4).into())
-        );
+        time.set_relative_speed(2f32.powi(s.clamp(-4, 4).into()));
     }
     if let Some(p) = pause {
         if p {

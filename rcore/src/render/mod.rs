@@ -2,9 +2,9 @@ use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
 use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::dev_tools::fps_overlay::FrameTimeGraphConfig;
 use bevy::prelude::*;
-use bevy::text::FontSmoothing;
-use bevy::render::view::screenshot::save_to_disk;
 use bevy::render::view::screenshot::Screenshot;
+use bevy::render::view::screenshot::save_to_disk;
+use bevy::text::FontSmoothing;
 use bevy_prototype_lyon::plugin::BuildShapes;
 use bevy_prototype_lyon::prelude::Shape;
 use bevy_prototype_lyon::prelude::ShapePlugin;
@@ -17,9 +17,9 @@ mod shape;
 use shape::get_radar;
 use shape::get_ship;
 
-use crate::time::TimeMsg;
 use crate::radar::Radar;
 use crate::ship::Ship;
+use crate::time::TimeMsg;
 use crate::weapon::RenderDebugWarhead;
 use crate::weapon::RenderDebugWeapon;
 
@@ -58,10 +58,7 @@ impl Plugin for RenderPlugin {
             // Arena systems
             .add_plugins(arena::ArenaPlugin)
             // Startup setup
-            .add_systems(
-                Startup,
-                setup_time_control,
-            )
+            .add_systems(Startup, setup_time_control)
             // Handle assigning a lyon shape to entities
             .add_systems(
                 PostUpdate,
@@ -81,13 +78,7 @@ impl Plugin for RenderPlugin {
                 ),
             )
             // Time controls
-            .add_systems(
-                PreUpdate,
-                (
-                    manage_time_control,
-                    manage_screenshots,
-                ),
-            )
+            .add_systems(PreUpdate, (manage_time_control, manage_screenshots))
             // Temporary weapon render via gizmos
             .add_systems(
                 RunFixedMainLoop,
@@ -108,13 +99,8 @@ fn manage_screenshots(
         let path = format!("./screenshot-{}.png", *counter);
         *counter += 1;
         commands
-            .spawn(
-                Screenshot::primary_window()
-            )
-            .observe(
-                save_to_disk(path)
-            );
-
+            .spawn(Screenshot::primary_window())
+            .observe(save_to_disk(path));
     }
 }
 
@@ -142,25 +128,24 @@ fn manage_time_control(
 #[derive(Component)]
 struct TimeControlMarker;
 
-fn setup_time_control(
-    mut commands: Commands,
-) {
-    commands.spawn(Node {
-        position_type: PositionType::Absolute,
-        left: Val::Px(20.),
-        bottom: Val::Px(20.),
-        ..default()
-    })
-    .with_children(|parent| {
-        parent.spawn((
-            Text::new("   1x -  Running"),
-            TextFont {
-                font_size: FontSize::Px(18.),
-                ..default()
-            },
-            TimeControlMarker,
-        ));
-    });
+fn setup_time_control(mut commands: Commands) {
+    commands
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(20.),
+            bottom: Val::Px(20.),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("   1x -  Running"),
+                TextFont {
+                    font_size: FontSize::Px(18.),
+                    ..default()
+                },
+                TimeControlMarker,
+            ));
+        });
 }
 
 fn render_time_control(
@@ -172,12 +157,12 @@ fn render_time_control(
         -3 => " 1/8x",
         -2 => " 1/4x",
         -1 => " 1/2x",
-        0  => "   1x",
-        1  => "   2x",
-        2  => "   4x",
-        3  => "   8x",
-        4  => "  16x",
-        _  => " Err ",
+        0 => "   1x",
+        1 => "   2x",
+        2 => "   4x",
+        3 => "   8x",
+        4 => "  16x",
+        _ => " Err ",
     };
     let pause = if time.is_paused() {
         "Paused "

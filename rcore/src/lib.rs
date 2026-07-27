@@ -9,8 +9,8 @@ pub mod rotation;
 pub mod script;
 pub mod ship;
 pub mod spawner;
-pub mod weapon;
 pub mod time;
+pub mod weapon;
 
 #[cfg(feature = "render")]
 pub mod render;
@@ -58,8 +58,7 @@ pub enum FixedGameSystem {
 pub struct SimulationPlugin;
 impl Plugin for SimulationPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
+        app.insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
             // Physics
             .add_plugins(PhysicsPlugins::default())
             .insert_resource(Gravity(Vec2::ZERO))

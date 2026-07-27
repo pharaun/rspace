@@ -377,7 +377,9 @@ impl ShieldBundle {
     ) -> Self {
         Self {
             // Clamped to 0-1 cuz over 1 makes the damage split underflow
-            shield: Shield { damage_reduce: damage_reduce.clamp(0.0, 1.0) },
+            shield: Shield {
+                damage_reduce: damage_reduce.clamp(0.0, 1.0),
+            },
             health: Health {
                 current: health,
                 maximum: health,
