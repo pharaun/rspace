@@ -125,7 +125,7 @@ impl Plugin for ArenaPlugin {
         app.add_plugins(Material2dPlugin::<ArenaMaterial>::default())
             //.add_systems(Startup, arena_bounds_setup)
             .add_systems(PostStartup, spawn_background)
-            .add_systems(Update, arena_grid)
+            //.add_systems(Update, arena_grid)
             // Get projection from camera (CameraUpdateSystem), but apply it
             // before transform propagation for the scale to take.
             .add_systems(
@@ -143,15 +143,28 @@ impl Plugin for ArenaPlugin {
 
 // NOTE: always pad to 16 bytes
 #[derive(ShaderType, Clone, Copy, Default)]
-struct ArenaUniform {
-    pub cam_pos: Vec2,
-    _pad: Vec2,
+struct CameraUniform {
+    pub pos: Vec2,
+    pub zoom: f32,
+    _pad: f32,
+}
+
+#[derive(ShaderType, Clone, Copy, Default)]
+struct GridUniform {
+    // X/Y axis color at (0,0)
+    pub x_axis: Vec4,
+    pub y_axis: Vec4,
+    // Every 10th is a major
+    pub major: Vec4,
+    pub minor: Vec4,
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
 struct ArenaMaterial {
     #[uniform(0)]
-    pub arena: ArenaUniform,
+    pub camera: CameraUniform,
+    #[uniform(1)]
+    pub grid: GridUniform,
 }
 
 impl Material2d for ArenaMaterial {
@@ -180,7 +193,13 @@ fn spawn_background(
         ArenaBackground,
         Mesh2d(mesh.add(Rectangle::new(1.0, 1.0))),
         MeshMaterial2d(material.add(ArenaMaterial {
-            arena: ArenaUniform::default(),
+            camera: CameraUniform::default(),
+            grid: GridUniform {
+                x_axis: Color::oklcha(0.5232, 0.1404, 13.84, 1.0).to_linear().to_vec4(),
+                y_axis: Color::oklcha(0.4847, 0.1249, 253.08, 1.0).to_linear().to_vec4(),
+                major: Color::srgb(0.25, 0.25, 0.25).to_linear().to_vec4(),
+                minor: Color::srgb(0.2, 0.2, 0.2).to_linear().to_vec4(),
+            },
         })),
         // Place this as close to the back as possible
         Transform::from_xyz(0.0, 0.0, -999.0),
@@ -200,8 +219,9 @@ fn update_background(
     let cam_pos = cam_tran.translation().truncate();
 
     // Updated uniform
-    let uniform = ArenaUniform {
-        cam_pos,
+    // TODO: get camera scale in for zooming
+    let cam = CameraUniform {
+        pos: cam_pos,
         ..default()
     };
 
@@ -209,7 +229,7 @@ fn update_background(
     let (mut background, material_handle) = back.into_inner();
     background.scale = (ortho.area.size()).extend(1.0);
     if let Some(mut m) = material.get_mut(&material_handle.0) {
-        m.arena = uniform;
+        m.camera = cam;
     }
 }
 
@@ -231,5 +251,6 @@ fn update_background(
 //  usually (0,0) but want to allow others by default.
 #[test]
 fn test_uniform_sizing() {
-    assert_eq!(<ArenaUniform as ShaderType>::min_size().get(), 16);
+    <CommonUniform as ShaderType>::assert_uniform_compat();
+    <GridUniform as ShaderType>::assert_uniform_compat();
 }
