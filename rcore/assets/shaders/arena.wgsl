@@ -2,6 +2,7 @@
     mesh2d_vertex_output::VertexOutput,
     mesh2d_view_bindings::view,
 }
+#import rcore::util
 
 // Defs via mesh2d pipeline based off the camera. Details: Material2dPipeline::specialize.
 #ifdef TONEMAP_IN_SHADER

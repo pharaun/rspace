@@ -124,6 +124,7 @@ impl Plugin for ArenaPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(Material2dPlugin::<ArenaMaterial>::default())
             //.add_systems(Startup, arena_bounds_setup)
+            .add_systems(Startup, load_util_shaders)
             .add_systems(PostStartup, spawn_background)
             //.add_systems(Update, arena_grid)
             // Get projection from camera (CameraUpdateSystem), but apply it
@@ -175,6 +176,23 @@ impl Material2d for ArenaMaterial {
     fn alpha_mode(&self) -> AlphaMode2d {
         AlphaMode2d::Opaque
     }
+}
+
+#[expect(unused)]
+#[derive(Resource)]
+struct ShaderUtil(Handle<Shader>);
+
+// This is to load up a util shader and hold on it, because if it is unloaded
+// the other shaders that depends on it will error out at run time
+// TODO: replace with 'load_shader_library!(app, "util.wgsl");' but that
+// bakes it into the binary so don't need it rn.
+fn load_util_shaders(
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+) {
+    commands.insert_resource(
+        ShaderUtil(asset_server.load("shaders/util.wgsl")),
+    );
 }
 
 #[derive(Component)]
