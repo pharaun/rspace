@@ -4,17 +4,6 @@
 }
 #import rcore::util
 
-// Defs via mesh2d pipeline based off the camera. Details: Material2dPipeline::specialize.
-#ifdef TONEMAP_IN_SHADER
-#import bevy_core_pipeline::tonemapping
-#endif
-#ifdef SRGB_OUTPUT
-#import bevy_render::color_operations::linear_to_srgb
-#endif
-#ifdef OKLAB_OUTPUT
-#import bevy_render::color_operations::linear_rgb_to_oklab
-#endif
-
 // NOTE: always pad to 16 bytes
 // TODO: may not need this (via built in bevy uniforms)
 struct CameraUniform {
@@ -34,6 +23,7 @@ struct GridUniform {
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> camera: CameraUniform;
 @group(#{MATERIAL_BIND_GROUP}) @binding(1) var<uniform> grid: GridUniform;
+
 
 fn axis_line(sd: f32, thickness: f32) -> f32 {
     let upp = max(fwidth(sd), 1e-8);
@@ -68,15 +58,5 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     col = mix(col, grid.x_axis, a_x_axis);
     col = mix(col, grid.y_axis, a_y_axis);
 
-    // Source: color_material.wgsl (in bevy)
-#ifdef TONEMAP_IN_SHADER
-    col = tonemapping::tone_mapping(col, view.color_grading);
-#endif
-#ifdef SRGB_OUTPUT
-    col = vec4(linear_to_srgb(col.rgb), col.a);
-#endif
-#ifdef OKLAB_OUTPUT
-    col = vec4(linear_rgb_to_oklab(col.rgb), col.a);
-#endif
-    return col;
+    return util::adjust_color(col);
 }
