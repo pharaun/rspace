@@ -4,26 +4,24 @@
 }
 #import rcore::util
 
-// NOTE: always pad to 16 bytes
-// TODO: may not need this (via built in bevy uniforms)
-struct CameraUniform {
-    pos: vec2<f32>,
-    zoom: f32,
-    _pad: f32,
-}
-
-// NOTE: If need any color, prefer to get it rust-side via
-//  - Color::srgb(..).to_linear() and pass in via uniform
 struct GridUniform {
-    x_axis: vec4<f32>,
-    y_axis: vec4<f32>,
+    // Grid line colors
+    axis: vec4<f32>,
     major: vec4<f32>,
     minor: vec4<f32>,
+    // Grid Structure
+    ratio: u32,
+    levels: u32,
+    // Line render constraints in pixels
+    half_width: f32,
+    fade_min: f32,
+    fade_max: f32,
+    // Camera pos/grid-spacing
+    phase: vec2<f32>,
+    spacing: f32,
 }
 
-@group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> camera: CameraUniform;
-@group(#{MATERIAL_BIND_GROUP}) @binding(1) var<uniform> grid: GridUniform;
-
+@group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> grid: GridUniform;
 
 fn axis_line(sd: f32, thickness: f32) -> f32 {
     let upp = max(fwidth(sd), 1e-8);
@@ -55,8 +53,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let major_y_axis = grid_line(p.x, 1000.0, 2.0);
 
     col = mix(col, grid.minor, major_y_axis);
-    col = mix(col, grid.x_axis, a_x_axis);
-    col = mix(col, grid.y_axis, a_y_axis);
+    col = mix(col, grid.axis, a_x_axis);
+    col = mix(col, grid.axis, a_y_axis);
 
     return util::adjust_color(col);
 }
