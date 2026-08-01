@@ -1,5 +1,4 @@
 use bevy_prototype_lyon::geometry::ShapeBuilderBase as _;
-use bevy_prototype_lyon::prelude::Fill;
 use bevy_prototype_lyon::prelude::ShapeBuilder;
 use bevy_prototype_lyon::prelude::ShapePath;
 use bevy_prototype_lyon::prelude::Stroke;
@@ -23,45 +22,9 @@ use crate::math::AbsRot;
 #[derive(Component)]
 struct ArenaMarker;
 
-fn arena_bounds_setup(mut commands: Commands) {
+fn arena_axis_setup(mut commands: Commands) {
     let display = Vec2::new(10240., 6400.);
 
-    // Arena Bounds
-    let path = ShapePath::new()
-        .move_to(Vec2::new(-(display.x / 2.0), -(display.y / 2.0)))
-        .line_to(Vec2::new(display.x / 2.0, -(display.y / 2.0)))
-        .line_to(Vec2::new(display.x / 2.0, display.y / 2.0))
-        .line_to(Vec2::new(-(display.x / 2.0), display.y / 2.0))
-        .close();
-
-    commands.spawn((
-        ShapeBuilder::with(&path)
-            .fill(Fill::color(Color::srgb(0.15, 0.15, 0.15)))
-            .stroke(Stroke::new(
-                Color::Srgba(bevy::color::palettes::css::RED),
-                10.0,
-            ))
-            .build(),
-        Transform::from_xyz(0., 0., -1.),
-        ArenaMarker,
-    ));
-
-    // Arena Zero axis marks
-    let axis = ShapePath::new()
-        .move_to(Vec2::new(-(display.x / 2.0), 0.0))
-        .line_to(Vec2::new(display.x / 2.0, 0.0))
-        .move_to(Vec2::new(0.0, -(display.y / 2.0)))
-        .line_to(Vec2::new(0.0, display.y / 2.0));
-
-    commands.spawn((
-        ShapeBuilder::with(&axis)
-            .stroke(Stroke::new(Color::srgb(0.40, 0.40, 0.40), 5.))
-            .build(),
-        Transform::from_xyz(0., 0., -0.9),
-        ArenaMarker,
-    ));
-
-    // Axis Labels (Probs want it on the UI instead) since we can move around.
     commands.spawn((
         Text2d::new("+X"),
         Transform::from_xyz(display.x / 2.0 + 150., 0., -0.9).with_scale(Vec3::splat(10.)),
@@ -82,8 +45,9 @@ fn arena_bounds_setup(mut commands: Commands) {
         Transform::from_xyz(0., -(display.y / 2.0 + 150.), -0.9).with_scale(Vec3::splat(10.)),
         ArenaMarker,
     ));
+}
 
-    // Rotation Angle Compass
+fn arena_compass_setup(mut commands: Commands) {
     let compass = ShapePath::new()
         .move_to(Vec2::new(-200., 0.))
         .line_to(Vec2::new(200., 0.))
@@ -112,26 +76,22 @@ fn arena_bounds_setup(mut commands: Commands) {
         });
 }
 
-fn arena_grid(mut gizmos: Gizmos) {
-    // Grid so that we have a background for the camera to deal with
-    gizmos
-        .grid_2d(
-            Isometry2d::IDENTITY,
-            UVec2::new(16, 16),
-            Vec2::new(800., 800.),
-            LinearRgba::gray(0.05),
-        )
-        .outer_edges();
-}
-
 pub(super) struct ArenaPlugin;
 impl Plugin for ArenaPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(Material2dPlugin::<ArenaMaterial>::default())
-            //.add_systems(Startup, arena_bounds_setup)
-            .add_systems(Startup, load_util_shaders)
+            .add_systems(
+                Startup,
+                (
+                    arena_compass_setup,
+                    arena_axis_setup,
+                    setup_grid_control,
+                    load_util_shaders,
+                    sprite_test,
+                ),
+            )
             .add_systems(PostStartup, spawn_background)
-            //.add_systems(Update, arena_grid)
+            .add_systems(Update, (debug_shader_control, render_grid_control))
             // Get projection from camera (CameraUpdateSystem), but apply it
             // before transform propagation for the scale to take.
             .add_systems(
@@ -139,11 +99,7 @@ impl Plugin for ArenaPlugin {
                 update_background
                     .after(CameraUpdateSystems)
                     .before(TransformSystems::Propagate),
-            )
-            .add_systems(Update, debug_shader_control)
-            .add_systems(Startup, setup_grid_control)
-            .add_systems(Update, render_grid_control)
-            .add_systems(Startup, sprite_test);
+            );
     }
 }
 
@@ -261,7 +217,7 @@ fn spawn_background(
                     spacing: 0.0,
                     // Debugging
                     mode: 0,
-                    magic: 0xDEADC0DE,
+                    magic: 0xDEAD_C0DE,
                 },
             }),
         ),
@@ -273,6 +229,7 @@ fn spawn_background(
 
 // Use Transform because this is updated post camera-rig, but we want freshest transform
 // for shader code + background
+#[expect(clippy::cast_possible_truncation)]
 fn update_background(
     camera: Query<(&Camera, &Projection, &Transform), With<Camera2d>>,
     mut back: Query<
@@ -304,29 +261,21 @@ fn update_background(
 
     // We have 3 levels by default, pick which level to use and aim for each cell to be ~32px
     let base_spacing = 10_000.0;
-    //let ideal = (mat.grid.cell * wupp) as f64;
-    //let k = (ideal / base_spacing)
-    //    .log(mat.grid.ratio as f64)
-    //    .ceil()
-    //    .max(0.0);
-
-    let ideal = (mat.grid.cell * wupp) as f64;
-    let k = (ideal / base_spacing).log(mat.grid.ratio as f64).ceil() as i32;
-    let k = k.clamp(-6, 6);   // sanity bound
+    let ideal = f64::from(mat.grid.cell * wupp);
+    let k = (ideal / base_spacing).log(f64::from(mat.grid.ratio)).ceil() as i32;
+    let k = k.clamp(-6, 6);
 
     let spacing = if k >= 0 {
-        base_spacing * mat.grid.ratio.pow(k as u32) as f64
+        base_spacing * f64::from(mat.grid.ratio.pow(k.cast_unsigned()))
     } else {
-        base_spacing / mat.grid.ratio.pow(-k as u32) as f64
+        base_spacing / f64::from(mat.grid.ratio.pow((-k).cast_unsigned()))
     };
-
-    //mat.grid.spacing = (base_spacing * (mat.grid.ratio as f64).powf(k)) as f32;
     mat.grid.spacing = spacing as f32;
 
     // Update the camera phase to pass in to the shader based off the camera
     // position + coarse spacing.
     let cam_pos = cam_tran.translation.truncate().as_dvec2();
-    let coarse = mat.grid.spacing as f64 * mat.grid.ratio.pow(mat.grid.levels - 1) as f64;
+    let coarse = f64::from(mat.grid.spacing) * f64::from(mat.grid.ratio.pow(mat.grid.levels - 1));
     mat.grid.phase = cam_pos.rem_euclid(DVec2::splat(coarse)).as_vec2();
     Ok(())
 }
@@ -406,27 +355,26 @@ fn setup_grid_control(mut commands: Commands) {
 
 fn render_grid_control(
     back: Query<&MeshMaterial2d<ArenaMaterial>, With<ArenaBackground>>,
-    mut material: ResMut<Assets<ArenaMaterial>>,
+    material: Res<Assets<ArenaMaterial>>,
     mut text: Single<&mut Text, With<GridControlMarker>>,
 ) -> Result<()> {
     let material_handle = back.single()?;
-    let Some(mut mat) = material.get_mut(&material_handle.0) else {
+    let Some(mat) = material.get(&material_handle.0) else {
         return Ok(());
     };
     let cell = mat.grid.cell;
+    text.0 = format!(" {cell:>2.0} Cell");
 
-    if cell < 10.0 {
-        text.0 = format!(" {} Cell", cell as u32);
-    } else {
-        text.0 = format!("{} Cell", cell as u32);
-    }
     Ok(())
 }
 
-fn sprite_test(
-    mut commands: Commands,
-) {
-    for (x, y) in [(0.0, 0.0), (10_000.0, 0.0), (0.0, 10_000.0), (10_000.0, 10_000.0)] {
+fn sprite_test(mut commands: Commands) {
+    for (x, y) in [
+        (0.0, 0.0),
+        (10_000.0, 0.0),
+        (0.0, 10_000.0),
+        (10_000.0, 10_000.0),
+    ] {
         commands.spawn((
             Sprite::from_color(Color::srgb(0.0, 1.0, 1.0), Vec2::splat(200.0)),
             Transform::from_xyz(x, y, 10.0),

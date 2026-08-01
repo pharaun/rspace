@@ -109,6 +109,7 @@ fn manage_time_control(
     time: Res<Time<Virtual>>,
     mut message: MessageWriter<TimeMsg>,
 ) {
+    #[expect(clippy::cast_possible_truncation)]
     let exp = time.relative_speed().log2().round() as i8;
 
     if key_input.just_pressed(KeyCode::Space) {
@@ -152,6 +153,7 @@ fn render_time_control(
     time: Res<Time<Virtual>>,
     mut text: Single<&mut Text, With<TimeControlMarker>>,
 ) {
+    #[expect(clippy::cast_possible_truncation)]
     let exp = match time.relative_speed().log2().round() as i8 {
         -4 => "1/16x",
         -3 => " 1/8x",
