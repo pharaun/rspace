@@ -142,7 +142,8 @@ impl Plugin for ArenaPlugin {
             )
             .add_systems(Update, debug_shader_control)
             .add_systems(Startup, setup_grid_control)
-            .add_systems(Update, render_grid_control);
+            .add_systems(Update, render_grid_control)
+            .add_systems(Startup, sprite_test);
     }
 }
 
@@ -420,6 +421,17 @@ fn render_grid_control(
         text.0 = format!("{} Cell", cell as u32);
     }
     Ok(())
+}
+
+fn sprite_test(
+    mut commands: Commands,
+) {
+    for (x, y) in [(0.0, 0.0), (10_000.0, 0.0), (0.0, 10_000.0), (10_000.0, 10_000.0)] {
+        commands.spawn((
+            Sprite::from_color(Color::srgb(0.0, 1.0, 1.0), Vec2::splat(200.0)),
+            Transform::from_xyz(x, y, 10.0),
+        ));
+    }
 }
 
 #[test]
