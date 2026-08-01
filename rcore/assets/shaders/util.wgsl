@@ -38,6 +38,11 @@ fn adjust_color(color: vec4<f32>) -> vec4<f32> {
     return adjusted;
 }
 
+fn mod_euclid(value: vec2<f32>, m: f32) -> vec2<f32> {
+    /// [0, m) Euclidean.
+    return value - floor(value / m) * m;
+}
+
 // In view.wgsl
 // > `clip_from_view[3][3] == 1.0` is the standard way to check if a projection is orthographic
 fn is_orthographic() -> bool {

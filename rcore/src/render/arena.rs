@@ -139,7 +139,8 @@ impl Plugin for ArenaPlugin {
                 update_background
                     .after(CameraUpdateSystems)
                     .before(TransformSystems::Propagate),
-            );
+            )
+            .add_systems(Update, debug_shader_control);
     }
 }
 
@@ -165,6 +166,7 @@ struct GridUniform {
 
     // Line render constraints in pixels
     pub half_width: f32,
+    pub cell: f32,
     pub fade_min: f32,
     pub fade_max: f32,
 
@@ -241,15 +243,16 @@ fn spawn_background(
                     axis: Color::oklcha(0.5232, 0.1404, 13.84, 1.0)
                         .to_linear()
                         .to_vec4(),
-                    major: Color::srgb(0.25, 0.25, 0.25).to_linear().to_vec4(),
-                    minor: Color::srgb(0.2, 0.2, 0.2).to_linear().to_vec4(),
+                    major: Color::srgb(0.4, 0.4, 0.4).to_linear().to_vec4(),
+                    minor: Color::srgb(0.25, 0.25, 0.25).to_linear().to_vec4(),
                     // Grid Config
                     ratio: 10,
                     levels: 3,
                     // Line render
-                    half_width: 1.0,
-                    fade_min: 1.0,
-                    fade_max: 1.0,
+                    half_width: 1.5,
+                    cell: 32.0,
+                    fade_min: 32.0,
+                    fade_max: 320.0, // fade_min * ratio
                     // Camera (zero value rn, will be recomputed)
                     phase: Vec2::ZERO,
                     spacing: 0.0,
@@ -280,7 +283,6 @@ fn update_background(
         return Ok(());
     };
     let Some(viewport_px) = cam.physical_viewport_size() else {
-        println!("exit");
         return Ok(());
     };
 
@@ -299,19 +301,84 @@ fn update_background(
 
     // We have 3 levels by default, pick which level to use and aim for each cell to be ~32px
     let base_spacing = 10_000.0;
-    let target_px_cell = 32.0;
-    let ideal = (target_px_cell * wupp) as f64;
-    let k = (ideal / base_spacing)
-        .log(mat.grid.ratio as f64)
-        .ceil()
-        .max(0.0);
-    mat.grid.spacing = (base_spacing * (mat.grid.ratio as f64).powf(k)) as f32;
+    //let ideal = (mat.grid.cell * wupp) as f64;
+    //let k = (ideal / base_spacing)
+    //    .log(mat.grid.ratio as f64)
+    //    .ceil()
+    //    .max(0.0);
+
+    let ideal = (mat.grid.cell * wupp) as f64;
+    let k = (ideal / base_spacing).log(mat.grid.ratio as f64).ceil() as i32;
+    let k = k.clamp(-6, 6);   // sanity bound
+
+    let spacing = if k >= 0 {
+        base_spacing * mat.grid.ratio.pow(k as u32) as f64
+    } else {
+        base_spacing / mat.grid.ratio.pow(-k as u32) as f64
+    };
+
+    //mat.grid.spacing = (base_spacing * (mat.grid.ratio as f64).powf(k)) as f32;
+    mat.grid.spacing = spacing as f32;
 
     // Update the camera phase to pass in to the shader based off the camera
     // position + coarse spacing.
     let cam_pos = cam_tran.translation.truncate().as_dvec2();
     let coarse = mat.grid.spacing as f64 * mat.grid.ratio.pow(mat.grid.levels - 1) as f64;
     mat.grid.phase = cam_pos.rem_euclid(DVec2::splat(coarse)).as_vec2();
+    Ok(())
+}
+
+fn debug_shader_control(
+    key_input: Res<ButtonInput<KeyCode>>,
+    back: Query<&MeshMaterial2d<ArenaMaterial>, With<ArenaBackground>>,
+    mut material: ResMut<Assets<ArenaMaterial>>,
+) -> Result<()> {
+    let material_handle = back.single()?;
+    let Some(mut mat) = material.get_mut(&material_handle.0) else {
+        return Ok(());
+    };
+
+    if key_input.pressed(KeyCode::Digit0) {
+        mat.grid.mode = 0;
+    }
+    if key_input.pressed(KeyCode::Digit1) {
+        mat.grid.mode = 1;
+    }
+    if key_input.pressed(KeyCode::Digit2) {
+        mat.grid.mode = 2;
+    }
+    if key_input.pressed(KeyCode::Digit3) {
+        mat.grid.mode = 3;
+    }
+    if key_input.pressed(KeyCode::Digit4) {
+        mat.grid.mode = 4;
+    }
+    if key_input.pressed(KeyCode::Digit5) {
+        mat.grid.mode = 5;
+    }
+
+    // adjust target px cell
+    if key_input.pressed(KeyCode::KeyO) {
+        mat.grid.cell -= 1.0;
+        mat.grid.cell = mat.grid.cell.clamp(1.0, 32.0);
+
+        println!("Cell: {:?}", mat.grid.cell);
+
+        // Calculate the rest
+        mat.grid.fade_min = mat.grid.cell;
+        mat.grid.fade_max = mat.grid.cell * (mat.grid.ratio as f32);
+    }
+    if key_input.pressed(KeyCode::KeyP) {
+        mat.grid.cell += 1.0;
+        mat.grid.cell = mat.grid.cell.clamp(1.0, 32.0);
+
+        println!("Cell: {:?}", mat.grid.cell);
+
+        // Calculate the rest
+        mat.grid.fade_min = mat.grid.cell;
+        mat.grid.fade_max = mat.grid.cell * (mat.grid.ratio as f32);
+    }
+
     Ok(())
 }
 
