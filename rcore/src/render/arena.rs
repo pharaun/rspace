@@ -140,7 +140,9 @@ impl Plugin for ArenaPlugin {
                     .after(CameraUpdateSystems)
                     .before(TransformSystems::Propagate),
             )
-            .add_systems(Update, debug_shader_control);
+            .add_systems(Update, debug_shader_control)
+            .add_systems(Startup, setup_grid_control)
+            .add_systems(Update, render_grid_control);
     }
 }
 
@@ -250,9 +252,9 @@ fn spawn_background(
                     levels: 3,
                     // Line render
                     half_width: 1.5,
-                    cell: 32.0,
-                    fade_min: 32.0,
-                    fade_max: 320.0, // fade_min * ratio
+                    cell: 10.0,
+                    fade_min: 10.0,
+                    fade_max: 100.0, // fade_min * ratio
                     // Camera (zero value rn, will be recomputed)
                     phase: Vec2::ZERO,
                     spacing: 0.0,
@@ -338,47 +340,85 @@ fn debug_shader_control(
         return Ok(());
     };
 
-    if key_input.pressed(KeyCode::Digit0) {
+    if key_input.just_pressed(KeyCode::Digit0) {
         mat.grid.mode = 0;
     }
-    if key_input.pressed(KeyCode::Digit1) {
+    if key_input.just_pressed(KeyCode::Digit1) {
         mat.grid.mode = 1;
     }
-    if key_input.pressed(KeyCode::Digit2) {
+    if key_input.just_pressed(KeyCode::Digit2) {
         mat.grid.mode = 2;
     }
-    if key_input.pressed(KeyCode::Digit3) {
+    if key_input.just_pressed(KeyCode::Digit3) {
         mat.grid.mode = 3;
     }
-    if key_input.pressed(KeyCode::Digit4) {
+    if key_input.just_pressed(KeyCode::Digit4) {
         mat.grid.mode = 4;
     }
-    if key_input.pressed(KeyCode::Digit5) {
+    if key_input.just_pressed(KeyCode::Digit5) {
         mat.grid.mode = 5;
     }
 
     // adjust target px cell
-    if key_input.pressed(KeyCode::KeyO) {
+    if key_input.just_pressed(KeyCode::KeyO) {
         mat.grid.cell -= 1.0;
         mat.grid.cell = mat.grid.cell.clamp(1.0, 32.0);
 
-        println!("Cell: {:?}", mat.grid.cell);
-
         // Calculate the rest
         mat.grid.fade_min = mat.grid.cell;
         mat.grid.fade_max = mat.grid.cell * (mat.grid.ratio as f32);
     }
-    if key_input.pressed(KeyCode::KeyP) {
+    if key_input.just_pressed(KeyCode::KeyP) {
         mat.grid.cell += 1.0;
         mat.grid.cell = mat.grid.cell.clamp(1.0, 32.0);
 
-        println!("Cell: {:?}", mat.grid.cell);
-
         // Calculate the rest
         mat.grid.fade_min = mat.grid.cell;
         mat.grid.fade_max = mat.grid.cell * (mat.grid.ratio as f32);
     }
 
+    Ok(())
+}
+
+#[derive(Component)]
+struct GridControlMarker;
+
+fn setup_grid_control(mut commands: Commands) {
+    commands
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            right: Val::Px(20.),
+            bottom: Val::Px(20.),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("-- Cell"),
+                TextFont {
+                    font_size: FontSize::Px(18.),
+                    ..default()
+                },
+                GridControlMarker,
+            ));
+        });
+}
+
+fn render_grid_control(
+    back: Query<&MeshMaterial2d<ArenaMaterial>, With<ArenaBackground>>,
+    mut material: ResMut<Assets<ArenaMaterial>>,
+    mut text: Single<&mut Text, With<GridControlMarker>>,
+) -> Result<()> {
+    let material_handle = back.single()?;
+    let Some(mut mat) = material.get_mut(&material_handle.0) else {
+        return Ok(());
+    };
+    let cell = mat.grid.cell;
+
+    if cell < 10.0 {
+        text.0 = format!(" {} Cell", cell as u32);
+    } else {
+        text.0 = format!("{} Cell", cell as u32);
+    }
     Ok(())
 }
 
