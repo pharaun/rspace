@@ -5,13 +5,17 @@ use bevy_prototype_lyon::prelude::ShapePath;
 use bevy_prototype_lyon::prelude::Stroke;
 
 use bevy::camera::CameraUpdateSystems;
-use bevy::prelude::*;
+use bevy::material::descriptor::RenderPipelineDescriptor;
+use bevy::material::specialize::SpecializedMeshPipelineError;
 use bevy::math::DVec2;
+use bevy::mesh::MeshVertexBufferLayoutRef;
+use bevy::prelude::*;
 use bevy::render::render_resource::AsBindGroup;
 use bevy::render::render_resource::ShaderType;
 use bevy::shader::ShaderRef;
 use bevy::sprite_render::AlphaMode2d;
 use bevy::sprite_render::Material2d;
+use bevy::sprite_render::Material2dKey;
 use bevy::sprite_render::Material2dPlugin;
 
 use crate::math::AbsRot;
@@ -167,6 +171,10 @@ struct GridUniform {
     // Camera pos modulo coarse tier spacing.
     pub phase: Vec2,
     pub spacing: f32,
+
+    // Debugging bits
+    pub mode: u32,
+    pub magic: u32,
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
@@ -183,6 +191,20 @@ impl Material2d for ArenaMaterial {
     fn alpha_mode(&self) -> AlphaMode2d {
         AlphaMode2d::Opaque
     }
+
+    fn specialize(
+        descriptor: &mut RenderPipelineDescriptor,
+        _layout: &MeshVertexBufferLayoutRef,
+        _key: Material2dKey<Self>,
+    ) -> Result<(), SpecializedMeshPipelineError> {
+        if cfg!(debug_assertions) || cfg!(feature = "shader-debug") {
+            descriptor.vertex.shader_defs.push("SHADER_DEBUG".into());
+            if let Some(fragment) = &mut descriptor.fragment {
+                fragment.shader_defs.push("SHADER_DEBUG".into());
+            }
+        }
+        Ok(())
+    }
 }
 
 #[expect(unused)]
@@ -193,13 +215,8 @@ struct ShaderUtil(Handle<Shader>);
 // the other shaders that depends on it will error out at run time
 // TODO: replace with 'load_shader_library!(app, "util.wgsl");' but that
 // bakes it into the binary so don't need it rn.
-fn load_util_shaders(
-    asset_server: Res<AssetServer>,
-    mut commands: Commands,
-) {
-    commands.insert_resource(
-        ShaderUtil(asset_server.load("shaders/util.wgsl")),
-    );
+fn load_util_shaders(asset_server: Res<AssetServer>, mut commands: Commands) {
+    commands.insert_resource(ShaderUtil(asset_server.load("shaders/util.wgsl")));
 }
 
 #[derive(Component)]
@@ -217,24 +234,31 @@ fn spawn_background(
     commands.spawn((
         ArenaBackground,
         Mesh2d(mesh.add(Rectangle::new(1.0, 1.0))),
-        MeshMaterial2d(material.add(ArenaMaterial {
-            grid: GridUniform {
-                //axis: Color::oklcha(0.4847, 0.1249, 253.08, 1.0).to_linear().to_vec4(),
-                axis: Color::oklcha(0.5232, 0.1404, 13.84, 1.0).to_linear().to_vec4(),
-                major: Color::srgb(0.25, 0.25, 0.25).to_linear().to_vec4(),
-                minor: Color::srgb(0.2, 0.2, 0.2).to_linear().to_vec4(),
-                // Grid Config
-                ratio: 10,
-                levels: 3,
-                // Line render
-                half_width: 1.0,
-                fade_min: 1.0,
-                fade_max: 1.0,
-                // Camera (zero value rn, will be recomputed)
-                phase: Vec2::ZERO,
-                spacing: 0.0,
-            },
-        })),
+        MeshMaterial2d(
+            material.add(ArenaMaterial {
+                grid: GridUniform {
+                    //axis: Color::oklcha(0.4847, 0.1249, 253.08, 1.0).to_linear().to_vec4(),
+                    axis: Color::oklcha(0.5232, 0.1404, 13.84, 1.0)
+                        .to_linear()
+                        .to_vec4(),
+                    major: Color::srgb(0.25, 0.25, 0.25).to_linear().to_vec4(),
+                    minor: Color::srgb(0.2, 0.2, 0.2).to_linear().to_vec4(),
+                    // Grid Config
+                    ratio: 10,
+                    levels: 3,
+                    // Line render
+                    half_width: 1.0,
+                    fade_min: 1.0,
+                    fade_max: 1.0,
+                    // Camera (zero value rn, will be recomputed)
+                    phase: Vec2::ZERO,
+                    spacing: 0.0,
+                    // Debugging
+                    mode: 0,
+                    magic: 0xDEADC0DE,
+                },
+            }),
+        ),
         // Place this as close to the back as possible
         Transform::from_xyz(0.0, 0.0, -999.0),
         ChildOf(*camera),
@@ -244,21 +268,25 @@ fn spawn_background(
 // Use Transform because this is updated post camera-rig, but we want freshest transform
 // for shader code + background
 fn update_background(
-    camera: Single<(&Camera, &Projection, &Transform), With<Camera2d>>,
-    back: Single<(&mut Transform, &MeshMaterial2d<ArenaMaterial>), (With<ArenaBackground>, Without<Camera2d>)>,
+    camera: Query<(&Camera, &Projection, &Transform), With<Camera2d>>,
+    mut back: Query<
+        (&mut Transform, &MeshMaterial2d<ArenaMaterial>),
+        (With<ArenaBackground>, Without<Camera2d>),
+    >,
     mut material: ResMut<Assets<ArenaMaterial>>,
-) {
-    let (cam, projection, cam_tran) = camera.into_inner();
+) -> Result<()> {
+    let (cam, projection, cam_tran) = camera.single()?;
     let Projection::Orthographic(ortho) = projection else {
-        return;
+        return Ok(());
     };
     let Some(viewport_px) = cam.physical_viewport_size() else {
-        return;
+        println!("exit");
+        return Ok(());
     };
 
     // Backdrop sizing + margin
-    let (mut background, material_handle) = back.into_inner();
-    background.scale = (ortho.area.size() * 1.01).extend(1.0);
+    let (mut background, material_handle) = back.single_mut()?;
+    background.scale = (ortho.area.size()).extend(1.0);
 
     // World unit per pixel
     let wupp = ortho.area.width() / viewport_px.x as f32;
@@ -266,14 +294,17 @@ fn update_background(
     // Material fetch
     // TODO: optimize this to only update when it actually changes
     let Some(mut mat) = material.get_mut(&material_handle.0) else {
-        return;
+        return Ok(());
     };
 
     // We have 3 levels by default, pick which level to use and aim for each cell to be ~32px
     let base_spacing = 10_000.0;
     let target_px_cell = 32.0;
     let ideal = (target_px_cell * wupp) as f64;
-    let k = (ideal / base_spacing).log(mat.grid.ratio as f64).ceil().max(0.0);
+    let k = (ideal / base_spacing)
+        .log(mat.grid.ratio as f64)
+        .ceil()
+        .max(0.0);
     mat.grid.spacing = (base_spacing * (mat.grid.ratio as f64).powf(k)) as f32;
 
     // Update the camera phase to pass in to the shader based off the camera
@@ -281,6 +312,7 @@ fn update_background(
     let cam_pos = cam_tran.translation.truncate().as_dvec2();
     let coarse = mat.grid.spacing as f64 * mat.grid.ratio.pow(mat.grid.levels - 1) as f64;
     mat.grid.phase = cam_pos.rem_euclid(DVec2::splat(coarse)).as_vec2();
+    Ok(())
 }
 
 #[test]

@@ -19,6 +19,9 @@ struct GridUniform {
     // Camera pos/grid-spacing
     phase: vec2<f32>,
     spacing: f32,
+    // Debugging bits
+    mode: u32,
+    magic: u32,
 }
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> grid: GridUniform;
@@ -39,22 +42,35 @@ fn grid_line(sd: f32, spacing: f32, thickness: f32) -> f32 {
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
+#ifdef SHADER_DEBUG
+    // Self checks
+    if grid.magic != 0xDEADC0DEu {
+        // Magenta - structure is wrong
+        return vec4(1.0, 0.0, 1.0, 1.0);
+    }
+    if !util::is_orthographic() {
+        // Yellow - non-ortho camera
+        return vec4(1.0, 1.0, 0.0, 1.0);
+    }
+#endif
+
     // Background bits here
-    var col = vec4(0.15, 0.15, 0.15, 1.0);
+    //var col = vec4(0.15, 0.15, 0.15, 1.0);
+    var col = vec4(0.0, 1.0, 1.0, 1.0);
 
-    // Grid bits on top of background
-    // in.position.xy = (0.5, 0.5) -> (0..width) and (0..height)
-    let p = in.world_position.xy;
-
-    let a_y_axis = axis_line(p.x, 2.0);
-    let a_x_axis = axis_line(p.y, 2.0);
-
-    // minor/major
-    let major_y_axis = grid_line(p.x, 1000.0, 2.0);
-
-    col = mix(col, grid.minor, major_y_axis);
-    col = mix(col, grid.axis, a_x_axis);
-    col = mix(col, grid.axis, a_y_axis);
+//    // Grid bits on top of background
+//    // in.position.xy = (0.5, 0.5) -> (0..width) and (0..height)
+//    let p = in.world_position.xy;
+//
+//    let a_y_axis = axis_line(p.x, 2.0);
+//    let a_x_axis = axis_line(p.y, 2.0);
+//
+//    // minor/major
+//    let major_y_axis = grid_line(p.x, 1000.0, 2.0);
+//
+//    col = mix(col, grid.minor, major_y_axis);
+//    col = mix(col, grid.axis, a_x_axis);
+//    col = mix(col, grid.axis, a_y_axis);
 
     return util::adjust_color(col);
 }
