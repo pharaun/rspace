@@ -1,3 +1,8 @@
+use bevy_prototype_lyon::geometry::ShapeBuilderBase as _;
+use bevy_prototype_lyon::prelude::ShapeBuilder;
+use bevy_prototype_lyon::prelude::ShapePath;
+use bevy_prototype_lyon::prelude::Stroke;
+
 use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
 use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::dev_tools::fps_overlay::FrameTimeGraphConfig;
@@ -9,7 +14,7 @@ use bevy_prototype_lyon::plugin::BuildShapes;
 use bevy_prototype_lyon::prelude::Shape;
 use bevy_prototype_lyon::prelude::ShapePlugin;
 
-mod arena;
+mod grid;
 pub mod camera;
 mod gizmo;
 mod shape;
@@ -17,6 +22,7 @@ mod shape;
 use shape::get_radar;
 use shape::get_ship;
 
+use crate::AbsRot;
 use crate::radar::Radar;
 use crate::ship::Ship;
 use crate::time::TimeMsg;
@@ -55,10 +61,17 @@ impl Plugin for RenderPlugin {
                     },
                 },
             })
-            // Arena systems
-            .add_plugins(arena::ArenaPlugin)
+            // Grid systems
+            .add_plugins(grid::GridPlugin)
             // Startup setup
-            .add_systems(Startup, setup_time_control)
+            .add_systems(
+                Startup,
+                (
+                    arena_compass_setup,
+                    arena_axis_setup,
+                    setup_time_control,
+                ),
+            )
             // Handle assigning a lyon shape to entities
             .add_systems(
                 PostUpdate,
@@ -240,4 +253,51 @@ fn render_debug_warhead(
             commands.entity(entity).despawn();
         }
     }
+}
+
+fn arena_axis_setup(mut commands: Commands) {
+    let display = Vec2::new(10240., 6400.);
+    commands.spawn((
+        Text2d::new("+X"),
+        Transform::from_xyz(display.x / 2.0 + 150., 0., -0.9).with_scale(Vec3::splat(10.)),
+    ));
+    commands.spawn((
+        Text2d::new("-X"),
+        Transform::from_xyz(-(display.x / 2.0 + 150.), 0., -0.9).with_scale(Vec3::splat(10.)),
+    ));
+    commands.spawn((
+        Text2d::new("+Y"),
+        Transform::from_xyz(0., display.y / 2.0 + 150., -0.9).with_scale(Vec3::splat(10.)),
+    ));
+    commands.spawn((
+        Text2d::new("-Y"),
+        Transform::from_xyz(0., -(display.y / 2.0 + 150.), -0.9).with_scale(Vec3::splat(10.)),
+    ));
+}
+
+fn arena_compass_setup(mut commands: Commands) {
+    let compass = ShapePath::new()
+        .move_to(Vec2::new(-200., 0.))
+        .line_to(Vec2::new(200., 0.))
+        .move_to(Vec2::new(0.0, -200.))
+        .line_to(Vec2::new(0.0, 200.));
+
+    let base = Vec3::new(4250., 2250., -0.8);
+    commands
+        .spawn((
+            ShapeBuilder::with(&compass)
+                .stroke(Stroke::new(Color::srgb(0.80, 0.80, 0.80), 5.))
+                .build(),
+            Transform::from_translation(base),
+        ))
+        .with_children(|parent| {
+            for angle in [0, 64, 128, 192] {
+                let hdr = AbsRot(angle).to_quat().mul_vec3(Vec3::Y * 400.);
+
+                parent.spawn((
+                    Text2d::new(format!("{angle}")),
+                    Transform::from_translation(hdr).with_scale(Vec3::splat(10.)),
+                ));
+            }
+        });
 }

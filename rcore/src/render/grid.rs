@@ -1,8 +1,3 @@
-use bevy_prototype_lyon::geometry::ShapeBuilderBase as _;
-use bevy_prototype_lyon::prelude::ShapeBuilder;
-use bevy_prototype_lyon::prelude::ShapePath;
-use bevy_prototype_lyon::prelude::Stroke;
-
 use bevy::camera::CameraUpdateSystems;
 use bevy::material::descriptor::RenderPipelineDescriptor;
 use bevy::material::specialize::SpecializedMeshPipelineError;
@@ -17,74 +12,14 @@ use bevy::sprite_render::Material2d;
 use bevy::sprite_render::Material2dKey;
 use bevy::sprite_render::Material2dPlugin;
 
-use crate::math::AbsRot;
 
-#[derive(Component)]
-struct ArenaMarker;
-
-fn arena_axis_setup(mut commands: Commands) {
-    let display = Vec2::new(10240., 6400.);
-
-    commands.spawn((
-        Text2d::new("+X"),
-        Transform::from_xyz(display.x / 2.0 + 150., 0., -0.9).with_scale(Vec3::splat(10.)),
-        ArenaMarker,
-    ));
-    commands.spawn((
-        Text2d::new("-X"),
-        Transform::from_xyz(-(display.x / 2.0 + 150.), 0., -0.9).with_scale(Vec3::splat(10.)),
-        ArenaMarker,
-    ));
-    commands.spawn((
-        Text2d::new("+Y"),
-        Transform::from_xyz(0., display.y / 2.0 + 150., -0.9).with_scale(Vec3::splat(10.)),
-        ArenaMarker,
-    ));
-    commands.spawn((
-        Text2d::new("-Y"),
-        Transform::from_xyz(0., -(display.y / 2.0 + 150.), -0.9).with_scale(Vec3::splat(10.)),
-        ArenaMarker,
-    ));
-}
-
-fn arena_compass_setup(mut commands: Commands) {
-    let compass = ShapePath::new()
-        .move_to(Vec2::new(-200., 0.))
-        .line_to(Vec2::new(200., 0.))
-        .move_to(Vec2::new(0.0, -200.))
-        .line_to(Vec2::new(0.0, 200.));
-
-    let base = Vec3::new(4250., 2250., -0.8);
-    commands
-        .spawn((
-            ShapeBuilder::with(&compass)
-                .stroke(Stroke::new(Color::srgb(0.80, 0.80, 0.80), 5.))
-                .build(),
-            Transform::from_translation(base),
-            ArenaMarker,
-        ))
-        .with_children(|parent| {
-            for angle in [0, 64, 128, 192] {
-                let hdr = AbsRot(angle).to_quat().mul_vec3(Vec3::Y * 400.);
-
-                parent.spawn((
-                    Text2d::new(format!("{angle}")),
-                    Transform::from_translation(hdr).with_scale(Vec3::splat(10.)),
-                    ArenaMarker,
-                ));
-            }
-        });
-}
-
-pub(super) struct ArenaPlugin;
-impl Plugin for ArenaPlugin {
+pub(super) struct GridPlugin;
+impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(Material2dPlugin::<ArenaMaterial>::default())
+        app.add_plugins(Material2dPlugin::<GridMaterial>::default())
             .add_systems(
                 Startup,
                 (
-                    arena_compass_setup,
-                    arena_axis_setup,
                     setup_grid_control,
                     load_util_shaders,
                     sprite_test,
@@ -139,14 +74,14 @@ struct GridUniform {
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
-struct ArenaMaterial {
+struct GridMaterial {
     #[uniform(0)]
     pub grid: GridUniform,
 }
 
-impl Material2d for ArenaMaterial {
+impl Material2d for GridMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/arena.wgsl".into()
+        "shaders/grid.wgsl".into()
     }
 
     fn alpha_mode(&self) -> AlphaMode2d {
@@ -181,11 +116,11 @@ fn load_util_shaders(asset_server: Res<AssetServer>, mut commands: Commands) {
 }
 
 #[derive(Component)]
-struct ArenaBackground;
+struct GridBackground;
 
 fn spawn_background(
     mut mesh: ResMut<Assets<Mesh>>,
-    mut material: ResMut<Assets<ArenaMaterial>>,
+    mut material: ResMut<Assets<GridMaterial>>,
     camera: Single<Entity, With<Camera2d>>,
     mut commands: Commands,
 ) {
@@ -193,10 +128,10 @@ fn spawn_background(
     // the global transform propagation takes care of moving it
     // with the camera. We do need to handle resizing it though.
     commands.spawn((
-        ArenaBackground,
+        GridBackground,
         Mesh2d(mesh.add(Rectangle::new(1.0, 1.0))),
         MeshMaterial2d(
-            material.add(ArenaMaterial {
+            material.add(GridMaterial {
                 grid: GridUniform {
                     //axis: Color::oklcha(0.4847, 0.1249, 253.08, 1.0).to_linear().to_vec4(),
                     axis: Color::oklcha(0.5232, 0.1404, 13.84, 1.0)
@@ -233,10 +168,10 @@ fn spawn_background(
 fn update_background(
     camera: Query<(&Camera, &Projection, &Transform), With<Camera2d>>,
     mut back: Query<
-        (&mut Transform, &MeshMaterial2d<ArenaMaterial>),
-        (With<ArenaBackground>, Without<Camera2d>),
+        (&mut Transform, &MeshMaterial2d<GridMaterial>),
+        (With<GridBackground>, Without<Camera2d>),
     >,
-    mut material: ResMut<Assets<ArenaMaterial>>,
+    mut material: ResMut<Assets<GridMaterial>>,
 ) -> Result<()> {
     let (cam, projection, cam_tran) = camera.single()?;
     let Projection::Orthographic(ortho) = projection else {
@@ -282,8 +217,8 @@ fn update_background(
 
 fn debug_shader_control(
     key_input: Res<ButtonInput<KeyCode>>,
-    back: Query<&MeshMaterial2d<ArenaMaterial>, With<ArenaBackground>>,
-    mut material: ResMut<Assets<ArenaMaterial>>,
+    back: Query<&MeshMaterial2d<GridMaterial>, With<GridBackground>>,
+    mut material: ResMut<Assets<GridMaterial>>,
 ) -> Result<()> {
     let material_handle = back.single()?;
     let Some(mut mat) = material.get_mut(&material_handle.0) else {
@@ -354,8 +289,8 @@ fn setup_grid_control(mut commands: Commands) {
 }
 
 fn render_grid_control(
-    back: Query<&MeshMaterial2d<ArenaMaterial>, With<ArenaBackground>>,
-    material: Res<Assets<ArenaMaterial>>,
+    back: Query<&MeshMaterial2d<GridMaterial>, With<GridBackground>>,
+    material: Res<Assets<GridMaterial>>,
     mut text: Single<&mut Text, With<GridControlMarker>>,
 ) -> Result<()> {
     let material_handle = back.single()?;
