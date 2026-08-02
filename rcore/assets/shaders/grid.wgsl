@@ -20,6 +20,7 @@ struct GridUniform {
     // Camera pos/grid-spacing
     phase: vec2<f32>,
     spacing: f32,
+    tier_frac: f32,
     // Debugging bits
     mode: u32,
     magic: u32,
@@ -39,7 +40,7 @@ fn over(src: vec4<f32>, dst: vec4<f32>) -> vec4<f32> {
 fn line_coverage(coord: vec2<f32>, deriv: vec2<f32>, half_width_px: f32) -> f32 {
     let dist_cells = abs(fract(coord - 0.5) - 0.5);
     let dist_px = dist_cells / max(deriv, vec2(1e-20));
-    return 1.0 - smoothstep(0.0, half_width_px, min(dist_px.x, dist_px.y));
+    return 1.0 - smoothstep(half_width_px - 0.5, half_width_px + 0.5, min(dist_px.x, dist_px.y));
 }
 
 @fragment
@@ -54,9 +55,14 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         // Yellow - non-ortho camera
         return vec4(1.0, 1.0, 0.0, 1.0);
     }
+    if !(grid.spacing > 0.0) || grid.ratio < 2u || grid.levels == 0u {
+        // Cyan - Bad grid settings + uniform
+        return vec4(0.0, 1.0, 1.0, 1.0);
+    }
 #endif
 
     // Camera relative world-pos
+    // NOTE: this is only valid with a non-rotating Ortho camera.
     let rel = util::world_offset(in.position);
     let drel = fwidth(rel);
 
@@ -106,8 +112,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 
         let cov = line_coverage(coord, deriv, grid.half_width);
 
-        let t = f32(i) / max(f32(grid.levels) - 1.0, 1.0);
-        let tint = mix(grid.minor, grid.major, t);
+        // t off f32(i) will have a snap in tint at the level change boundary
+        // use tier_frac to smooth that over.
+        let t = (f32(i) + grid.tier_frac) / max(f32(grid.levels) - 1.0, 1.0);
+        let tint = mix(grid.minor, grid.major, saturate(t));
 
         color = over(vec4(tint.rgb, tint.a * cov * lod), color);
     }

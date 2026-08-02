@@ -14,9 +14,9 @@ use bevy_prototype_lyon::plugin::BuildShapes;
 use bevy_prototype_lyon::prelude::Shape;
 use bevy_prototype_lyon::prelude::ShapePlugin;
 
-mod grid;
 pub mod camera;
 mod gizmo;
+pub mod grid;
 mod shape;
 
 use shape::get_radar;
@@ -66,11 +66,7 @@ impl Plugin for RenderPlugin {
             // Startup setup
             .add_systems(
                 Startup,
-                (
-                    arena_compass_setup,
-                    arena_axis_setup,
-                    setup_time_control,
-                ),
+                (arena_compass_setup, arena_axis_setup, setup_time_control),
             )
             // Handle assigning a lyon shape to entities
             .add_systems(

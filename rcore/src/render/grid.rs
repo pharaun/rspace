@@ -12,6 +12,7 @@ use bevy::sprite_render::Material2d;
 use bevy::sprite_render::Material2dKey;
 use bevy::sprite_render::Material2dPlugin;
 
+use crate::render::camera::CameraRigSystems;
 
 pub(super) struct GridPlugin;
 impl Plugin for GridPlugin {
@@ -19,28 +20,21 @@ impl Plugin for GridPlugin {
         app.add_plugins(Material2dPlugin::<GridMaterial>::default())
             .add_systems(
                 Startup,
-                (
-                    setup_grid_control,
-                    load_util_shaders,
-                    sprite_test,
-                ),
+                (setup_grid_control, load_util_shaders, sprite_test),
             )
-            .add_systems(PostStartup, spawn_background)
+            .add_systems(PostStartup, spawn_grid)
             .add_systems(Update, (debug_shader_control, render_grid_control))
             // Get projection from camera (CameraUpdateSystem), but apply it
             // before transform propagation for the scale to take.
             .add_systems(
                 PostUpdate,
-                update_background
+                update_grid
+                    .after(CameraRigSystems)
                     .after(CameraUpdateSystems)
                     .before(TransformSystems::Propagate),
             );
     }
 }
-
-//--------------------------------------------------------------------------------
-// Shaders
-//--------------------------------------------------------------------------------
 
 // NOTE: always pad to 16 bytes
 // NOTE: If need any color, prefer to get it rust-side via
@@ -67,6 +61,7 @@ struct GridUniform {
     // Camera pos modulo coarse tier spacing.
     pub phase: Vec2,
     pub spacing: f32,
+    pub tier_frac: f32,
 
     // Debugging bits
     pub mode: u32,
@@ -118,10 +113,13 @@ fn load_util_shaders(asset_server: Res<AssetServer>, mut commands: Commands) {
 #[derive(Component)]
 struct GridBackground;
 
-fn spawn_background(
+#[derive(Component)]
+pub struct GridCamera;
+
+fn spawn_grid(
     mut mesh: ResMut<Assets<Mesh>>,
     mut material: ResMut<Assets<GridMaterial>>,
-    camera: Single<Entity, With<Camera2d>>,
+    camera: Single<Entity, With<GridCamera>>,
     mut commands: Commands,
 ) {
     // This background rectangle is a child of camera so that
@@ -140,16 +138,18 @@ fn spawn_background(
                     major: Color::srgb(0.4, 0.4, 0.4).to_linear().to_vec4(),
                     minor: Color::srgb(0.25, 0.25, 0.25).to_linear().to_vec4(),
                     // Grid Config
-                    ratio: 10,
-                    levels: 3,
+                    ratio: 10, // TODO: validate no more than 20 for ratio (overflows) (no less than 2)
+                    levels: 3, // TODO: validate no less than 1 (underflows) and probs no more than 8ish?)
                     // Line render
-                    half_width: 1.5,
+                    half_width: 1.0, // TODO: validate that no less than 0.5 (aka greater than 0.5
+                    // but not greater and equal)
                     cell: 10.0,
                     fade_min: 10.0,
                     fade_max: 100.0, // fade_min * ratio
                     // Camera (zero value rn, will be recomputed)
                     phase: Vec2::ZERO,
-                    spacing: 0.0,
+                    spacing: 10_000.0, // Need to match base_spacing as a start
+                    tier_frac: 0.0,
                     // Debugging
                     mode: 0,
                     magic: 0xDEAD_C0DE,
@@ -165,25 +165,34 @@ fn spawn_background(
 // Use Transform because this is updated post camera-rig, but we want freshest transform
 // for shader code + background
 #[expect(clippy::cast_possible_truncation)]
-fn update_background(
-    camera: Query<(&Camera, &Projection, &Transform), With<Camera2d>>,
-    mut back: Query<
+fn update_grid(
+    camera: Single<(&Camera, &Projection, &Transform), With<GridCamera>>,
+    back: Single<
         (&mut Transform, &MeshMaterial2d<GridMaterial>),
-        (With<GridBackground>, Without<Camera2d>),
+        (With<GridBackground>, Without<GridCamera>),
     >,
     mut material: ResMut<Assets<GridMaterial>>,
-) -> Result<()> {
-    let (cam, projection, cam_tran) = camera.single()?;
+) {
+    let (cam, projection, cam_tran) = camera.into_inner();
     let Projection::Orthographic(ortho) = projection else {
-        return Ok(());
+        warn!("GridCamera is not an Orthographic Camera");
+        return;
     };
     let Some(viewport_px) = cam.physical_viewport_size() else {
-        return Ok(());
+        warn!("Viewport not available");
+        return;
     };
+    if viewport_px.x == 0 {
+        // viewport_px.x can be 0 (if logical size is zero bevy will skip, so skip here too)
+        return;
+    }
+    if cam_tran.rotation != Quat::IDENTITY {
+        warn!("GridCamera does not support rotation, may see weird results");
+    }
 
     // Backdrop sizing + margin
-    let (mut background, material_handle) = back.single_mut()?;
-    background.scale = (ortho.area.size()).extend(1.0);
+    let (mut background, material_handle) = back.into_inner();
+    background.scale = (ortho.area.size() * 1.01).extend(1.0);
 
     // World unit per pixel
     let wupp = ortho.area.width() / viewport_px.x as f32;
@@ -191,38 +200,46 @@ fn update_background(
     // Material fetch
     // TODO: optimize this to only update when it actually changes
     let Some(mut mat) = material.get_mut(&material_handle.0) else {
-        return Ok(());
+        warn!("Material not available");
+        return;
     };
 
     // We have 3 levels by default, pick which level to use and aim for each cell to be ~32px
+    // TODO: move base_spacing to a config value
     let base_spacing = 10_000.0;
     let ideal = f64::from(mat.grid.cell * wupp);
-    let k = (ideal / base_spacing).log(f64::from(mat.grid.ratio)).ceil() as i32;
-    let k = k.clamp(-6, 6);
+    let kf = (ideal / base_spacing).log(f64::from(mat.grid.ratio));
+    let k = kf.ceil();
+    let tier_frac = (k - kf) as f32; // 0.0 at switch, -> 1.0 just before
+    let k = (k as i32).clamp(-6, 6);
 
     let spacing = if k >= 0 {
-        base_spacing * f64::from(mat.grid.ratio.pow(k.cast_unsigned()))
+        base_spacing * f64::from(mat.grid.ratio).powi(k)
     } else {
-        base_spacing / f64::from(mat.grid.ratio.pow((-k).cast_unsigned()))
+        base_spacing / f64::from(mat.grid.ratio).powi(-k)
     };
-    mat.grid.spacing = spacing as f32;
 
     // Update the camera phase to pass in to the shader based off the camera
     // position + coarse spacing.
     let cam_pos = cam_tran.translation.truncate().as_dvec2();
     let coarse = f64::from(mat.grid.spacing) * f64::from(mat.grid.ratio.pow(mat.grid.levels - 1));
-    mat.grid.phase = cam_pos.rem_euclid(DVec2::splat(coarse)).as_vec2();
-    Ok(())
+    let phase = cam_pos.rem_euclid(DVec2::splat(coarse)).as_vec2();
+
+    // Update the the uniform
+    mat.grid.spacing = spacing as f32;
+    mat.grid.tier_frac = tier_frac;
+    mat.grid.phase = phase;
 }
 
 fn debug_shader_control(
     key_input: Res<ButtonInput<KeyCode>>,
-    back: Query<&MeshMaterial2d<GridMaterial>, With<GridBackground>>,
+    back: Single<&MeshMaterial2d<GridMaterial>, With<GridBackground>>,
     mut material: ResMut<Assets<GridMaterial>>,
-) -> Result<()> {
-    let material_handle = back.single()?;
+) {
+    let material_handle = back.into_inner();
     let Some(mut mat) = material.get_mut(&material_handle.0) else {
-        return Ok(());
+        warn!("Material not available");
+        return;
     };
 
     if key_input.just_pressed(KeyCode::Digit0) {
@@ -261,8 +278,6 @@ fn debug_shader_control(
         mat.grid.fade_min = mat.grid.cell;
         mat.grid.fade_max = mat.grid.cell * (mat.grid.ratio as f32);
     }
-
-    Ok(())
 }
 
 #[derive(Component)]
@@ -289,18 +304,17 @@ fn setup_grid_control(mut commands: Commands) {
 }
 
 fn render_grid_control(
-    back: Query<&MeshMaterial2d<GridMaterial>, With<GridBackground>>,
+    back: Single<&MeshMaterial2d<GridMaterial>, With<GridBackground>>,
     material: Res<Assets<GridMaterial>>,
     mut text: Single<&mut Text, With<GridControlMarker>>,
-) -> Result<()> {
-    let material_handle = back.single()?;
+) {
+    let material_handle = back.into_inner();
     let Some(mat) = material.get(&material_handle.0) else {
-        return Ok(());
+        warn!("Material not available");
+        return;
     };
     let cell = mat.grid.cell;
     text.0 = format!(" {cell:>2.0} Cell");
-
-    Ok(())
 }
 
 fn sprite_test(mut commands: Commands) {

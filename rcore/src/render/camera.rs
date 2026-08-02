@@ -1,5 +1,6 @@
 use avian2d::interpolation::TransformEasingSystems;
 use avian2d::schedule::PhysicsSystems;
+use bevy::camera::CameraUpdateSystems;
 use bevy::prelude::*;
 
 // Input for camera
@@ -8,6 +9,11 @@ use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::window::PrimaryWindow;
+
+use crate::render::grid::GridCamera;
+
+#[derive(SystemSet, Debug, Hash, Eq, PartialEq, Clone)]
+pub struct CameraRigSystems;
 
 // TODO: Camera refinement
 // 1. make it so that the camera stays within the area bounds instead of just the target
@@ -54,9 +60,10 @@ impl Plugin for CameraPlugin {
                     apply_camera_rig,
                 )
                     .chain()
-                    // Handles transform/rotation (technically dead, here for doc)
+                    .in_set(CameraRigSystems)
                     .after(TransformEasingSystems::Ease)
                     .after(PhysicsSystems::Last)
+                    .before(CameraUpdateSystems)
                     .before(TransformSystems::Propagate),
             );
     }
@@ -113,38 +120,41 @@ pub struct CameraConfig {
 
 pub fn camera_setup(mut commands: Commands) {
     // Spawn in the main camera rig and put it at 0,0 by default
-    commands.spawn(CameraRig {
-        mode: CameraMode::Free,
-        config: CameraConfig {
-            target_speed: 1000.0,
-            decay_rate: 2.0,
-            // TODO: not sure if this is the correct move to have a deadzone
-            // on ship follow, set it to 0 for now
-            deadzone_radius: 0.0,
-            // Tuning:
-            //  - You want ~12-24 ticks from min->max zoom
-            //      * zoom_step_per_line ~= (zoom_max - zoom_min) / (~12-24)
-            //  - 0.14 ~ 0.38 for 1.1x to 1.3x steps seem to be a sweet spot?
-            //      2^0.25 ~= 1.19
-            //      animation (via zoom decay can affect the feeling of this too)
-            zoom_clamp: (-2.0, 2.0),
-            // 0.25 per step ~= 16 ticks with a (-2 <-> 2) zoom range (0.25 to 4x)
-            zoom_step_per_line: 0.25,
-            // Seems like firefox uses ~38px, chrome ~= 50px for this
-            zoom_step_per_pixel: 0.25 / 45.0,
-            // 4 ~= supcom floaty, 8 ~= smooth, 12 ~= snappy but has some animation, 15 ~= crisp
-            zoom_decay_rate: 12.0,
-            // Margin around the edge of the window
-            edge_margin: Vec2::splat(30.0),
-            edge_speed: 0.05,
-            edge_speed_max: 1000.0,
+    commands.spawn((
+        CameraRig {
+            mode: CameraMode::Free,
+            config: CameraConfig {
+                target_speed: 1000.0,
+                decay_rate: 2.0,
+                // TODO: not sure if this is the correct move to have a deadzone
+                // on ship follow, set it to 0 for now
+                deadzone_radius: 0.0,
+                // Tuning:
+                //  - You want ~12-24 ticks from min->max zoom
+                //      * zoom_step_per_line ~= (zoom_max - zoom_min) / (~12-24)
+                //  - 0.14 ~ 0.38 for 1.1x to 1.3x steps seem to be a sweet spot?
+                //      2^0.25 ~= 1.19
+                //      animation (via zoom decay can affect the feeling of this too)
+                zoom_clamp: (-2.0, 2.0),
+                // 0.25 per step ~= 16 ticks with a (-2 <-> 2) zoom range (0.25 to 4x)
+                zoom_step_per_line: 0.25,
+                // Seems like firefox uses ~38px, chrome ~= 50px for this
+                zoom_step_per_pixel: 0.25 / 45.0,
+                // 4 ~= supcom floaty, 8 ~= smooth, 12 ~= snappy but has some animation, 15 ~= crisp
+                zoom_decay_rate: 12.0,
+                // Margin around the edge of the window
+                edge_margin: Vec2::splat(30.0),
+                edge_speed: 0.05,
+                edge_speed_max: 1000.0,
+            },
+            focus: Vec2::new(0.0, 0.0),
+            zoom_factor: 0.0,
+            zoom_scale: 1.0,
+            drag_cursor: None,
+            drag_anchor: None,
         },
-        focus: Vec2::new(0.0, 0.0),
-        zoom_factor: 0.0,
-        zoom_scale: 1.0,
-        drag_cursor: None,
-        drag_anchor: None,
-    });
+        GridCamera,
+    ));
 }
 
 fn render_camera_focus(mut gizmos: Gizmos, query: Query<&CameraRig, With<Camera2d>>) {
