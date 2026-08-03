@@ -14,16 +14,65 @@ use bevy::sprite_render::Material2dPlugin;
 
 use crate::render::camera::CameraRigSystems;
 
-pub(super) struct GridPlugin;
+#[derive(Resource)]
+pub struct GridSettings {
+    pub axis: Color,
+    pub major: Color,
+    pub minor: Color,
+    // Grid Structure
+    // - ratio == "cells between each major line"
+    // - levels == "how many nested levels there are"
+    ratio: u8,
+    levels: u8,
+    // Grid Spacing
+    pub base_spacing: f64,
+    pub z_depth: f32,
+    // Grid Render
+    half_width_px: f32,
+    pub fade_min: f32,
+    pub fade_max: f32,
+}
+
+impl GridSettings {
+    fn init(ratio: u8, levels: u8, half_width_px: f32, cell_px: f32) -> Self {
+        assert!((2..=20).contains(&ratio), "Ratio not between [2..=20]");
+        assert!((1..=8).contains(&levels), "Level not between [1..=8]");
+        assert!(0.5 <= half_width_px, "half width px not (0.5..)");
+        assert!(1.0 <= cell_px, "cell not greater than 1 pixel wide");
+
+        Self {
+            axis: Color::oklcha(0.5232, 0.1404, 13.84, 1.0),
+            major: Color::srgb(0.4, 0.4, 0.4),
+            minor: Color::srgb(0.25, 0.25, 0.25),
+            // Structure
+            ratio,
+            levels,
+            // Spacing
+            base_spacing: 10_000.0,
+            z_depth: -999.0,
+            // Render
+            half_width_px,
+            fade_min: cell_px,
+            fade_max: cell_px * f32::from(ratio),
+        }
+    }
+}
+
+impl Default for GridSettings {
+    fn default() -> Self {
+        Self::init(10, 3, 1.0, 10.0)
+    }
+}
+
+#[derive(Default)]
+pub struct GridPlugin {
+    pub debug: bool,
+}
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(Material2dPlugin::<GridMaterial>::default())
-            .add_systems(
-                Startup,
-                (setup_grid_control, load_util_shaders, sprite_test),
-            )
+            .init_resource::<GridSettings>()
             .add_systems(PostStartup, spawn_grid)
-            .add_systems(Update, (debug_shader_control, render_grid_control))
             // Get projection from camera (CameraUpdateSystem), but apply it
             // before transform propagation for the scale to take.
             .add_systems(
@@ -33,45 +82,45 @@ impl Plugin for GridPlugin {
                     .after(CameraUpdateSystems)
                     .before(TransformSystems::Propagate),
             );
+        if self.debug {
+            app.add_systems(Startup, grid_control_ui.spawn())
+                .add_systems(Update, (debug_shader_control, render_grid_control));
+        }
     }
 }
 
+#[derive(Component)]
+pub struct GridCamera;
+
+#[derive(Component)]
+struct GridBackground;
+
 // NOTE: always pad to 16 bytes
-// NOTE: If need any color, prefer to get it rust-side via
-//  - Color::srgb(..).to_linear() and pass in via uniform
 #[derive(ShaderType, Clone, Copy, Default)]
 struct GridUniform {
-    // Grid line colors
-    pub axis: Vec4,
-    pub major: Vec4,
-    pub minor: Vec4,
-
-    // Grid structure
-    // - ratio == "cells between each major line"
-    // - levels == "how many nested levels there are"
-    pub ratio: u32,
-    pub levels: u32,
-
-    // Line render constraints in pixels
-    pub half_width: f32,
-    pub cell: f32,
-    pub fade_min: f32,
-    pub fade_max: f32,
-
-    // Camera pos modulo coarse tier spacing.
-    pub phase: Vec2,
-    pub spacing: f32,
-    pub tier_frac: f32,
-
-    // Debugging bits
-    pub mode: u32,
-    pub magic: u32,
+    axis: Vec4,
+    major: Vec4,
+    minor: Vec4,
+    // Structure
+    ratio: u32,
+    levels: u32,
+    // Render
+    half_width: f32,
+    fade_min: f32,
+    fade_max: f32,
+    // Camera
+    phase: Vec2,
+    spacing: f32,
+    tier_frac: f32,
+    // Debugging
+    mode: u32,
+    magic: u32,
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
 struct GridMaterial {
     #[uniform(0)]
-    pub grid: GridUniform,
+    grid: GridUniform,
 }
 
 impl Material2d for GridMaterial {
@@ -80,7 +129,7 @@ impl Material2d for GridMaterial {
     }
 
     fn alpha_mode(&self) -> AlphaMode2d {
-        AlphaMode2d::Opaque
+        AlphaMode2d::Blend
     }
 
     fn specialize(
@@ -98,79 +147,50 @@ impl Material2d for GridMaterial {
     }
 }
 
-#[expect(unused)]
-#[derive(Resource)]
-struct ShaderUtil(Handle<Shader>);
-
-// This is to load up a util shader and hold on it, because if it is unloaded
-// the other shaders that depends on it will error out at run time
-// TODO: replace with 'load_shader_library!(app, "util.wgsl");' but that
-// bakes it into the binary so don't need it rn.
-fn load_util_shaders(asset_server: Res<AssetServer>, mut commands: Commands) {
-    commands.insert_resource(ShaderUtil(asset_server.load("shaders/util.wgsl")));
-}
-
-#[derive(Component)]
-struct GridBackground;
-
-#[derive(Component)]
-pub struct GridCamera;
-
 fn spawn_grid(
     mut mesh: ResMut<Assets<Mesh>>,
     mut material: ResMut<Assets<GridMaterial>>,
+    settings: Res<GridSettings>,
     camera: Single<Entity, With<GridCamera>>,
     mut commands: Commands,
 ) {
-    // This background rectangle is a child of camera so that
-    // the global transform propagation takes care of moving it
-    // with the camera. We do need to handle resizing it though.
+    #[expect(clippy::cast_possible_truncation)]
+    let uniform = GridUniform {
+        axis: settings.axis.to_linear().to_vec4(),
+        major: settings.major.to_linear().to_vec4(),
+        minor: settings.minor.to_linear().to_vec4(),
+        ratio: u32::from(settings.ratio),
+        levels: u32::from(settings.levels),
+        half_width: settings.half_width_px,
+        fade_min: settings.fade_min,
+        fade_max: settings.fade_max,
+        // Camera bits
+        phase: Vec2::ZERO,
+        spacing: settings.base_spacing as f32,
+        tier_frac: 0.0,
+        // Debug
+        mode: 0,
+        magic: 0xDEAD_C0DE,
+    };
+
     commands.spawn((
         GridBackground,
         Mesh2d(mesh.add(Rectangle::new(1.0, 1.0))),
-        MeshMaterial2d(
-            material.add(GridMaterial {
-                grid: GridUniform {
-                    //axis: Color::oklcha(0.4847, 0.1249, 253.08, 1.0).to_linear().to_vec4(),
-                    axis: Color::oklcha(0.5232, 0.1404, 13.84, 1.0)
-                        .to_linear()
-                        .to_vec4(),
-                    major: Color::srgb(0.4, 0.4, 0.4).to_linear().to_vec4(),
-                    minor: Color::srgb(0.25, 0.25, 0.25).to_linear().to_vec4(),
-                    // Grid Config
-                    ratio: 10, // TODO: validate no more than 20 for ratio (overflows) (no less than 2)
-                    levels: 3, // TODO: validate no less than 1 (underflows) and probs no more than 8ish?)
-                    // Line render
-                    half_width: 1.0, // TODO: validate that no less than 0.5 (aka greater than 0.5
-                    // but not greater and equal)
-                    cell: 10.0,
-                    fade_min: 10.0,
-                    fade_max: 100.0, // fade_min * ratio
-                    // Camera (zero value rn, will be recomputed)
-                    phase: Vec2::ZERO,
-                    spacing: 10_000.0, // Need to match base_spacing as a start
-                    tier_frac: 0.0,
-                    // Debugging
-                    mode: 0,
-                    magic: 0xDEAD_C0DE,
-                },
-            }),
-        ),
+        MeshMaterial2d(material.add(GridMaterial { grid: uniform })),
         // Place this as close to the back as possible
-        Transform::from_xyz(0.0, 0.0, -999.0),
+        Transform::from_xyz(0.0, 0.0, settings.z_depth),
         ChildOf(*camera),
     ));
 }
 
-// Use Transform because this is updated post camera-rig, but we want freshest transform
-// for shader code + background
-#[expect(clippy::cast_possible_truncation)]
+#[expect(clippy::cast_possible_truncation, clippy::type_complexity)]
 fn update_grid(
     camera: Single<(&Camera, &Projection, &Transform), With<GridCamera>>,
     back: Single<
         (&mut Transform, &MeshMaterial2d<GridMaterial>),
         (With<GridBackground>, Without<GridCamera>),
     >,
+    settings: Res<GridSettings>,
     mut material: ResMut<Assets<GridMaterial>>,
 ) {
     let (cam, projection, cam_tran) = camera.into_inner();
@@ -190,7 +210,7 @@ fn update_grid(
         warn!("GridCamera does not support rotation, may see weird results");
     }
 
-    // Backdrop sizing + margin
+    // Backdrop sizing + margin, Global Transform Propagation will handle moving it.
     let (mut background, material_handle) = back.into_inner();
     background.scale = (ortho.area.size() * 1.01).extend(1.0);
 
@@ -205,22 +225,21 @@ fn update_grid(
     };
 
     // We have 3 levels by default, pick which level to use and aim for each cell to be ~32px
-    // TODO: move base_spacing to a config value
-    let base_spacing = 10_000.0;
-    let ideal = f64::from(mat.grid.cell * wupp);
-    let kf = (ideal / base_spacing).log(f64::from(mat.grid.ratio));
+    let ideal = f64::from(mat.grid.fade_min * wupp);
+    let kf = (ideal / settings.base_spacing).log(f64::from(mat.grid.ratio));
     let k = kf.ceil();
     let tier_frac = (k - kf) as f32; // 0.0 at switch, -> 1.0 just before
     let k = (k as i32).clamp(-6, 6);
 
     let spacing = if k >= 0 {
-        base_spacing * f64::from(mat.grid.ratio).powi(k)
+        settings.base_spacing * f64::from(mat.grid.ratio).powi(k)
     } else {
-        base_spacing / f64::from(mat.grid.ratio).powi(-k)
+        settings.base_spacing / f64::from(mat.grid.ratio).powi(-k)
     };
 
     // Update the camera phase to pass in to the shader based off the camera
-    // position + coarse spacing.
+    // position + coarse spacing. (NOTE: This uses Transform cuz its post camera-rig, to have
+    // the freshest transform).
     let cam_pos = cam_tran.translation.truncate().as_dvec2();
     let coarse = f64::from(mat.grid.spacing) * f64::from(mat.grid.ratio.pow(mat.grid.levels - 1));
     let phase = cam_pos.rem_euclid(DVec2::splat(coarse)).as_vec2();
@@ -229,6 +248,24 @@ fn update_grid(
     mat.grid.spacing = spacing as f32;
     mat.grid.tier_frac = tier_frac;
     mat.grid.phase = phase;
+}
+
+#[derive(Component, Default, Clone)]
+struct GridControlMarker;
+
+fn grid_control_ui() -> impl Scene {
+    bsn! {
+        Node {
+            position_type: PositionType::Absolute,
+            right: Val::Px(20.),
+            bottom: Val::Px(20.),
+        }
+        Children [
+            GridControlMarker
+            Text::new("-- Cell")
+            TextFont { font_size: FontSize::Px(18.) }
+        ]
+    }
 }
 
 fn debug_shader_control(
@@ -263,44 +300,15 @@ fn debug_shader_control(
 
     // adjust target px cell
     if key_input.just_pressed(KeyCode::KeyO) {
-        mat.grid.cell -= 1.0;
-        mat.grid.cell = mat.grid.cell.clamp(1.0, 32.0);
-
-        // Calculate the rest
-        mat.grid.fade_min = mat.grid.cell;
-        mat.grid.fade_max = mat.grid.cell * (mat.grid.ratio as f32);
+        mat.grid.fade_min -= 1.0;
+        mat.grid.fade_min = mat.grid.fade_min.clamp(1.0, 32.0);
+        mat.grid.fade_max = mat.grid.fade_min * (mat.grid.ratio as f32);
     }
     if key_input.just_pressed(KeyCode::KeyP) {
-        mat.grid.cell += 1.0;
-        mat.grid.cell = mat.grid.cell.clamp(1.0, 32.0);
-
-        // Calculate the rest
-        mat.grid.fade_min = mat.grid.cell;
-        mat.grid.fade_max = mat.grid.cell * (mat.grid.ratio as f32);
+        mat.grid.fade_min += 1.0;
+        mat.grid.fade_min = mat.grid.fade_min.clamp(1.0, 32.0);
+        mat.grid.fade_max = mat.grid.fade_min * (mat.grid.ratio as f32);
     }
-}
-
-#[derive(Component)]
-struct GridControlMarker;
-
-fn setup_grid_control(mut commands: Commands) {
-    commands
-        .spawn(Node {
-            position_type: PositionType::Absolute,
-            right: Val::Px(20.),
-            bottom: Val::Px(20.),
-            ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new("-- Cell"),
-                TextFont {
-                    font_size: FontSize::Px(18.),
-                    ..default()
-                },
-                GridControlMarker,
-            ));
-        });
 }
 
 fn render_grid_control(
@@ -313,22 +321,8 @@ fn render_grid_control(
         warn!("Material not available");
         return;
     };
-    let cell = mat.grid.cell;
+    let cell = mat.grid.fade_min;
     text.0 = format!(" {cell:>2.0} Cell");
-}
-
-fn sprite_test(mut commands: Commands) {
-    for (x, y) in [
-        (0.0, 0.0),
-        (10_000.0, 0.0),
-        (0.0, 10_000.0),
-        (10_000.0, 10_000.0),
-    ] {
-        commands.spawn((
-            Sprite::from_color(Color::srgb(0.0, 1.0, 1.0), Vec2::splat(200.0)),
-            Transform::from_xyz(x, y, 10.0),
-        ));
-    }
 }
 
 #[test]

@@ -2,7 +2,7 @@
     mesh2d_vertex_output::VertexOutput,
     mesh2d_view_bindings::view,
 }
-#import rcore::util
+#import "shaders/util.wgsl" as util;
 
 struct GridUniform {
     // Grid line colors
@@ -14,7 +14,6 @@ struct GridUniform {
     levels: u32,
     // Line render constraints in pixels
     half_width: f32,
-    cell: f32,
     fade_min: f32,
     fade_max: f32,
     // Camera pos/grid-spacing

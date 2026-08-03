@@ -1,5 +1,3 @@
-#define_import_path rcore::util
-
 #import bevy_sprite::{
     mesh2d_vertex_output::VertexOutput,
     mesh2d_view_bindings::view,

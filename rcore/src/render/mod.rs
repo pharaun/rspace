@@ -62,11 +62,15 @@ impl Plugin for RenderPlugin {
                 },
             })
             // Grid systems
-            .add_plugins(grid::GridPlugin)
+            .add_plugins(grid::GridPlugin { debug: true })
             // Startup setup
             .add_systems(
                 Startup,
-                (arena_compass_setup, arena_axis_setup, setup_time_control),
+                (
+                    arena_compass_setup,
+                    arena_axis_setup,
+                    time_control_ui.spawn(),
+                ),
             )
             // Handle assigning a lyon shape to entities
             .add_systems(
@@ -135,27 +139,22 @@ fn manage_time_control(
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct TimeControlMarker;
 
-fn setup_time_control(mut commands: Commands) {
-    commands
-        .spawn(Node {
+fn time_control_ui() -> impl Scene {
+    bsn! {
+        Node {
             position_type: PositionType::Absolute,
             left: Val::Px(20.),
             bottom: Val::Px(20.),
-            ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new("   1x -  Running"),
-                TextFont {
-                    font_size: FontSize::Px(18.),
-                    ..default()
-                },
-                TimeControlMarker,
-            ));
-        });
+        }
+        Children [
+            TimeControlMarker
+            Text::new("   1x -  Running")
+            TextFont { font_size: FontSize::Px(18.) }
+        ]
+    }
 }
 
 fn render_time_control(
