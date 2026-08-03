@@ -78,7 +78,7 @@ pub struct CameraRig {
     focus: Vec2,
     // Log-scale zoom. 0 = default, +1 = 2x out, -1 = 2x in
     zoom_factor: f32,
-    // Ortho projection scale. 1.0 = default
+    // Ortho projection scale. 0.0 = default
     zoom_scale: f32,
     // Cursor position (viewport position) for drag-pan, input-only
     drag_cursor: Option<Vec2>,
@@ -149,7 +149,7 @@ pub fn camera_setup(mut commands: Commands) {
             },
             focus: Vec2::new(0.0, 0.0),
             zoom_factor: 0.0,
-            zoom_scale: 1.0,
+            zoom_scale: 0.0,
             drag_cursor: None,
             drag_anchor: None,
         },
