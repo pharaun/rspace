@@ -11,6 +11,7 @@ pub mod ship;
 pub mod spawner;
 pub mod time;
 pub mod weapon;
+pub mod star;
 
 #[cfg(feature = "render")]
 pub mod render;
@@ -25,6 +26,7 @@ use crate::script::ScriptPlugins;
 use crate::spawner::SpawnerPlugin;
 use crate::time::TimeControlPlugin;
 use crate::weapon::WeaponPlugin;
+use crate::star::StarPlugin;
 
 // Sim timing
 pub const TICK_HZ: u32 = 64;
@@ -72,6 +74,7 @@ impl Plugin for SimulationPlugin {
             .add_plugins(ScriptPlugins)
             .add_plugins(SpawnerPlugin)
             .add_plugins(WeaponPlugin)
+            .add_plugins(StarPlugin)
             // System set ordering
             .configure_sets(
                 FixedUpdate,
