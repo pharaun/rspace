@@ -39,7 +39,9 @@ pub const TICK_HZ: u32 = 64;
 // are going to be 1-frame delayed for now
 #[derive(SystemSet, Debug, Hash, Eq, PartialEq, Clone)]
 pub enum FixedGameSystem {
-    // Environmental sampler -> GameLogic uses it (ie c-boost, flux, etc...)
+    // Environmental sampler -> GameLogic uses it (ie c-boost, flux, etc...) This does mean that
+    // any logic that depends on the Environ for its values will be a "tick stale" (ie the c_boost
+    // cap will be for the current position not the newly computed next position.)
     Sampler,
 
     // Motion, Rotation, Radar, Turret, etc...

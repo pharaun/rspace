@@ -1,0 +1,13 @@
+(
+    body_radius: 40.0,
+    flux: 12000,
+    tables: {
+        Despawn: (
+            points: [
+                (r: 0.0, v: 1000),
+                (r: 20000.0, v: 0),
+            ],
+            tail: Zero,
+        ),
+    },
+)

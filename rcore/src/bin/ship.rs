@@ -13,6 +13,7 @@ use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::StarterShip;
 use rcore::ship::add_ship;
+use rcore::star::star_setup;
 
 #[cfg(feature = "render")]
 use rcore::render::camera::{CameraMode, CameraRig};
@@ -47,7 +48,8 @@ impl Plugin for SetupPlugin {
         app.add_plugins(DefaultPlugins)
             .add_plugins(RenderPlugin)
             .add_plugins(CameraPlugin)
-            .add_systems(Startup, add_ships.after(camera_setup));
+            .add_systems(Startup, add_ships.after(camera_setup))
+            .add_systems(Startup, star_setup.before(add_ships));
     }
 
     // Headless Setup
@@ -61,6 +63,7 @@ impl Plugin for SetupPlugin {
             Duration::from_secs_f64(1.0 / 60.0),
         )))
         .add_systems(Startup, add_ships)
+        .add_systems(Startup, star_setup.before(add_ships))
         .add_systems(Startup, |mut writer: MessageWriter<TimeMsg>| {
             // 16x speedup
             writer.write(TimeMsg::Speed(4));

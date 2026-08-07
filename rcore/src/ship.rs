@@ -26,6 +26,8 @@ use crate::weapon::HealthDebug;
 use crate::weapon::ShieldBundle;
 use crate::weapon::ShieldHealthDebug;
 
+use crate::star::Environ;
+
 // INFO:
 // - Ship class: Tiny, Small, Med, Large where they would occupy roughly
 //  * Missile/mines
@@ -395,7 +397,8 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
         .insert(ship.health)
         // TODO: probs want collision groups (ie ship vs missile vs other ships)
         .insert(Collider::circle(150.0))
-        .insert(CollisionEventsEnabled);
+        .insert(CollisionEventsEnabled)
+        .insert(Environ::default());
 
     // Ship debug
     if let Some(mov) = ship.debug.mov {
