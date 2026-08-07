@@ -1,13 +1,17 @@
-use std::collections::HashMap;
+use avian2d::prelude::*;
 use bevy::prelude::*;
+use std::collections::HashMap;
+
+use crate::FixedGameSystem;
 
 pub struct StarPlugin;
 impl Plugin for StarPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            Startup,
-            star_setup,
-        );
+            FixedUpdate,
+            (sample_environ,).chain().in_set(FixedGameSystem::Sampler),
+        )
+        .add_systems(Startup, star_setup);
     }
 }
 
@@ -106,12 +110,19 @@ impl RadialTable {
             };
         }
         // For low number of knot points a linear scan is fast enough
-        let idx = self.points.windows(2).position(|p| radius < p[1].r).expect(
-            "radius has been verified to be within the knot range"
-        );
+        let idx = self
+            .points
+            .windows(2)
+            .position(|p| radius < p[1].r)
+            .expect("radius has been verified to be within the knot range");
         // Linear regression
-        let ratio = f64::from((radius - self.points[idx].r) / (self.points[idx + 1].r - self.points[idx].r));
-        let (a, b) = (f64::from(self.points[idx].v), f64::from(self.points[idx + 1].v));
+        let ratio = f64::from(
+            (radius - self.points[idx].r) / (self.points[idx + 1].r - self.points[idx].r),
+        );
+        let (a, b) = (
+            f64::from(self.points[idx].v),
+            f64::from(self.points[idx + 1].v),
+        );
         (a + (b - a) * ratio).round() as Milli
     }
 }
@@ -138,11 +149,52 @@ struct FieldProfile {
     tables: FieldTables,
 }
 
+// TODO: Do we use transform or Position here, since
+// we can move Position to f64...
 #[derive(Component)]
 #[require(Transform)]
 struct FieldSource(Handle<FieldProfile>);
 
+// TODO: map-wide consts
+#[derive(Resource)]
+struct MapConsts {}
 
-
-fn star_setup(mut commands: Commands) {
+#[derive(Component, Default)]
+pub struct Environ {
+    raw: [Milli; Field::COUNT],
+    pub nearest_source_radius: f32,
 }
+
+impl Environ {
+    pub fn get(&self, f: Field) -> Milli {
+        self.raw[f as usize]
+    }
+    // TODO: other fields
+    pub fn c(&self) -> Milli {
+        self.get(Field::CBoost)
+    }
+}
+
+fn compose(source: &[(Vec2, &FieldProfile)], consts: &MapConsts, p: Vec2) -> Environ {
+    Environ::default()
+}
+
+fn sample_environ(
+    source: Query<(&Transform, &FieldSource)>,
+    profiles: Res<Assets<FieldProfile>>,
+    consts: Res<MapConsts>,
+    mut ships: Query<(&Position, &mut Environ)>,
+) {
+    // Collect a snapshot of the source + their profiles
+    let snapshot: Vec<(Vec2, &FieldProfile)> = source
+        .iter()
+        .filter_map(|(tran, s)| profiles.get(&s.0).map(|p| (tran.translation.truncate(), p)))
+        .collect();
+
+    // Compute the environ for everything that needs it
+    ships.par_iter_mut().for_each(|(pos, mut env)| {
+        *env = compose(&snapshot, &consts, pos.0);
+    });
+}
+
+fn star_setup(mut commands: Commands) {}

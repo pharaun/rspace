@@ -9,9 +9,9 @@ pub mod rotation;
 pub mod script;
 pub mod ship;
 pub mod spawner;
+pub mod star;
 pub mod time;
 pub mod weapon;
-pub mod star;
 
 #[cfg(feature = "render")]
 pub mod render;
@@ -24,9 +24,9 @@ use crate::radar::RadarPlugin;
 use crate::rotation::RotationPlugin;
 use crate::script::ScriptPlugins;
 use crate::spawner::SpawnerPlugin;
+use crate::star::StarPlugin;
 use crate::time::TimeControlPlugin;
 use crate::weapon::WeaponPlugin;
-use crate::star::StarPlugin;
 
 // Sim timing
 pub const TICK_HZ: u32 = 64;
@@ -39,6 +39,9 @@ pub const TICK_HZ: u32 = 64;
 // are going to be 1-frame delayed for now
 #[derive(SystemSet, Debug, Hash, Eq, PartialEq, Clone)]
 pub enum FixedGameSystem {
+    // Environmental sampler -> GameLogic uses it (ie c-boost, flux, etc...)
+    Sampler,
+
     // Motion, Rotation, Radar, Turret, etc...
     GameLogic,
 
@@ -79,6 +82,7 @@ impl Plugin for SimulationPlugin {
             .configure_sets(
                 FixedUpdate,
                 (
+                    FixedGameSystem::Sampler,
                     FixedGameSystem::GameLogic,
                     FixedGameSystem::ShipLogic,
                     FixedGameSystem::Spawn,
