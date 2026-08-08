@@ -17,14 +17,13 @@ impl Plugin for StarPlugin {
             .init_resource::<MapConsts>()
             .init_resource::<FieldSnapshot>()
             .init_asset::<FieldProfile>()
+            .add_systems(FixedUpdate, validate_field_profiles)
             .add_systems(
                 FixedUpdate,
-                (update_snapshot, sample_environ)
+                (update_snapshot.run_if(field_sources_dirty), sample_environ)
                     .chain()
                     .in_set(FixedGameSystem::Sampler),
             );
-        // TODO: temp
-        app.world_mut().register_component::<FieldSource>();
     }
 }
 
@@ -294,49 +293,60 @@ fn compose(sources: &[(Vec2, FieldProfile)], consts: &MapConsts, p: Vec2) -> Env
     }
 }
 
-fn update_snapshot(
-    dirty: Query<
-        (),
-        (
-            With<FieldSource>,
-            Or<(Changed<Transform>, Changed<FieldSource>)>,
-        ),
-    >,
-    mut removed: RemovedComponents<FieldSource>,
+fn validate_field_profiles(
     mut asset_message: MessageReader<AssetEvent<FieldProfile>>,
-    sources: Query<(&Transform, &FieldSource)>,
     profiles: Res<Assets<FieldProfile>>,
     consts: Res<MapConsts>,
-    mut snapshot: ResMut<FieldSnapshot>,
 ) {
-    // Check if any of these ran (that means that something changed and we need to rebuild)
-    let any_removed = removed.read().count() > 0;
-    let any_asset = asset_message
-        .read()
-        .any(|e| matches!(e, AssetEvent::Added { .. } | AssetEvent::Modified { .. }));
-
-    if !any_removed && !any_asset && dirty.is_empty() {
-        return;
-    }
-
-    // Build the snapshot and cache it
-    snapshot.table.clear();
-    for (tran, src) in &sources {
-        let Some(profile) = profiles.get(&src.0) else {
+    for msg in asset_message.read() {
+        let (AssetEvent::Added { id } | AssetEvent::Modified { id }) = msg else {
+            continue;
+        };
+        let Some(profile) = profiles.get(*id) else {
             continue;
         };
 
         // TODO: move this to asset loading or other spots, not every single frame do we need to
         // validate this.
         // Double check that the despawn table last knot is below the despawn_cutoff
-        let last_despawn = profile.tables.0[Field::Despawn as usize].sample(f32::INFINITY);
-        if last_despawn > consts.despawn_cutoff {
+        let last = profile.tables.0[Field::Despawn as usize].sample(f32::INFINITY);
+        if last > consts.despawn_cutoff {
             // It will never despawn, print log warning
             error!(
-                "At f32 infinity, despawn table is not below despawn_cutoff: {last_despawn} > {}",
+                "despawn table never falls below cutoff: {last} > {}",
                 consts.despawn_cutoff
             );
         }
+    }
+}
+
+type FieldDirty = (
+    With<FieldSource>,
+    Or<(Changed<Transform>, Changed<FieldSource>)>,
+);
+
+fn field_sources_dirty(
+    dirty: Query<(), FieldDirty>,
+    mut removed: RemovedComponents<FieldSource>,
+    mut asset_message: MessageReader<AssetEvent<FieldProfile>>,
+) -> bool {
+    // Check if any of these ran (that means that something changed and we need to rebuild)
+    let any_removed = removed.read().count() > 0;
+    let any_asset = asset_message.read().count() > 0;
+    any_removed || any_asset || !dirty.is_empty()
+}
+
+fn update_snapshot(
+    sources: Query<(&Transform, &FieldSource)>,
+    profiles: Res<Assets<FieldProfile>>,
+    mut snapshot: ResMut<FieldSnapshot>,
+) {
+    snapshot.table.clear();
+
+    for (tran, src) in &sources {
+        let Some(profile) = profiles.get(&src.0) else {
+            continue;
+        };
         snapshot
             .table
             .push((tran.translation.truncate(), profile.clone()));
