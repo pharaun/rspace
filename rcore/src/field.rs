@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use crate::FixedGameSystem;
 
-pub struct StarPlugin;
-impl Plugin for StarPlugin {
+pub struct FieldPlugin;
+impl Plugin for FieldPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(RonAssetPlugin::<FieldProfile>::new(&["ron"]))
             .init_resource::<MapConsts>()
@@ -25,31 +25,6 @@ impl Plugin for StarPlugin {
                     .in_set(FixedGameSystem::Sampler),
             );
     }
-}
-
-#[derive(Component)]
-struct StarMarker;
-
-pub fn star_setup(
-    mut profiles: ResMut<Assets<FieldProfile>>,
-    //asset_server: Res<AssetServer>,
-    mut commands: Commands,
-) {
-    // TODO: Workaround for now
-    // This works - cuz we register the component (above) and then we forcefully load the assets
-    // So this works to prove the hook logic works, but the hook logic probs should be done in a
-    // better way
-    let raw = std::fs::read_to_string("assets/profiles/g_class.ron").expect("g_class.ron missing");
-    let profile: FieldProfile = ron::from_str(&raw).expect("g_class.ron malformed");
-
-    commands.spawn((
-        StarMarker,
-        Transform::from_xyz(0.0, -1000.0, 0.0),
-        //FieldSource(asset_server.load("profiles/g_class.ron")),
-        FieldSource(profiles.add(profile)),
-        // This breaks the render separation
-        Sprite::from_color(Color::srgb(0.0, 1.0, 1.0), Vec2::splat(200.0)),
-    ));
 }
 
 // Velocity per FP_MILI (v_cap = c/fp_milli * cref)
@@ -208,7 +183,7 @@ pub struct FieldProfile {
 // we can move Position to f64...
 #[derive(Component)]
 #[require(Transform)]
-struct FieldSource(Handle<FieldProfile>);
+pub struct FieldSource(pub Handle<FieldProfile>);
 
 #[derive(Resource, Default)]
 struct MapConsts {

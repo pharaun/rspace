@@ -13,7 +13,7 @@ use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::StarterShip;
 use rcore::ship::add_ship;
-use rcore::star::star_setup;
+use rcore::star_setup;
 
 #[cfg(feature = "render")]
 use rcore::render::camera::{CameraMode, CameraRig};
