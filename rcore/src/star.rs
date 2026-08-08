@@ -1,24 +1,27 @@
 use avian2d::prelude::*;
-use bevy::prelude::*;
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
+use bevy::prelude::*;
 use bevy_common_assets::ron::RonAssetPlugin;
 
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::FixedGameSystem;
 
 pub struct StarPlugin;
 impl Plugin for StarPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_plugins(RonAssetPlugin::<FieldProfile>::new(&["ron"]))
+        app.add_plugins(RonAssetPlugin::<FieldProfile>::new(&["ron"]))
             .init_resource::<MapConsts>()
+            .init_resource::<FieldSnapshot>()
             .init_asset::<FieldProfile>()
             .add_systems(
                 FixedUpdate,
-                (sample_environ,).chain().in_set(FixedGameSystem::Sampler),
+                (update_snapshot, sample_environ)
+                    .chain()
+                    .in_set(FixedGameSystem::Sampler),
             );
         // TODO: temp
         app.world_mut().register_component::<FieldSource>();
@@ -30,7 +33,7 @@ struct StarMarker;
 
 pub fn star_setup(
     mut profiles: ResMut<Assets<FieldProfile>>,
-    asset_server: Res<AssetServer>,
+    //asset_server: Res<AssetServer>,
     mut commands: Commands,
 ) {
     // TODO: Workaround for now
@@ -71,14 +74,24 @@ macro_rules! define_fields {
 }
 define_fields!(
     // This is for despawn & arena boundary (Presence)
-    // TODO:
-    // - Field mostly to permit "metaball behavior" for defining the boundary.
-    // - Not sure if we want a field or if a strict boundary is better?
+    // - Field to permit for metaball despawning (joining 2 or more stars)
+    // - Field to permit a fade/warning ie <50 that its about to despawn
+    // - Field to adjust the despawn distance outside the game area, before despawn have c_boost
+    //   approach zero so that there's little incentive to be out there.
     Despawn,
     // "Stellar Flux" aka power/matter a starlifter station can raise from the star (Wellspring)
     Flux,
     // Local speed cap (closer you are to a star the higher your speed cap is).
     // All sources must be budgeted so that the CBoost merged together doesn't clamp the max c
+    //  - Clamp is a safety/map/engine defined max where things start to go wonky,
+    //
+    // Example:
+    //  - 2 stars with 40% of c_max at half separation.
+    //  - Corridor between both runs at 80% c_max,
+    //  - Then there's a high speed c_boost zone without the risk-trade off of heat of being close
+    //  to a star
+    //
+    // Budget: c_max / (1 + overlap) - check midpoint value to make sure its not too high
     CBoost,
     // Heat - Ships need to be able to cool down, discourage ships lottering too close to a star
     Heat,
@@ -91,14 +104,22 @@ define_fields!(
     VeilDensity,
 );
 
-#[derive(Clone, Debug, Default, Reflect, Deserialize)]
+// Its better to space the knots out where it "matters" aka around steep parts of an curve, ie for
+// eg: if you sample it linearly with a 1/r² ish curve, it will waste most of the knot on flat
+// tail, and make the steep part of the curve... way too rough.
+//
+// Better to sample it where the value steps by a "roughly constant" fraction: r[i+1] = r[i] * k
+// and k ~= 1.3
+//
+// This allow you to have like 16 log-spaced knots instead of 60 linear ones.
+#[derive(Clone, Debug, Default, Deserialize)]
 struct Knot {
     r: f32,
     v: Milli,
 }
 
 // Behavior past the last knot
-#[derive(Clone, Debug, Default, Reflect, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 enum Tail {
     // Clamped to last value
     #[default]
@@ -109,7 +130,7 @@ enum Tail {
     InvSquare,
 }
 
-#[derive(Clone, Debug, Default, Reflect, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 struct RadialTable {
     // Strictly increasing radii
     points: Vec<Knot>,
@@ -162,7 +183,7 @@ impl RadialTable {
     }
 }
 
-#[derive(Reflect, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 #[serde(from = "HashMap<Field, RadialTable>")]
 struct FieldTables([RadialTable; Field::COUNT]);
 
@@ -177,11 +198,11 @@ impl From<HashMap<Field, RadialTable>> for FieldTables {
 // Loaded set of value to represent an spectral class star
 // - G class star
 // - Dark star? (Despawn+CBoost only for eg)
-#[derive(Asset, Reflect, Deserialize, Debug)]
-pub  struct FieldProfile {
+#[derive(Asset, TypePath, Deserialize, Debug, Clone)]
+pub struct FieldProfile {
     body_radius: f32,
     flux: Milli,
-    tables: FieldTables,
+    tables: Arc<FieldTables>,
 }
 
 // TODO: Do we use transform or Position here, since
@@ -196,6 +217,15 @@ struct MapConsts {
     baseline: [Milli; Field::COUNT],
     // Absolute map wide map c_speed cap
     c_max: Milli,
+    // Due to despawn being a gradent curve, this is the
+    // despawn cutoff - suggested to be 0
+    despawn_cutoff: Milli,
+}
+
+// This resource updates on change of any of the handle, it rebuilds
+#[derive(Resource, Default)]
+struct FieldSnapshot {
+    table: Vec<(Vec2, FieldProfile)>,
 }
 
 #[derive(Component, Default, Debug)]
@@ -222,18 +252,13 @@ fn on_environ_add(mut world: DeferredWorld, context: HookContext) {
         let Some(&Position(pos)) = world.get::<Position>(context.entity) else {
             return;
         };
-        let Some(profiles) = world.get_resource::<Assets<FieldProfile>>() else {
-            return;
-        };
         let Some(consts) = world.get_resource::<MapConsts>() else {
             return;
         };
-        let mut query = world.try_query::<(&Transform, &FieldSource)>().unwrap();
-        let snapshot: Vec<(Vec2, &FieldProfile)> = query.iter(&world)
-            .filter_map(|(tran, s)| profiles.get(&s.0).map(|p| (tran.translation.truncate(), p)))
-            .collect();
-
-        compose(&snapshot, &consts, pos)
+        let Some(snapshot) = world.get_resource::<FieldSnapshot>() else {
+            return;
+        };
+        compose(&snapshot.table, &consts, pos)
     };
 
     // At this point we should have everything needed to compose a updated environ
@@ -243,7 +268,7 @@ fn on_environ_add(mut world: DeferredWorld, context: HookContext) {
     *environ = new_environ;
 }
 
-fn compose(sources: &[(Vec2, &FieldProfile)], consts: &MapConsts, p: Vec2) -> Environ {
+fn compose(sources: &[(Vec2, FieldProfile)], consts: &MapConsts, p: Vec2) -> Environ {
     let mut raw = consts.baseline;
     let mut nearest_source = f32::INFINITY;
 
@@ -269,20 +294,62 @@ fn compose(sources: &[(Vec2, &FieldProfile)], consts: &MapConsts, p: Vec2) -> En
     }
 }
 
-fn sample_environ(
-    source: Query<(&Transform, &FieldSource)>,
+fn update_snapshot(
+    dirty: Query<
+        (),
+        (
+            With<FieldSource>,
+            Or<(Changed<Transform>, Changed<FieldSource>)>,
+        ),
+    >,
+    mut removed: RemovedComponents<FieldSource>,
+    mut asset_message: MessageReader<AssetEvent<FieldProfile>>,
+    sources: Query<(&Transform, &FieldSource)>,
     profiles: Res<Assets<FieldProfile>>,
     consts: Res<MapConsts>,
+    mut snapshot: ResMut<FieldSnapshot>,
+) {
+    // Check if any of these ran (that means that something changed and we need to rebuild)
+    let any_removed = removed.read().count() > 0;
+    let any_asset = asset_message
+        .read()
+        .any(|e| matches!(e, AssetEvent::Added { .. } | AssetEvent::Modified { .. }));
+
+    if !any_removed && !any_asset && dirty.is_empty() {
+        return;
+    }
+
+    // Build the snapshot and cache it
+    snapshot.table.clear();
+    for (tran, src) in &sources {
+        let Some(profile) = profiles.get(&src.0) else {
+            continue;
+        };
+
+        // TODO: move this to asset loading or other spots, not every single frame do we need to
+        // validate this.
+        // Double check that the despawn table last knot is below the despawn_cutoff
+        let last_despawn = profile.tables.0[Field::Despawn as usize].sample(f32::INFINITY);
+        if last_despawn > consts.despawn_cutoff {
+            // It will never despawn, print log warning
+            error!(
+                "At f32 infinity, despawn table is not below despawn_cutoff: {last_despawn} > {}",
+                consts.despawn_cutoff
+            );
+        }
+        snapshot
+            .table
+            .push((tran.translation.truncate(), profile.clone()));
+    }
+}
+
+fn sample_environ(
+    consts: Res<MapConsts>,
+    snapshot: Res<FieldSnapshot>,
     mut ships: Query<(&Position, &mut Environ)>,
 ) {
-    // Collect a snapshot of the source + their profiles
-    let snapshot: Vec<(Vec2, &FieldProfile)> = source
-        .iter()
-        .filter_map(|(tran, s)| profiles.get(&s.0).map(|p| (tran.translation.truncate(), p)))
-        .collect();
-
     // Compute the environ for everything that needs it
     ships.par_iter_mut().for_each(|(pos, mut env)| {
-        *env = compose(&snapshot, &consts, pos.0);
+        *env = compose(&snapshot.table, &consts, pos.0);
     });
 }

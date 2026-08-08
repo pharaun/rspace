@@ -49,7 +49,7 @@ render = [
 
 [dependencies]
 bevy_common_assets = { version = "0.17", features = ["ron"] }
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
 ron = "0.12.2"
 
 # To permit ship dyn object to be cloned (so that they all have their own memory region for data)
