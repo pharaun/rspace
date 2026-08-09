@@ -104,14 +104,20 @@ enum Tail {
     InvSquare,
 }
 
+// TODO: add a phanton type to this so that we can separate it into several domain:
+// - Radius
+// - Field value
+// - Velocity Excess - cherknov
+//
+// This will permit reusing this table + sampler logic in other domains.
 #[derive(Clone, Debug, Default, Deserialize)]
-struct RadialTable {
+struct CurveTable {
     // Strictly increasing radii
     points: Vec<Knot>,
     tail: Tail,
 }
 
-impl RadialTable {
+impl CurveTable {
     pub fn sample(&self, radius: f32) -> Milli {
         debug_assert!(!radius.is_nan(), "NaN radius");
         if radius.is_nan() {
@@ -158,11 +164,11 @@ impl RadialTable {
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(from = "HashMap<Field, RadialTable>")]
-struct FieldTables([RadialTable; Field::COUNT]);
+#[serde(from = "HashMap<Field, CurveTable>")]
+struct FieldTables([CurveTable; Field::COUNT]);
 
-impl From<HashMap<Field, RadialTable>> for FieldTables {
-    fn from(m: HashMap<Field, RadialTable>) -> Self {
+impl From<HashMap<Field, CurveTable>> for FieldTables {
+    fn from(m: HashMap<Field, CurveTable>) -> Self {
         FieldTables(std::array::from_fn(|i| {
             m.get(&Field::ALL[i]).cloned().unwrap_or_default()
         }))
