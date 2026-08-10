@@ -26,6 +26,8 @@ use crate::rotation::RotationPlugin;
 use crate::script::ScriptPlugins;
 use crate::spawner::SpawnerPlugin;
 use crate::time::TimeControlPlugin;
+use crate::time::pause_time;
+use crate::time::apply_time_command;
 use crate::weapon::WeaponPlugin;
 
 use crate::field::FieldProfile;
@@ -61,6 +63,25 @@ pub enum FixedGameSystem {
     Weapon,
 }
 
+// State to help load up assets and manage the asset2sim & asset2render lifecycle.
+#[derive(States, Default, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum GamePhase {
+    #[default]
+    Load,
+    Run,
+}
+
+// Substate to help the Loading state manage the various loading stages
+#[derive(SubStates, Default, Clone, Eq, PartialEq, Hash, Debug)]
+#[source(GamePhase = GamePhase::Load)]
+pub enum LoadStage {
+    #[default]
+    Booting,
+    Loading,
+    Cooking,
+    Failure,
+}
+
 // We break up the game into 3 main pieces:
 // 1. Core simulation engine
 // 2. Render
@@ -72,6 +93,9 @@ impl Plugin for SimulationPlugin {
             // Physics
             .add_plugins(PhysicsPlugins::default())
             .insert_resource(Gravity(Vec2::ZERO))
+            // State management
+            .init_state::<GamePhase>()
+            .add_sub_state::<LoadStage>()
             // Simulation Control
             .add_plugins(TimeControlPlugin)
             // Game bits
@@ -93,7 +117,12 @@ impl Plugin for SimulationPlugin {
                     FixedGameSystem::Spawn,
                     FixedGameSystem::Weapon,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(in_state(GamePhase::Run)),
+            )
+            .add_systems(
+                Startup,
+                pause_time.before(apply_time_command),
             );
     }
 }

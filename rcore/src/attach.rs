@@ -1,5 +1,6 @@
 use avian2d::prelude::PhysicsSystems;
 use bevy::prelude::*;
+use crate::GamePhase;
 
 // Translation Attachment subsystem.
 // - This is for rotation-less "transform hierarchy"
@@ -11,7 +12,9 @@ impl Plugin for AttachPlugin {
         // This must be ran after avian dumps `Position` into `Transform`
         app.add_systems(
             FixedPostUpdate,
-            propagate_attachment_translation.after(PhysicsSystems::Writeback),
+            propagate_attachment_translation
+                .after(PhysicsSystems::Writeback)
+                .run_if(in_state(GamePhase::Run)),
         );
     }
 }

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::GamePhase;
 
 // Simulation speed manager:
 // - Pause the simulation
@@ -34,13 +35,37 @@ impl Plugin for TimeControlPlugin {
             .insert_resource(Ticks(0))
             // Must happen outside of FixedUpdate since it manages FixedUpdate timings
             .add_systems(PreUpdate, apply_time_command)
-            .add_systems(FixedFirst, |mut ticks: ResMut<Ticks>| {
-                ticks.0 = ticks.0.wrapping_add(1);
-            });
+            .add_systems(FixedFirst, apply_tick.run_if(in_state(GamePhase::Run)))
+            .add_systems(
+                OnEnter(GamePhase::Run),
+                unpause_time.before(apply_time_command),
+            )
+            .add_systems(
+                OnExit(GamePhase::Run),
+                pause_time.before(apply_time_command),
+            );
     }
 }
 
-fn apply_time_command(
+fn apply_tick(mut ticks: ResMut<Ticks>) {
+    // NOTE: Due to this being in FixedFirst it will only advance the ticks when
+    // Time<Virtual> is not paused.
+    ticks.0 = ticks.0.wrapping_add(1);
+}
+
+// When we enter Run state, unpause time so that we can start right away
+pub fn unpause_time(
+    mut message: MessageWriter<TimeMsg>,
+) {
+    message.write(TimeMsg::Pause(false));
+}
+pub fn pause_time(
+    mut message: MessageWriter<TimeMsg>,
+) {
+    message.write(TimeMsg::Pause(true));
+}
+
+pub fn apply_time_command(
     mut message: MessageReader<TimeMsg>,
     fixed: Res<Time<Fixed>>,
     mut time: ResMut<Time<Virtual>>,

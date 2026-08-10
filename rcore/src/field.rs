@@ -2,7 +2,6 @@ use avian2d::prelude::*;
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
-use bevy_common_assets::ron::RonAssetPlugin;
 
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -13,11 +12,15 @@ use crate::FixedGameSystem;
 pub struct FieldPlugin;
 impl Plugin for FieldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(RonAssetPlugin::<FieldProfile>::new(&["ron"]))
-            .init_resource::<MapConsts>()
+        app.init_resource::<MapConsts>()
             .init_resource::<FieldSnapshot>()
             .init_asset::<FieldProfile>()
-            .add_systems(FixedUpdate, validate_field_profiles)
+            .add_systems(
+                FixedUpdate,
+                validate_field_profiles
+                    .after(update_snapshot)
+                    .in_set(FixedGameSystem::Sampler),
+            )
             .add_systems(
                 FixedUpdate,
                 (update_snapshot.run_if(field_sources_dirty), sample_environ)
