@@ -26,8 +26,6 @@ use crate::rotation::RotationPlugin;
 use crate::script::ScriptPlugins;
 use crate::spawner::SpawnerPlugin;
 use crate::time::TimeControlPlugin;
-use crate::time::pause_time;
-use crate::time::apply_time_command;
 use crate::weapon::WeaponPlugin;
 
 use crate::field::FieldProfile;
@@ -93,6 +91,7 @@ impl Plugin for SimulationPlugin {
             // Physics
             .add_plugins(PhysicsPlugins::default())
             .insert_resource(Gravity(Vec2::ZERO))
+            .configure_sets(FixedPostUpdate, PhysicsSystems::StepSimulation.run_if(in_state(GamePhase::Run)))
             // State management
             .init_state::<GamePhase>()
             .add_sub_state::<LoadStage>()
@@ -119,10 +118,6 @@ impl Plugin for SimulationPlugin {
                 )
                     .chain()
                     .run_if(in_state(GamePhase::Run)),
-            )
-            .add_systems(
-                Startup,
-                pause_time.before(apply_time_command),
             );
     }
 }

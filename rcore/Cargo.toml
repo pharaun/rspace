@@ -22,8 +22,6 @@ render = [
 
     # Bevy functionality:
     "bevy/bevy_animation",     # Provides animation functionality
-    "bevy/bevy_asset",         # Assets management
-    "bevy/asset_processor",    # Process Assets
     "bevy/bevy_color",         # Provides shared color types and operations
     "bevy/bevy_core_pipeline", # Common rendering abstractions
     "bevy/bevy_gizmos",        # Support drawing debug lines and shapes
@@ -41,7 +39,6 @@ render = [
     "bevy/default_font",       # Embed a minimal default font for text/UI
     "bevy/png",                # Screenshot feature to save a png to disk
 
-    "bevy/file_watcher",       # Asset file watcher
     "bevy/bevy_dev_tools",     # Fps
 
     "bevy/x11",                # winit wants a linux backend, x11 dlopen only so builds on headless linux
@@ -73,6 +70,9 @@ version = "0.19"
 default-features = false
 features = [
     "bevy_state",         # Enable built in global state machines
+    "bevy_asset",         # Asset management
+    "asset_processor",
+    "file_watcher",       # Asset file watcher
 
     "std",
     "async_executor",

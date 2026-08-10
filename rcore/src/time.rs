@@ -28,22 +28,23 @@ impl Ticks {
     }
 }
 
+// Stepping backlog for mega-steps
+#[derive(Resource)]
+pub struct BacklogStep(u32);
+
 pub struct TimeControlPlugin;
 impl Plugin for TimeControlPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<TimeMsg>()
             .insert_resource(Ticks(0))
+            .insert_resource(BacklogStep(0))
             // Must happen outside of FixedUpdate since it manages FixedUpdate timings
-            .add_systems(PreUpdate, apply_time_command)
+            .add_systems(PreUpdate, apply_time_command.run_if(in_state(GamePhase::Run)))
             .add_systems(FixedFirst, apply_tick.run_if(in_state(GamePhase::Run)))
-            .add_systems(
-                OnEnter(GamePhase::Run),
-                unpause_time.before(apply_time_command),
-            )
-            .add_systems(
-                OnExit(GamePhase::Run),
-                pause_time.before(apply_time_command),
-            );
+            // TODO: this is papercut, ie if we edit asset, sim will resume after asset reloads
+            // If the player has had paused the sim we probs want to preserve the player pause
+            .add_systems(OnEnter(GamePhase::Load), pause_time)
+            .add_systems(OnExit(GamePhase::Load), unpause_time);
     }
 }
 
@@ -54,22 +55,24 @@ fn apply_tick(mut ticks: ResMut<Ticks>) {
 }
 
 // When we enter Run state, unpause time so that we can start right away
-pub fn unpause_time(
-    mut message: MessageWriter<TimeMsg>,
+fn unpause_time(
+    mut time: ResMut<Time<Virtual>>,
 ) {
-    message.write(TimeMsg::Pause(false));
+    time.unpause();
 }
-pub fn pause_time(
-    mut message: MessageWriter<TimeMsg>,
+fn pause_time(
+    mut time: ResMut<Time<Virtual>>,
+    mut backlog: ResMut<BacklogStep>,
 ) {
-    message.write(TimeMsg::Pause(true));
+    time.pause();
+    backlog.0 = 0;
 }
 
-pub fn apply_time_command(
+fn apply_time_command(
     mut message: MessageReader<TimeMsg>,
     fixed: Res<Time<Fixed>>,
     mut time: ResMut<Time<Virtual>>,
-    mut backlog: Local<u32>,
+    mut backlog: ResMut<BacklogStep>,
 ) {
     let mut next_speed: Option<i8> = None;
     let mut pause: Option<bool> = None;
@@ -79,7 +82,7 @@ pub fn apply_time_command(
         match msg {
             TimeMsg::Speed(s) => next_speed = Some(s),
             TimeMsg::Pause(b) => pause = Some(b),
-            TimeMsg::Step(n) => *backlog = backlog.saturating_add(n),
+            TimeMsg::Step(n) => backlog.0 = backlog.0.saturating_add(n),
         }
     }
 
@@ -93,13 +96,13 @@ pub fn apply_time_command(
             time.unpause();
         }
     }
-    if *backlog > 0 {
+    if backlog.0 > 0 {
         // We force time to be paused to single step here
         time.pause();
 
         // Start with 1024 step in a frame
-        let run = (*backlog).min(1024);
+        let run = (backlog.0).min(1024);
         time.advance_by(fixed.timestep() * run);
-        *backlog -= run;
+        backlog.0 -= run;
     }
 }
