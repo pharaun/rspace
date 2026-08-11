@@ -2,6 +2,7 @@ use bevy::ecs::schedule::LogLevel;
 use bevy::ecs::schedule::ScheduleBuildSettings;
 use bevy::prelude::*;
 
+use rcore::ActiveMap;
 use rcore::SimulationPlugin;
 use rcore::math::AbsRot;
 use rcore::math::RelRot;
@@ -47,10 +48,11 @@ impl Plugin for SetupPlugin {
         app.add_plugins(DefaultPlugins.set(AssetPlugin {
             watch_for_changes_override: Some(true),
             ..default()
-            }))
-            .add_plugins(RenderPlugin)
-            .add_plugins(CameraPlugin)
-            .add_systems(Startup, add_ships.after(camera_setup));
+        }))
+        .add_plugins(RenderPlugin)
+        .add_plugins(CameraPlugin)
+        .add_systems(Startup, load_map)
+        .add_systems(Startup, add_ships.after(camera_setup));
     }
 
     // Headless Setup
@@ -60,12 +62,17 @@ impl Plugin for SetupPlugin {
         use rcore::time::TimeMsg;
         use std::time::Duration;
 
-        app.add_plugins(DefaultPlugins.set(ScheduleRunnerPlugin::run_loop(
-            Duration::from_secs_f64(1.0 / 60.0),
-        )).set(AssetPlugin {
-            watch_for_changes_override: Some(true),
-            ..default()
-        }))
+        app.add_plugins(
+            DefaultPlugins
+                .set(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
+                    1.0 / 60.0,
+                )))
+                .set(AssetPlugin {
+                    watch_for_changes_override: Some(true),
+                    ..default()
+                }),
+        )
+        .add_systems(Startup, load_map)
         .add_systems(Startup, add_ships)
         .add_systems(Startup, |mut writer: MessageWriter<TimeMsg>| {
             // 16x speedup
@@ -261,4 +268,8 @@ fn add_ships(
     }
 
     camera.mode = CameraMode::Follow(ship_id[0]);
+}
+
+fn load_map(asset_server: Res<AssetServer>, mut commands: Commands) {
+    commands.insert_resource(ActiveMap(asset_server.load("maps/level-0.map")));
 }

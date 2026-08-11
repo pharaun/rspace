@@ -30,6 +30,7 @@ use crate::spawner::SpawnerPlugin;
 use crate::time::TimeControlPlugin;
 use crate::weapon::WeaponPlugin;
 
+pub use crate::asset::ActiveMap;
 use crate::field::FieldProfile;
 use crate::field::FieldSource;
 
@@ -93,7 +94,10 @@ impl Plugin for SimulationPlugin {
             // Physics
             .add_plugins(PhysicsPlugins::default())
             .insert_resource(Gravity(Vec2::ZERO))
-            .configure_sets(FixedPostUpdate, PhysicsSystems::StepSimulation.run_if(in_state(GamePhase::Run)))
+            .configure_sets(
+                FixedPostUpdate,
+                PhysicsSystems::StepSimulation.run_if(in_state(GamePhase::Run)),
+            )
             // State management
             .init_state::<GamePhase>()
             .add_sub_state::<LoadStage>()

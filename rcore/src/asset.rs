@@ -1,25 +1,25 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
-use bevy::asset::io::Reader;
 use bevy::asset::AssetLoader;
 use bevy::asset::LoadContext;
 use bevy::asset::UntypedAssetId;
 use bevy::asset::VisitAssetDependencies;
+use bevy::asset::io::Reader;
 
-use std::marker::PhantomData;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::ops::Index;
 
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::field::Milli;
-use crate::field::Field;
 use crate::FieldProfile;
 use crate::field::Baseline;
-use crate::field::MapConsts;
+use crate::field::Field;
 use crate::field::FieldSource;
+use crate::field::MapConsts;
+use crate::field::Milli;
 
 // NOTE: Ron loader heavily inspired by: https://github.com/NiklasEi/bevy_common_assets
 // Ron Asset Loader logic
@@ -160,7 +160,6 @@ impl From<&MapData> for MapConsts {
     }
 }
 
-
 pub struct AssetPlugin;
 impl Plugin for AssetPlugin {
     fn build(&self, app: &mut App) {
@@ -168,50 +167,59 @@ impl Plugin for AssetPlugin {
             RonAssetPlugin::<MapData>::default(),
             RonAssetPlugin::<FieldProfile>::default(),
         ))
-        .add_systems(Startup, load_map)
-        .add_systems(
-            Update,
-            star_setup.run_if(map_ready).run_if(run_once),
-        );
+        .add_systems(Update, sync_star_map.run_if(resource_exists::<ActiveMap>));
     }
-}
-
-
-// Validation
-fn load_map(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>
-) {
-    commands.insert_resource(
-        ActiveMap(asset_server.load("maps/level-0.map"))
-    );
-}
-
-fn map_ready(
-    map: Option<Res<ActiveMap>>,
-    asset_server: Res<AssetServer>
-) -> bool {
-    map.is_some_and(|m| asset_server.is_loaded_with_dependencies(&m.0))
 }
 
 #[derive(Resource)]
 pub struct ActiveMap(pub Handle<MapData>);
 
 #[derive(Component)]
-struct StarMarker;
+pub struct StarMarker;
 
 // TODO: fix up ordering since we do need the star config up before ships gets created so they can
 // have fresh environ data
-pub fn star_setup(
+pub fn sync_star_map(
+    asset_server: Res<AssetServer>,
     active: Res<ActiveMap>,
     maps: Res<Assets<MapData>>,
     profiles: Res<Assets<FieldProfile>>,
+    stars: Query<Entity, With<StarMarker>>,
+    mut events: MessageReader<AssetEvent<MapData>>,
     mut data: ResMut<MapConsts>,
+    mut dirty: Local<bool>,
     mut commands: Commands,
 ) {
+    // This block is for checking if map is ready to be loaded or reloaded
+    let changed = events.read().fold(false, |acc, event| {
+        acc || event.is_loaded_with_dependencies(&active.0) || event.is_modified(&active.0)
+    });
+
+    // This check is for updating active map to point to different file
+    if changed || active.is_changed() {
+        *dirty = true;
+    }
+
+    if !*dirty {
+        return;
+    }
+
+    // Make sure that even if the map is loaded/updated, that we also load all of its
+    // dependency...
+    if !asset_server.is_loaded_with_dependencies(&active.0) {
+        return;
+    }
+
     let Some(map) = maps.get(&active.0) else {
         return;
     };
+
+    *dirty = false;
+
+    // Despawn the old stars
+    for entity in &stars {
+        commands.entity(entity).despawn();
+    }
 
     // Update the map consts
     *data = MapConsts::from(map);
@@ -221,18 +229,7 @@ pub fn star_setup(
         let mut viz_star = commands.spawn((
             StarMarker,
             Transform::from_translation(star.pos.extend(0.)),
-            FieldSource(star.profile().clone())
+            FieldSource(star.profile().clone()),
         ));
-
-        #[cfg(feature = "render")]
-        {
-            let Some(prof) = profiles.get(star.profile()) else {
-                return;
-            };
-
-            viz_star.insert(
-                Sprite::from_color(prof.color, Vec2::splat(prof.body_radius))
-            );
-        }
     }
 }

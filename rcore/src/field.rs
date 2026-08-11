@@ -5,9 +5,9 @@ use bevy::prelude::*;
 
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::ops::Index;
 use std::ops::IndexMut;
+use std::sync::Arc;
 
 use crate::FixedGameSystem;
 
@@ -175,7 +175,10 @@ pub type FieldTables = PerField<CurveTable>;
 pub type EnvironField = PerField<Milli>;
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[serde(from = "HashMap<Field, T>", bound(deserialize = "T: Deserialize<'de> + Default + Clone"))]
+#[serde(
+    from = "HashMap<Field, T>",
+    bound(deserialize = "T: Deserialize<'de> + Default + Clone")
+)]
 pub struct PerField<T>([T; Field::COUNT]);
 
 impl<T: Default + Clone> From<HashMap<Field, T>> for PerField<T> {
@@ -219,7 +222,6 @@ impl<T> PerField<T> {
         Field::ALL.into_iter().zip(self.0.iter_mut())
     }
 }
-
 
 // Loaded set of value to represent an spectral class star
 // - G class star

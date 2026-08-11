@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::GamePhase;
+use bevy::prelude::*;
 
 // Simulation speed manager:
 // - Pause the simulation
@@ -39,7 +39,10 @@ impl Plugin for TimeControlPlugin {
             .insert_resource(Ticks(0))
             .insert_resource(BacklogStep(0))
             // Must happen outside of FixedUpdate since it manages FixedUpdate timings
-            .add_systems(PreUpdate, apply_time_command.run_if(in_state(GamePhase::Run)))
+            .add_systems(
+                PreUpdate,
+                apply_time_command.run_if(in_state(GamePhase::Run)),
+            )
             .add_systems(FixedFirst, apply_tick.run_if(in_state(GamePhase::Run)))
             // TODO: this is papercut, ie if we edit asset, sim will resume after asset reloads
             // If the player has had paused the sim we probs want to preserve the player pause
@@ -55,16 +58,11 @@ fn apply_tick(mut ticks: ResMut<Ticks>) {
 }
 
 // When we enter Run state, unpause time so that we can start right away
-fn unpause_time(
-    mut time: ResMut<Time<Virtual>>,
-) {
+fn unpause_time(mut time: ResMut<Time<Virtual>>) {
     time.unpause();
 }
 
-fn pause_time(
-    mut time: ResMut<Time<Virtual>>,
-    mut backlog: ResMut<BacklogStep>,
-) {
+fn pause_time(mut time: ResMut<Time<Virtual>>, mut backlog: ResMut<BacklogStep>) {
     time.pause();
     backlog.0 = 0;
 }
