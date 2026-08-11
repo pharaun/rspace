@@ -60,6 +60,7 @@ fn unpause_time(
 ) {
     time.unpause();
 }
+
 fn pause_time(
     mut time: ResMut<Time<Virtual>>,
     mut backlog: ResMut<BacklogStep>,

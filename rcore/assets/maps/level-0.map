@@ -1,0 +1,10 @@
+(
+    c_max: 20,
+    despawn_cutoff: 0,
+    baseline: {
+        Flux: 10000,
+    },
+    stars: [
+        (pos: (0.0, -1000.0), class: "stellar/g-class.prf"),
+    ],
+)

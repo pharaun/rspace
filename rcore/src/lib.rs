@@ -1,6 +1,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
+pub mod asset;
 pub mod attach;
 pub mod field;
 pub mod math;
@@ -18,6 +19,7 @@ pub mod render;
 
 use crate::math::AbsRot;
 
+use crate::asset::AssetPlugin;
 use crate::attach::AttachPlugin;
 use crate::field::FieldPlugin;
 use crate::movement::MovementPlugin;
@@ -97,6 +99,8 @@ impl Plugin for SimulationPlugin {
             .add_sub_state::<LoadStage>()
             // Simulation Control
             .add_plugins(TimeControlPlugin)
+            // Simulation setup/asset
+            .add_plugins(AssetPlugin)
             // Game bits
             .add_plugins(AttachPlugin)
             .add_plugins(MovementPlugin)
@@ -120,30 +124,4 @@ impl Plugin for SimulationPlugin {
                     .run_if(in_state(GamePhase::Run)),
             );
     }
-}
-
-// Star
-#[derive(Component)]
-struct StarMarker;
-
-pub fn star_setup(
-    mut profiles: ResMut<Assets<FieldProfile>>,
-    //asset_server: Res<AssetServer>,
-    mut commands: Commands,
-) {
-    // TODO: Workaround for now
-    // This works - cuz we register the component (above) and then we forcefully load the assets
-    // So this works to prove the hook logic works, but the hook logic probs should be done in a
-    // better way
-    let raw = std::fs::read_to_string("assets/profiles/g_class.ron").expect("g_class.ron missing");
-    let profile: FieldProfile = ron::from_str(&raw).expect("g_class.ron malformed");
-
-    commands.spawn((
-        StarMarker,
-        Transform::from_xyz(0.0, -1000.0, 0.0),
-        //FieldSource(asset_server.load("profiles/g_class.ron")),
-        FieldSource(profiles.add(profile)),
-        // This breaks the render separation
-        Sprite::from_color(Color::srgb(0.0, 1.0, 1.0), Vec2::splat(200.0)),
-    ));
 }

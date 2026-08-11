@@ -13,7 +13,6 @@ use rcore::ship::DebugBuilder;
 use rcore::ship::ShipBuilder;
 use rcore::ship::StarterShip;
 use rcore::ship::add_ship;
-use rcore::star_setup;
 
 #[cfg(feature = "render")]
 use rcore::render::camera::{CameraMode, CameraRig};
@@ -45,11 +44,13 @@ impl Plugin for SetupPlugin {
         use rcore::render::RenderPlugin;
         use rcore::render::camera::{CameraPlugin, camera_setup};
 
-        app.add_plugins(DefaultPlugins)
+        app.add_plugins(DefaultPlugins.set(AssetPlugin {
+            watch_for_changes_override: Some(true),
+            ..default()
+            }))
             .add_plugins(RenderPlugin)
             .add_plugins(CameraPlugin)
-            .add_systems(Startup, add_ships.after(camera_setup))
-            .add_systems(Startup, star_setup.before(add_ships));
+            .add_systems(Startup, add_ships.after(camera_setup));
     }
 
     // Headless Setup
@@ -61,9 +62,11 @@ impl Plugin for SetupPlugin {
 
         app.add_plugins(DefaultPlugins.set(ScheduleRunnerPlugin::run_loop(
             Duration::from_secs_f64(1.0 / 60.0),
-        )))
+        )).set(AssetPlugin {
+            watch_for_changes_override: Some(true),
+            ..default()
+        }))
         .add_systems(Startup, add_ships)
-        .add_systems(Startup, star_setup.before(add_ships))
         .add_systems(Startup, |mut writer: MessageWriter<TimeMsg>| {
             // 16x speedup
             writer.write(TimeMsg::Speed(4));

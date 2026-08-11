@@ -6,6 +6,8 @@ use bevy::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::ops::Index;
+use std::ops::IndexMut;
 
 use crate::FixedGameSystem;
 
@@ -33,7 +35,7 @@ impl Plugin for FieldPlugin {
 // Velocity per FP_MILI (v_cap = c/fp_milli * cref)
 const C_REF: f32 = 1.0;
 const FP_MILLI: i32 = 1000;
-type Milli = i32;
+pub type Milli = i32;
 
 // Enum key for each table (table types)
 macro_rules! define_fields {
@@ -44,8 +46,8 @@ macro_rules! define_fields {
         }
 
         impl Field {
-            const COUNT: usize = [$(Field::$variant),+].len();
-            const ALL: [Field; Self::COUNT] = [$(Field::$variant),+];
+            pub const COUNT: usize = [$(Field::$variant),+].len();
+            pub const ALL: [Field; Self::COUNT] = [$(Field::$variant),+];
         }
     };
 }
@@ -114,7 +116,7 @@ enum Tail {
 //
 // This will permit reusing this table + sampler logic in other domains.
 #[derive(Clone, Debug, Default, Deserialize)]
-struct CurveTable {
+pub struct CurveTable {
     // Strictly increasing radii
     points: Vec<Knot>,
     tail: Tail,
@@ -166,25 +168,68 @@ impl CurveTable {
     }
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(from = "HashMap<Field, CurveTable>")]
-struct FieldTables([CurveTable; Field::COUNT]);
+// This converts all of the HashMap lookup into array-index via the
+// enforcement of Field ordering/config/etc via the Field Macro above.
+pub type Baseline = PerField<Milli>;
+pub type FieldTables = PerField<CurveTable>;
+pub type EnvironField = PerField<Milli>;
 
-impl From<HashMap<Field, CurveTable>> for FieldTables {
-    fn from(m: HashMap<Field, CurveTable>) -> Self {
-        FieldTables(std::array::from_fn(|i| {
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(from = "HashMap<Field, T>", bound(deserialize = "T: Deserialize<'de> + Default + Clone"))]
+pub struct PerField<T>([T; Field::COUNT]);
+
+impl<T: Default + Clone> From<HashMap<Field, T>> for PerField<T> {
+    fn from(mut m: HashMap<Field, T>) -> Self {
+        PerField(std::array::from_fn(|i| {
+            // TODO: swap to remove to move the vec?
             m.get(&Field::ALL[i]).cloned().unwrap_or_default()
         }))
     }
 }
+
+impl<T> Index<Field> for PerField<T> {
+    type Output = T;
+    fn index(&self, field: Field) -> &T {
+        &self.0[field as usize]
+    }
+}
+
+impl<T> IndexMut<Field> for PerField<T> {
+    fn index_mut(&mut self, field: Field) -> &mut T {
+        &mut self.0[field as usize]
+    }
+}
+
+impl<T> From<[T; Field::COUNT]> for PerField<T> {
+    fn from(a: [T; Field::COUNT]) -> Self {
+        Self(a)
+    }
+}
+
+impl<T> PerField<T> {
+    pub const fn new(a: [T; Field::COUNT]) -> Self {
+        Self(a)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (Field, &T)> {
+        Field::ALL.into_iter().zip(self.0.iter())
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Field, &mut T)> {
+        Field::ALL.into_iter().zip(self.0.iter_mut())
+    }
+}
+
 
 // Loaded set of value to represent an spectral class star
 // - G class star
 // - Dark star? (Despawn+CBoost only for eg)
 #[derive(Asset, TypePath, Deserialize, Debug, Clone)]
 pub struct FieldProfile {
-    body_radius: f32,
+    pub body_radius: f32,
     flux: Milli,
+    #[cfg(feature = "render")]
+    pub color: Srgba,
     tables: Arc<FieldTables>,
 }
 
@@ -194,15 +239,15 @@ pub struct FieldProfile {
 #[require(Transform)]
 pub struct FieldSource(pub Handle<FieldProfile>);
 
-#[derive(Resource, Default)]
-struct MapConsts {
+#[derive(Resource, Default, Clone, Copy)]
+pub struct MapConsts {
     // Baseline value ie X amount of flux no matter where you are for eg
-    baseline: [Milli; Field::COUNT],
+    pub baseline: Baseline,
     // Absolute map wide map c_speed cap
-    c_max: Milli,
+    pub c_max: Milli,
     // Due to despawn being a gradent curve, this is the
     // despawn cutoff - suggested to be 0
-    despawn_cutoff: Milli,
+    pub despawn_cutoff: Milli,
 }
 
 // This resource updates on change of any of the handle, it rebuilds
@@ -211,23 +256,14 @@ struct FieldSnapshot {
     table: Vec<(Vec2, FieldProfile)>,
 }
 
+// TODO: Update it to use the PerField too
 #[derive(Component, Default, Debug)]
 #[require(Position)]
 #[component(on_add = on_environ_add)]
 pub struct Environ {
-    raw: [Milli; Field::COUNT],
+    raw: EnvironField,
     // TODO: Nearest entity?
     pub nearest_source: f32,
-}
-
-impl Environ {
-    pub fn get(&self, f: Field) -> Milli {
-        self.raw[f as usize]
-    }
-    // TODO: other fields
-    pub fn c(&self) -> Milli {
-        self.get(Field::CBoost)
-    }
 }
 
 fn on_environ_add(mut world: DeferredWorld, context: HookContext) {
@@ -260,16 +296,15 @@ fn compose(sources: &[(Vec2, FieldProfile)], consts: &MapConsts, p: Vec2) -> Env
         nearest_source = nearest_source.min(r - profile.body_radius);
 
         // Iterate through all of the fields for each source
-        for i in 0..Field::COUNT {
-            let v = profile.tables.0[i].sample(r);
-            raw[i] = raw[i].saturating_add(v);
+        for field in Field::ALL {
+            let v = profile.tables[field].sample(r);
+            raw[field] = raw[field].saturating_add(v);
         }
     }
 
     // post compose mapping:
     // - CBoost is not a linear sum
-    let c = &mut raw[Field::CBoost as usize];
-    *c = (*c).min(consts.c_max);
+    raw[Field::CBoost] = raw[Field::CBoost].min(consts.c_max);
 
     Environ {
         raw,
