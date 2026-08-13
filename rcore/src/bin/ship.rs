@@ -3,6 +3,7 @@ use bevy::ecs::schedule::ScheduleBuildSettings;
 use bevy::prelude::*;
 
 use rcore::ActiveMap;
+use rcore::GamePhase;
 use rcore::SimulationPlugin;
 use rcore::math::AbsRot;
 use rcore::math::RelRot;
@@ -74,10 +75,14 @@ impl Plugin for SetupPlugin {
         )
         .add_systems(Startup, load_map)
         .add_systems(Startup, add_ships)
-        .add_systems(Startup, |mut writer: MessageWriter<TimeMsg>| {
-            // 16x speedup
-            writer.write(TimeMsg::Speed(4));
-        });
+        .add_systems(
+            OnEnter(GamePhase::Run),
+            (|mut writer: MessageWriter<TimeMsg>| {
+                // 16x speedup
+                writer.write(TimeMsg::Speed(4));
+            })
+            .run_if(run_once),
+        );
     }
 }
 
