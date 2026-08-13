@@ -92,7 +92,7 @@ impl Plugin for RenderPlugin {
                     render_time_control,
                 ),
             )
-            // Add stars - TODO: fix this, delete for now
+            // Add stars
             .add_systems(Update, sync_star_visuals)
             // Time controls
             .add_systems(PreUpdate, (manage_time_control, manage_screenshots))
@@ -301,33 +301,20 @@ fn arena_compass_setup(mut commands: Commands) {
         });
 }
 
+// We re-sync the star visuals if:
+//  - Changed<FieldSource> - the star got respawned
+//  - AssetChanged<FieldSource> - the prf was reloaded (update the visual to match new prf)
 fn sync_star_visuals(
-    stars: Query<(Entity, Ref<FieldSource>)>,
+    stars: Query<(Entity, &FieldSource), Or<(Changed<FieldSource>, AssetChanged<FieldSource>)>>,
     profiles: Res<Assets<FieldProfile>>,
-    mut events: MessageReader<AssetEvent<FieldProfile>>,
     mut commands: Commands,
 ) {
-    // Added == (profile loaded after star spawned),
-    // Modified == hot-reload
-    let mut touched = Vec::new();
-    for event in events.read() {
-        if let AssetEvent::Added { id } | AssetEvent::Modified { id } = event {
-            touched.push(*id);
-        }
-    }
-
     for (entity, field_source) in &stars {
-        // Freshly spawned star triggers is_changed too
-        let relevant = field_source.is_changed() || touched.contains(&field_source.0.id());
-        if !relevant {
-            continue;
-        }
-
-        // Skip if the profile isn't ready yet
         let Some(prof) = profiles.get(&field_source.0) else {
             continue;
         };
 
+        // Insert will replace the Sprite already on the star with a new one if it already had one
         commands.entity(entity).insert(Sprite::from_color(
             prof.color,
             Vec2::splat(prof.body_radius * 2.0),
