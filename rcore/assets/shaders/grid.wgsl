@@ -29,6 +29,8 @@ struct GridUniform {
 
 fn over(src: vec4<f32>, dst: vec4<f32>) -> vec4<f32> {
     let a = src.a + dst.a * (1.0 - src.a);
+    // TODO: should be able to remove
+    // - It should multiply out in the next step
     if a <= 0.0 {
         return vec4(0.0);
     }
@@ -94,6 +96,11 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var color = vec4(0.0, 0.0, 0.0, 1.0);
 
+    // TODO:
+    //  - Should be able to remove the loop and do the calculation as one step
+    //  - fine every 5, coarse every 25, and next one up every 50 for eg, should be able to math it...
+    //  - you could do it with a stepped ramp and avoid using mod
+    //
     // Grid, one loop for each tier of grid, and then we have the coarse
     // tier compose over top so that it overwrites the thinner lines
     for (var i: u32 = 0u; i < grid.levels; i = i + 1u) {
