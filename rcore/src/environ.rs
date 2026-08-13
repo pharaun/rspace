@@ -1,5 +1,4 @@
 use avian2d::prelude::*;
-use bevy::asset::AsAssetId;
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
@@ -8,43 +7,23 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::ops::Index;
 use std::ops::IndexMut;
-use std::sync::Arc;
 
 use crate::FixedGameSystem;
-use crate::gate::AssetGate;
-use crate::gate::AssetGateExt as _;
-use crate::gate::GateAppExt as _;
-use crate::gate::GateKey;
-use crate::gate::GateState;
-
-pub struct FieldPlugin;
-impl Plugin for FieldPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<MapConsts>()
-            .init_resource::<FieldSnapshot>()
-            .init_asset::<FieldProfile>()
-            .add_gate(
-                FieldGate,
-                detect_field_sources,
-                (
-                    update_snapshot,
-                    validate_field_profiles.run_if(resource_changed::<FieldSnapshot>),
-                )
-                    .chain(),
-            )
-            .add_systems(FixedUpdate, sample_environ.in_set(FixedGameSystem::Sampler));
-    }
-}
-
-pub struct FieldGate;
-impl GateKey for FieldGate {
-    const NAME: &'static str = "field-snapshot";
-}
+use crate::assets::MapConsts;
+use crate::assets::field::FieldProfile;
+use crate::assets::field::FieldSnapshot;
 
 // Velocity per FP_MILI (v_cap = c/fp_milli * cref)
 const C_REF: f32 = 1.0;
 const FP_MILLI: i32 = 1000;
 pub type Milli = i32;
+
+pub struct EnvironPlugin;
+impl Plugin for EnvironPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(FixedUpdate, sample_environ.in_set(FixedGameSystem::Sampler));
+    }
+}
 
 // Enum key for each table (table types)
 macro_rules! define_fields {
@@ -191,7 +170,7 @@ pub type EnvironField = PerField<Milli>;
 pub struct PerField<T>([T; Field::COUNT]);
 
 impl<T: Default + Clone> From<HashMap<Field, T>> for PerField<T> {
-    fn from(mut m: HashMap<Field, T>) -> Self {
+    fn from(m: HashMap<Field, T>) -> Self {
         PerField(std::array::from_fn(|i| {
             // TODO: swap to remove to move the vec?
             m.get(&Field::ALL[i]).cloned().unwrap_or_default()
@@ -230,50 +209,6 @@ impl<T> PerField<T> {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (Field, &mut T)> {
         Field::ALL.into_iter().zip(self.0.iter_mut())
     }
-}
-
-// Loaded set of value to represent an spectral class star
-// - G class star
-// - Dark star? (Despawn+CBoost only for eg)
-#[derive(Asset, TypePath, Deserialize, Debug, Clone)]
-pub struct FieldProfile {
-    pub body_radius: f32,
-    flux: Milli,
-    #[cfg(feature = "render")]
-    pub color: Srgba,
-    tables: Arc<FieldTables>,
-}
-
-// TODO: Do we use transform or Position here, since
-// we can move Position to f64...
-#[derive(Component)]
-#[require(Transform)]
-pub struct FieldSource(pub Handle<FieldProfile>);
-
-// This lets us use AssetChanged<FieldSource>
-impl AsAssetId for FieldSource {
-    type Asset = FieldProfile;
-
-    fn as_asset_id(&self) -> AssetId<FieldProfile> {
-        self.0.id()
-    }
-}
-
-#[derive(Resource, Default, Clone, Copy)]
-pub struct MapConsts {
-    // Baseline value ie X amount of flux no matter where you are for eg
-    pub baseline: Baseline,
-    // Absolute map wide map c_speed cap
-    pub c_max: Milli,
-    // Due to despawn being a gradent curve, this is the
-    // despawn cutoff - suggested to be 0
-    pub despawn_cutoff: Milli,
-}
-
-// This resource updates on change of any of the handle, it rebuilds
-#[derive(Resource, Default)]
-struct FieldSnapshot {
-    table: Vec<(Vec2, FieldProfile)>,
 }
 
 // TODO: Update it to use the PerField too
@@ -330,74 +265,6 @@ fn compose(sources: &[(Vec2, FieldProfile)], consts: &MapConsts, p: Vec2) -> Env
         raw,
         nearest_source,
     }
-}
-
-fn validate_field_profiles(snapshot: Res<FieldSnapshot>, consts: Res<MapConsts>) {
-    for (_, profile) in &snapshot.table {
-        let last = profile.tables[Field::Despawn].sample(f32::INFINITY);
-
-        // Double check that the despawn table last knot is below the despawn_cutoff
-        if last > consts.despawn_cutoff {
-            error!(
-                "despawn table never falls below cutoff: {last} > {}",
-                consts.despawn_cutoff
-            );
-        }
-    }
-}
-
-// Force it to recook whenever one of these following item changes:
-// - Changed<Transform>     star moved
-// - Changed<FieldSource>   star spawned, or repointed at a different profile
-// - AssetChanged<..>       the profile behind the handle hot reloaded
-//
-// WARNING: `Changed<Transform>` assumes static FieldSource, if we add this to
-// anything that moves, it will break the sim+gate badly (ie flip-flop). So if we ever
-// setup mobile FieldSources, we need a live-sampler at this point cuz the cache isn't really
-// helping us.
-type FieldDirty = (
-    With<FieldSource>,
-    Or<(
-        Changed<Transform>,
-        Changed<FieldSource>,
-        AssetChanged<FieldSource>,
-    )>,
-);
-
-fn detect_field_sources(
-    dirty: Query<(), FieldDirty>,
-    mut removed: RemovedComponents<FieldSource>,
-    mut gate: ResMut<AssetGate>,
-) {
-    let dirty = !dirty.is_empty();
-    let removed = removed.read().count() > 0;
-
-    if dirty || removed {
-        gate.set_gate::<FieldGate>(GateState::Pending);
-    }
-}
-
-fn update_snapshot(
-    sources: Query<(&Transform, &FieldSource)>,
-    profiles: Res<Assets<FieldProfile>>,
-    mut snapshot: ResMut<FieldSnapshot>,
-    mut gate: ResMut<AssetGate>,
-) {
-    if !gate.is_pending::<FieldGate>() {
-        return;
-    }
-    let mut table = Vec::with_capacity(sources.iter().len());
-
-    for (tran, src) in &sources {
-        // Commit once we make it through this loop
-        let Some(profile) = profiles.get(&src.0) else {
-            return;
-        };
-        table.push((tran.translation.truncate(), profile.clone()));
-    }
-
-    snapshot.table = table;
-    gate.set_gate::<FieldGate>(GateState::Ready);
 }
 
 fn sample_environ(

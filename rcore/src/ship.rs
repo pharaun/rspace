@@ -26,7 +26,7 @@ use crate::weapon::HealthDebug;
 use crate::weapon::ShieldBundle;
 use crate::weapon::ShieldHealthDebug;
 
-use crate::field::Environ;
+use crate::environ::Environ;
 
 // INFO:
 // - Ship class: Tiny, Small, Med, Large where they would occupy roughly

@@ -1,101 +1,26 @@
-use avian2d::prelude::*;
-use bevy::prelude::*;
-
-use bevy::asset::AssetLoader;
 use bevy::asset::LoadContext;
 use bevy::asset::LoadState;
 use bevy::asset::UntypedAssetId;
 use bevy::asset::VisitAssetDependencies;
-use bevy::asset::io::Reader;
-
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::ops::Index;
+use bevy::prelude::*;
 
 use serde::Deserialize;
-use thiserror::Error;
 
-use crate::FieldProfile;
-use crate::field::Baseline;
-use crate::field::Field;
-use crate::field::FieldSource;
-use crate::field::MapConsts;
-use crate::field::Milli;
+use crate::assets::MapConsts;
+use crate::assets::field::FieldProfile;
+use crate::assets::field::FieldSource;
+use crate::assets::gate::AssetGate;
+use crate::assets::gate::AssetGateExt as _;
+use crate::assets::gate::GateKey;
+use crate::assets::gate::GateState;
+use crate::assets::ron::RonAsset;
+use crate::environ::Baseline;
+use crate::environ::Milli;
 
-use crate::gate::AssetGate;
-use crate::gate::AssetGateExt as _;
-use crate::gate::GateAppExt as _;
-use crate::gate::GateKey;
-use crate::gate::GateState;
-
-// NOTE: Ron loader heavily inspired by: https://github.com/NiklasEi/bevy_common_assets
-// Ron Asset Loader logic
-pub trait RonAsset: Asset + for<'de> Deserialize<'de> {
-    // Asset Extension (ie .map, .prf, ...)
-    const EXTENSIONS: &'static [&'static str];
-    // For ron files with nested dependencies, overload this
-    // to force path fields into handles.
-    fn resolve(&mut self, _ctx: &mut LoadContext<'_>) {}
+pub struct MapGate;
+impl GateKey for MapGate {
+    const NAME: &'static str = "star-map";
 }
-
-#[derive(Debug, Error)]
-pub enum RonLoaderError {
-    #[error("failed to read asset: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("failed to parse ron: {0}")]
-    Ron(#[from] ron::de::SpannedError),
-}
-
-#[derive(TypePath)]
-pub struct RonAssetLoader<A: RonAsset>(PhantomData<A>);
-
-// Do the default impl manually so that we can avoid forcing Assets to implement Default
-impl<A: RonAsset> Default for RonAssetLoader<A> {
-    fn default() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<A: RonAsset> AssetLoader for RonAssetLoader<A> {
-    type Asset = A;
-    type Settings = ();
-    type Error = RonLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &(),
-        ctx: &mut LoadContext<'_>,
-    ) -> Result<A, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
-        let mut asset: A = ron::de::from_bytes(&bytes)?;
-        asset.resolve(ctx);
-        Ok(asset)
-    }
-
-    fn extensions(&self) -> &[&str] {
-        A::EXTENSIONS
-    }
-}
-
-pub struct RonAssetPlugin<A: RonAsset>(PhantomData<A>);
-
-// Do the default impl manually so that we can avoid forcing Assets to implement Default
-impl<A: RonAsset> Default for RonAssetPlugin<A> {
-    fn default() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<A: RonAsset> Plugin for RonAssetPlugin<A> {
-    fn build(&self, app: &mut App) {
-        app.init_asset::<A>()
-            .init_asset_loader::<RonAssetLoader<A>>();
-    }
-}
-
-// --------------------------------------------------------------------------------
 
 #[derive(TypePath, Deserialize, Debug, Clone)]
 pub struct MapData {
@@ -108,6 +33,28 @@ pub struct MapData {
     pub baseline: Baseline,
     // Locations of the stars on the map + profiles
     pub stars: Vec<StarData>,
+}
+
+// Can't implement a VisitAssetDependencies for Vec<StarData> so handroll
+impl VisitAssetDependencies for MapData {
+    fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
+        for star in &self.stars {
+            visit(star.profile.id().untyped());
+        }
+    }
+}
+
+impl Asset for MapData {}
+
+impl RonAsset for MapData {
+    const EXTENSIONS: &'static [&'static str] = &["map"];
+
+    fn resolve(&mut self, ctx: &mut LoadContext<'_>) {
+        for star in &mut self.stars {
+            // Load the star-class profile data (same class stars shares handles)
+            star.profile = ctx.load(star.class.clone());
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -130,63 +77,6 @@ impl StarData {
     }
 }
 
-// Can't implement a VisitAssetDependencies for Vec<StarData> so handroll
-impl VisitAssetDependencies for MapData {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        for star in &self.stars {
-            visit(star.profile.id().untyped());
-        }
-    }
-}
-impl Asset for MapData {}
-
-impl RonAsset for MapData {
-    const EXTENSIONS: &'static [&'static str] = &["map"];
-
-    fn resolve(&mut self, ctx: &mut LoadContext<'_>) {
-        for star in &mut self.stars {
-            // Load the star-class profile data (same class stars shares handles)
-            star.profile = ctx.load(star.class.clone());
-        }
-    }
-}
-
-// TODO: unifiy this into fields.rs file
-impl RonAsset for FieldProfile {
-    const EXTENSIONS: &'static [&'static str] = &["prf"];
-}
-
-// TODO: lift out of this file too
-impl From<&MapData> for MapConsts {
-    fn from(map: &MapData) -> Self {
-        Self {
-            baseline: map.baseline.clone(),
-            c_max: map.c_max,
-            despawn_cutoff: map.despawn_cutoff,
-        }
-    }
-}
-
-pub struct AssetPlugin;
-impl Plugin for AssetPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins((
-            RonAssetPlugin::<MapData>::default(),
-            RonAssetPlugin::<FieldProfile>::default(),
-        ))
-        .add_gate(
-            MapGate,
-            detect_star_map.run_if(resource_exists::<ActiveMap>),
-            sync_star_map,
-        );
-    }
-}
-
-pub struct MapGate;
-impl GateKey for MapGate {
-    const NAME: &'static str = "star-map";
-}
-
 #[derive(Resource)]
 pub struct ActiveMap(pub Handle<MapData>);
 
@@ -195,7 +85,7 @@ pub struct StarMarker;
 
 // As per the rules in gate, this must only detect map-data changes only
 // - We currently also delete+respawn the stars, so that triggers field_source detector too
-fn detect_star_map(
+pub fn detect_star_map(
     active: Res<ActiveMap>,
     mut events: MessageReader<AssetEvent<MapData>>,
     mut gate: ResMut<AssetGate>,
@@ -224,7 +114,7 @@ fn detect_star_map(
     }
 }
 
-fn sync_star_map(
+pub fn sync_star_map(
     asset_server: Res<AssetServer>,
     active: Option<Res<ActiveMap>>,
     maps: Res<Assets<MapData>>,

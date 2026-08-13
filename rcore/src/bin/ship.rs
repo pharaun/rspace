@@ -3,7 +3,6 @@ use bevy::ecs::schedule::ScheduleBuildSettings;
 use bevy::prelude::*;
 
 use rcore::ActiveMap;
-use rcore::GamePhase;
 use rcore::SimulationPlugin;
 use rcore::math::AbsRot;
 use rcore::math::RelRot;
@@ -60,6 +59,7 @@ impl Plugin for SetupPlugin {
     #[cfg(not(feature = "render"))]
     fn build(&self, app: &mut App) {
         use bevy::app::ScheduleRunnerPlugin;
+        use rcore::GamePhase;
         use rcore::time::TimeMsg;
         use std::time::Duration;
 

@@ -1,10 +1,9 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
-pub mod asset;
+pub mod assets;
 pub mod attach;
-pub mod field;
-pub mod gate;
+pub mod environ;
 pub mod math;
 pub mod movement;
 pub mod radar;
@@ -20,10 +19,10 @@ pub mod render;
 
 use crate::math::AbsRot;
 
-use crate::asset::AssetPlugin;
+use crate::assets::AssetGatePlugin;
+use crate::assets::AssetsPlugin;
 use crate::attach::AttachPlugin;
-use crate::field::FieldPlugin;
-use crate::gate::AssetGatePlugin;
+use crate::environ::EnvironPlugin;
 use crate::movement::MovementPlugin;
 use crate::radar::RadarPlugin;
 use crate::rotation::RotationPlugin;
@@ -32,9 +31,9 @@ use crate::spawner::SpawnerPlugin;
 use crate::time::TimeControlPlugin;
 use crate::weapon::WeaponPlugin;
 
-pub use crate::asset::ActiveMap;
-use crate::field::FieldProfile;
-use crate::field::FieldSource;
+use crate::assets::field::FieldProfile;
+use crate::assets::field::FieldSource;
+pub use crate::assets::map::ActiveMap;
 
 // Sim timing
 pub const TICK_HZ: u32 = 64;
@@ -89,19 +88,18 @@ impl Plugin for SimulationPlugin {
             .init_state::<GamePhase>()
             // Simulation Asset Gates
             .add_plugins(AssetGatePlugin)
-            // Simulation Control
-            .add_plugins(TimeControlPlugin)
-            // Simulation setup/asset
-            .add_plugins(AssetPlugin)
-            // Game bits
+            // Simulation Support
+            .add_plugins(AssetsPlugin)
             .add_plugins(AttachPlugin)
+            .add_plugins(TimeControlPlugin)
+            // Game Bits
+            .add_plugins(EnvironPlugin)
             .add_plugins(MovementPlugin)
             .add_plugins(RadarPlugin)
             .add_plugins(RotationPlugin)
             .add_plugins(ScriptPlugins)
             .add_plugins(SpawnerPlugin)
             .add_plugins(WeaponPlugin)
-            .add_plugins(FieldPlugin)
             // System set ordering
             .configure_sets(
                 FixedUpdate,
