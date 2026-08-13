@@ -3,6 +3,7 @@ use bevy::prelude::*;
 
 use bevy::asset::AssetLoader;
 use bevy::asset::LoadContext;
+use bevy::asset::LoadState;
 use bevy::asset::UntypedAssetId;
 use bevy::asset::VisitAssetDependencies;
 use bevy::asset::io::Reader;
@@ -20,6 +21,12 @@ use crate::field::Field;
 use crate::field::FieldSource;
 use crate::field::MapConsts;
 use crate::field::Milli;
+
+use crate::gate::AssetGate;
+use crate::gate::AssetGateExt as _;
+use crate::gate::GateAppExt as _;
+use crate::gate::GateKey;
+use crate::gate::GateState;
 
 // NOTE: Ron loader heavily inspired by: https://github.com/NiklasEi/bevy_common_assets
 // Ron Asset Loader logic
@@ -167,8 +174,17 @@ impl Plugin for AssetPlugin {
             RonAssetPlugin::<MapData>::default(),
             RonAssetPlugin::<FieldProfile>::default(),
         ))
-        .add_systems(Update, sync_star_map.run_if(resource_exists::<ActiveMap>));
+        .add_gate(
+            MapGate,
+            detect_star_map.run_if(resource_exists::<ActiveMap>),
+            sync_star_map,
+        );
     }
+}
+
+pub struct MapGate;
+impl GateKey for MapGate {
+    const NAME: &'static str = "star-map";
 }
 
 #[derive(Resource)]
@@ -177,35 +193,66 @@ pub struct ActiveMap(pub Handle<MapData>);
 #[derive(Component)]
 pub struct StarMarker;
 
-// TODO: fix up ordering since we do need the star config up before ships gets created so they can
-// have fresh environ data
-pub fn sync_star_map(
-    asset_server: Res<AssetServer>,
+// As per the rules in gate, this must only detect map-data changes only
+// - We currently also delete+respawn the stars, so that triggers field_source detector too
+fn detect_star_map(
     active: Res<ActiveMap>,
-    maps: Res<Assets<MapData>>,
-    profiles: Res<Assets<FieldProfile>>,
-    stars: Query<Entity, With<StarMarker>>,
     mut events: MessageReader<AssetEvent<MapData>>,
+    mut gate: ResMut<AssetGate>,
+) {
+    // Must always drain the MessageReader, this avoids a re-trigger
+    let (added, modified) = {
+        let mut added = false;
+        let mut modified = false;
+
+        for event in events.read() {
+            // Only check for the map handle id
+            added |= event.is_added(&active.0);
+            modified |= event.is_modified(&active.0);
+        }
+        (added, modified)
+    };
+
+    // Skip the Added check unless we are recovering from a failed state.
+    // - Cuz Added is fired in PostUpdate, and by then (Cook is in Update),
+    //   which causes us to re-enter cook a second time spurriously
+    let recovering = gate.state::<MapGate>() == GateState::Failed;
+
+    // is_changed() handles ActiveMap being pointed at a new file
+    if modified || (added && recovering) || active.is_changed() {
+        gate.set_gate::<MapGate>(GateState::Pending);
+    }
+}
+
+fn sync_star_map(
+    asset_server: Res<AssetServer>,
+    active: Option<Res<ActiveMap>>,
+    maps: Res<Assets<MapData>>,
+    stars: Query<Entity, With<StarMarker>>,
     mut data: ResMut<MapConsts>,
-    mut dirty: Local<bool>,
+    mut gate: ResMut<AssetGate>,
     mut commands: Commands,
 ) {
-    // This block is for checking if map is ready to be loaded or reloaded
-    let changed = events.read().fold(false, |acc, event| {
-        acc || event.is_loaded_with_dependencies(&active.0) || event.is_modified(&active.0)
-    });
-
-    // This check is for updating active map to point to different file
-    if changed || active.is_changed() {
-        *dirty = true;
-    }
-
-    if !*dirty {
+    // Only recook when detect decides its time to recook
+    if !gate.is_pending::<MapGate>() {
         return;
     }
 
-    // Make sure that even if the map is loaded/updated, that we also load all of its
-    // dependency...
+    // No map is also valid (means there's no stars on the map for eg)
+    let Some(active) = active else {
+        gate.set_gate::<MapGate>(GateState::Ready);
+        return;
+    };
+
+    if let LoadState::Failed(err) = asset_server.load_state(active.0.id().untyped()) {
+        error!("map failed to load: {err}");
+        gate.set_gate::<MapGate>(GateState::Failed);
+        return;
+    }
+
+    // The map data also points to .prf and etc, make sure those are loaded too
+    // TODO: do we even need this, this technically violates the single responsibility rule for
+    // gates.
     if !asset_server.is_loaded_with_dependencies(&active.0) {
         return;
     }
@@ -214,9 +261,9 @@ pub fn sync_star_map(
         return;
     };
 
-    *dirty = false;
-
     // Despawn the old stars
+    // TODO: probs better to move it to a system that maps the star/update them, but for... 10?
+    // stars, eh its fine for now
     for entity in &stars {
         commands.entity(entity).despawn();
     }
@@ -226,10 +273,11 @@ pub fn sync_star_map(
 
     // Iterate on the star field on the map data and instance them
     for star in &map.stars {
-        let mut viz_star = commands.spawn((
+        commands.spawn((
             StarMarker,
             Transform::from_translation(star.pos.extend(0.)),
             FieldSource(star.profile().clone()),
         ));
     }
+    gate.set_gate::<MapGate>(GateState::Ready);
 }

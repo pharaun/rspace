@@ -25,7 +25,6 @@ use shape::get_ship;
 use crate::AbsRot;
 use crate::FieldProfile;
 use crate::FieldSource;
-use crate::asset::sync_star_map;
 use crate::radar::Radar;
 use crate::ship::Ship;
 use crate::time::TimeMsg;
@@ -93,8 +92,8 @@ impl Plugin for RenderPlugin {
                     render_time_control,
                 ),
             )
-            // Add stars
-            .add_systems(Update, sync_star_visuals.after(sync_star_map))
+            // Add stars - TODO: fix this, delete for now
+            .add_systems(Update, sync_star_visuals)
             // Time controls
             .add_systems(PreUpdate, (manage_time_control, manage_screenshots))
             // Temporary weapon render via gizmos

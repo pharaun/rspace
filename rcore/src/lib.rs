@@ -23,6 +23,7 @@ use crate::math::AbsRot;
 use crate::asset::AssetPlugin;
 use crate::attach::AttachPlugin;
 use crate::field::FieldPlugin;
+use crate::gate::AssetGatePlugin;
 use crate::movement::MovementPlugin;
 use crate::radar::RadarPlugin;
 use crate::rotation::RotationPlugin;
@@ -73,21 +74,6 @@ pub enum GamePhase {
     Run,
 }
 
-// Substate to help the Loading state manage the various loading stages
-#[derive(SubStates, Default, Clone, Eq, PartialEq, Hash, Debug)]
-#[source(GamePhase = GamePhase::Load)]
-pub enum LoadStage {
-    #[default]
-    Booting,
-    Loading,
-    Cooking,
-    Failure,
-}
-
-// We break up the game into 3 main pieces:
-// 1. Core simulation engine
-// 2. Render
-// 3. Camera
 pub struct SimulationPlugin;
 impl Plugin for SimulationPlugin {
     fn build(&self, app: &mut App) {
@@ -101,7 +87,8 @@ impl Plugin for SimulationPlugin {
             )
             // State management
             .init_state::<GamePhase>()
-            .add_sub_state::<LoadStage>()
+            // Simulation Asset Gates
+            .add_plugins(AssetGatePlugin)
             // Simulation Control
             .add_plugins(TimeControlPlugin)
             // Simulation setup/asset
