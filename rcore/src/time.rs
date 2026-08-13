@@ -75,10 +75,8 @@ fn manage_sim_pause(
                 time.pause();
                 backlog.0 = 0;
             }
-            (Some(GamePhase::Load), Some(GamePhase::Run)) => {
-                if !*player_paused {
-                    time.unpause();
-                }
+            (Some(GamePhase::Load), Some(GamePhase::Run)) if !*player_paused => {
+                time.unpause();
             }
             _ => (),
         }

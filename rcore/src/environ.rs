@@ -111,6 +111,7 @@ pub struct CurveTable {
 }
 
 impl CurveTable {
+    #[expect(clippy::cast_possible_truncation)]
     pub fn sample(&self, radius: f32) -> Milli {
         debug_assert!(!radius.is_nan(), "NaN radius");
         if radius.is_nan() {
@@ -171,7 +172,7 @@ pub struct PerField<T>([T; Field::COUNT]);
 
 impl<T: Default + Clone> From<HashMap<Field, T>> for PerField<T> {
     fn from(m: HashMap<Field, T>) -> Self {
-        PerField(std::array::from_fn(|i| {
+        Self(std::array::from_fn(|i| {
             // TODO: swap to remove to move the vec?
             m.get(&Field::ALL[i]).cloned().unwrap_or_default()
         }))
@@ -232,7 +233,7 @@ fn on_environ_add(mut world: DeferredWorld, context: HookContext) {
         let Some(snapshot) = world.get_resource::<FieldSnapshot>() else {
             return;
         };
-        compose(&snapshot.table, &consts, pos)
+        compose(&snapshot.table, consts, pos)
     };
 
     // At this point we should have everything needed to compose a updated environ

@@ -5,7 +5,8 @@ pub mod gate;
 pub mod map;
 pub mod ron;
 
-pub use gate::AssetGatePlugin;
+pub use crate::assets::gate::AssetGatePlugin;
+use crate::assets::gate::GateAppExt as _;
 
 use crate::assets::field::FieldProfile;
 use crate::assets::map::MapData;
@@ -22,8 +23,6 @@ use crate::assets::field::validate_field_profiles;
 use crate::assets::map::MapGate;
 use crate::assets::map::detect_star_map;
 use crate::assets::map::sync_star_map;
-
-use crate::assets::gate::GateAppExt;
 
 pub struct AssetsPlugin;
 impl Plugin for AssetsPlugin {
@@ -66,7 +65,7 @@ pub struct MapConsts {
 impl From<&MapData> for MapConsts {
     fn from(map: &MapData) -> Self {
         Self {
-            baseline: map.baseline.clone(),
+            baseline: map.baseline,
             c_max: map.c_max,
             despawn_cutoff: map.despawn_cutoff,
         }

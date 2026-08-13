@@ -304,6 +304,7 @@ fn arena_compass_setup(mut commands: Commands) {
 // We re-sync the star visuals if:
 //  - Changed<FieldSource> - the star got respawned
 //  - AssetChanged<FieldSource> - the prf was reloaded (update the visual to match new prf)
+#[expect(clippy::type_complexity)]
 fn sync_star_visuals(
     stars: Query<(Entity, &FieldSource), Or<(Changed<FieldSource>, AssetChanged<FieldSource>)>>,
     profiles: Res<Assets<FieldProfile>>,
