@@ -1,4 +1,5 @@
 use avian2d::prelude::*;
+use bevy::asset::AsAssetId;
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
@@ -10,6 +11,11 @@ use std::ops::IndexMut;
 use std::sync::Arc;
 
 use crate::FixedGameSystem;
+use crate::gate::AssetGate;
+use crate::gate::AssetGateExt as _;
+use crate::gate::GateAppExt as _;
+use crate::gate::GateKey;
+use crate::gate::GateState;
 
 pub struct FieldPlugin;
 impl Plugin for FieldPlugin {
@@ -17,19 +23,22 @@ impl Plugin for FieldPlugin {
         app.init_resource::<MapConsts>()
             .init_resource::<FieldSnapshot>()
             .init_asset::<FieldProfile>()
-            .add_systems(
-                FixedUpdate,
-                validate_field_profiles
-                    .after(update_snapshot)
-                    .in_set(FixedGameSystem::Sampler),
+            .add_gate(
+                FieldGate,
+                detect_field_sources,
+                (
+                    update_snapshot,
+                    validate_field_profiles.run_if(resource_changed::<FieldSnapshot>),
+                )
+                    .chain(),
             )
-            .add_systems(
-                FixedUpdate,
-                (update_snapshot.run_if(field_sources_dirty), sample_environ)
-                    .chain()
-                    .in_set(FixedGameSystem::Sampler),
-            );
+            .add_systems(FixedUpdate, sample_environ.in_set(FixedGameSystem::Sampler));
     }
+}
+
+pub struct FieldGate;
+impl GateKey for FieldGate {
+    const NAME: &'static str = "field-snapshot";
 }
 
 // Velocity per FP_MILI (v_cap = c/fp_milli * cref)
@@ -241,6 +250,15 @@ pub struct FieldProfile {
 #[require(Transform)]
 pub struct FieldSource(pub Handle<FieldProfile>);
 
+// This lets us use AssetChanged<FieldSource>
+impl AsAssetId for FieldSource {
+    type Asset = FieldProfile;
+
+    fn as_asset_id(&self) -> AssetId<FieldProfile> {
+        self.0.id()
+    }
+}
+
 #[derive(Resource, Default, Clone, Copy)]
 pub struct MapConsts {
     // Baseline value ie X amount of flux no matter where you are for eg
@@ -314,25 +332,12 @@ fn compose(sources: &[(Vec2, FieldProfile)], consts: &MapConsts, p: Vec2) -> Env
     }
 }
 
-fn validate_field_profiles(
-    mut asset_message: MessageReader<AssetEvent<FieldProfile>>,
-    profiles: Res<Assets<FieldProfile>>,
-    consts: Res<MapConsts>,
-) {
-    for msg in asset_message.read() {
-        let (AssetEvent::Added { id } | AssetEvent::Modified { id }) = msg else {
-            continue;
-        };
-        let Some(profile) = profiles.get(*id) else {
-            continue;
-        };
+fn validate_field_profiles(snapshot: Res<FieldSnapshot>, consts: Res<MapConsts>) {
+    for (_, profile) in &snapshot.table {
+        let last = profile.tables[Field::Despawn].sample(f32::INFINITY);
 
-        // TODO: move this to asset loading or other spots, not every single frame do we need to
-        // validate this.
         // Double check that the despawn table last knot is below the despawn_cutoff
-        let last = profile.tables.0[Field::Despawn as usize].sample(f32::INFINITY);
         if last > consts.despawn_cutoff {
-            // It will never despawn, print log warning
             error!(
                 "despawn table never falls below cutoff: {last} > {}",
                 consts.despawn_cutoff
@@ -341,37 +346,58 @@ fn validate_field_profiles(
     }
 }
 
+// Force it to recook whenever one of these following item changes:
+// - Changed<Transform>     star moved
+// - Changed<FieldSource>   star spawned, or repointed at a different profile
+// - AssetChanged<..>       the profile behind the handle hot reloaded
+//
+// WARNING: `Changed<Transform>` assumes static FieldSource, if we add this to
+// anything that moves, it will break the sim+gate badly (ie flip-flop). So if we ever
+// setup mobile FieldSources, we need a live-sampler at this point cuz the cache isn't really
+// helping us.
 type FieldDirty = (
     With<FieldSource>,
-    Or<(Changed<Transform>, Changed<FieldSource>)>,
+    Or<(
+        Changed<Transform>,
+        Changed<FieldSource>,
+        AssetChanged<FieldSource>,
+    )>,
 );
 
-fn field_sources_dirty(
+fn detect_field_sources(
     dirty: Query<(), FieldDirty>,
     mut removed: RemovedComponents<FieldSource>,
-    mut asset_message: MessageReader<AssetEvent<FieldProfile>>,
-) -> bool {
-    // Check if any of these ran (that means that something changed and we need to rebuild)
-    let any_removed = removed.read().count() > 0;
-    let any_asset = asset_message.read().count() > 0;
-    any_removed || any_asset || !dirty.is_empty()
+    mut gate: ResMut<AssetGate>,
+) {
+    let dirty = !dirty.is_empty();
+    let removed = removed.read().count() > 0;
+
+    if dirty || removed {
+        gate.set_gate::<FieldGate>(GateState::Pending);
+    }
 }
 
 fn update_snapshot(
     sources: Query<(&Transform, &FieldSource)>,
     profiles: Res<Assets<FieldProfile>>,
     mut snapshot: ResMut<FieldSnapshot>,
+    mut gate: ResMut<AssetGate>,
 ) {
-    snapshot.table.clear();
+    if !gate.is_pending::<FieldGate>() {
+        return;
+    }
+    let mut table = Vec::with_capacity(sources.iter().len());
 
     for (tran, src) in &sources {
+        // Commit once we make it through this loop
         let Some(profile) = profiles.get(&src.0) else {
-            continue;
+            return;
         };
-        snapshot
-            .table
-            .push((tran.translation.truncate(), profile.clone()));
+        table.push((tran.translation.truncate(), profile.clone()));
     }
+
+    snapshot.table = table;
+    gate.set_gate::<FieldGate>(GateState::Ready);
 }
 
 fn sample_environ(
