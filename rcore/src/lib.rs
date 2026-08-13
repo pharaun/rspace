@@ -4,6 +4,7 @@ use bevy::prelude::*;
 pub mod asset;
 pub mod attach;
 pub mod field;
+pub mod gate;
 pub mod math;
 pub mod movement;
 pub mod radar;
