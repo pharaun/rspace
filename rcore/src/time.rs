@@ -1,5 +1,6 @@
 use crate::GamePhase;
 use bevy::prelude::*;
+use bevy::state::state::StateTransitionSystems;
 
 // Simulation speed manager:
 // - Pause the simulation
@@ -44,10 +45,11 @@ impl Plugin for TimeControlPlugin {
                 apply_time_command.run_if(in_state(GamePhase::Run)),
             )
             .add_systems(FixedFirst, apply_tick.run_if(in_state(GamePhase::Run)))
-            // TODO: this is papercut, ie if we edit asset, sim will resume after asset reloads
-            // If the player has had paused the sim we probs want to preserve the player pause
-            .add_systems(OnEnter(GamePhase::Load), pause_time)
-            .add_systems(OnExit(GamePhase::Load), unpause_time);
+            // StateTransition - so pause happens before FixedUpdate but after AssetGate flips state.
+            .add_systems(
+                StateTransition,
+                manage_sim_pause.in_set(StateTransitionSystems::TransitionSchedules),
+            );
     }
 }
 
@@ -57,14 +59,30 @@ fn apply_tick(mut ticks: ResMut<Ticks>) {
     ticks.0 = ticks.0.wrapping_add(1);
 }
 
-// When we enter Run state, unpause time so that we can start right away
-fn unpause_time(mut time: ResMut<Time<Virtual>>) {
-    time.unpause();
-}
-
-fn pause_time(mut time: ResMut<Time<Virtual>>, mut backlog: ResMut<BacklogStep>) {
-    time.pause();
-    backlog.0 = 0;
+fn manage_sim_pause(
+    mut transitions: MessageReader<StateTransitionEvent<GamePhase>>,
+    mut time: ResMut<Time<Virtual>>,
+    mut backlog: ResMut<BacklogStep>,
+    mut player_paused: Local<bool>,
+) {
+    for transition in transitions.read() {
+        match (&transition.exited, &transition.entered) {
+            // So we don't override player_paused
+            (Some(GamePhase::Load), Some(GamePhase::Load)) => (),
+            // Remember if the sim was paused before or not
+            (_, Some(GamePhase::Load)) => {
+                *player_paused = time.is_paused();
+                time.pause();
+                backlog.0 = 0;
+            }
+            (Some(GamePhase::Load), Some(GamePhase::Run)) => {
+                if !*player_paused {
+                    time.unpause();
+                }
+            }
+            _ => (),
+        }
+    }
 }
 
 fn apply_time_command(
