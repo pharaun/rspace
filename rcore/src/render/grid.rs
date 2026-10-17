@@ -10,6 +10,7 @@ use bevy::shader::ShaderRef;
 use bevy::sprite_render::AlphaMode2d;
 use bevy::sprite_render::Material2d;
 use bevy::sprite_render::Material2dKey;
+use bevy::sprite_render::Material2dPipeline;
 use bevy::sprite_render::Material2dPlugin;
 
 use crate::render::camera::CameraRigSystems;
@@ -125,7 +126,7 @@ struct GridMaterial {
 
 impl Material2d for GridMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/grid.wgsl".into()
+        "shaders/grid.wesl".into()
     }
 
     fn alpha_mode(&self) -> AlphaMode2d {
@@ -133,6 +134,7 @@ impl Material2d for GridMaterial {
     }
 
     fn specialize(
+        _pipeline: &Material2dPipeline,
         descriptor: &mut RenderPipelineDescriptor,
         _layout: &MeshVertexBufferLayoutRef,
         _key: Material2dKey<Self>,

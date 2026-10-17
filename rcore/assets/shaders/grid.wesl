@@ -1,8 +1,5 @@
-#import bevy_sprite::{
-    mesh2d_vertex_output::VertexOutput,
-    mesh2d_view_bindings::view,
-}
-#import "shaders/util.wgsl" as util;
+import bevy_sprite_render::mesh2d::vertex_output::VertexOutput;
+import super::util;
 
 struct GridUniform {
     // Grid line colors
@@ -25,7 +22,7 @@ struct GridUniform {
     magic: u32,
 }
 
-@group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> grid: GridUniform;
+@group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> grid: GridUniform;
 
 fn over(src: vec4<f32>, dst: vec4<f32>) -> vec4<f32> {
     let a = src.a + dst.a * (1.0 - src.a);
@@ -47,20 +44,20 @@ fn line_coverage(coord: vec2<f32>, deriv: vec2<f32>, half_width_px: f32) -> f32 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // Self checks
-#ifdef SHADER_DEBUG
-    if grid.magic != 0xDEADC0DEu {
-        // Magenta - structure is wrong
-        return vec4(1.0, 0.0, 1.0, 1.0);
+    @if(SHADER_DEBUG) {
+        if grid.magic != 0xDEADC0DEu {
+            // Magenta - structure is wrong
+            return vec4(1.0, 0.0, 1.0, 1.0);
+        }
+        if !util::is_orthographic() {
+            // Yellow - non-ortho camera
+            return vec4(1.0, 1.0, 0.0, 1.0);
+        }
+        if !(grid.spacing > 0.0) || grid.ratio < 2u || grid.levels == 0u {
+            // Cyan - Bad grid settings + uniform
+            return vec4(0.0, 1.0, 1.0, 1.0);
+        }
     }
-    if !util::is_orthographic() {
-        // Yellow - non-ortho camera
-        return vec4(1.0, 1.0, 0.0, 1.0);
-    }
-    if !(grid.spacing > 0.0) || grid.ratio < 2u || grid.levels == 0u {
-        // Cyan - Bad grid settings + uniform
-        return vec4(0.0, 1.0, 1.0, 1.0);
-    }
-#endif
 
     // Camera relative world-pos
     // NOTE: this is only valid with a non-rotating Ortho camera.
@@ -68,31 +65,31 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let drel = fwidth(rel);
 
     // Self checks
-#ifdef SHADER_DEBUG
-    if grid.mode == 0x1u {
-        // red-green gradient - black top-left
-        return vec4(util::screen_uv(in.position), 0.0, 1.0);
+    @if(SHADER_DEBUG) {
+        if grid.mode == 0x1u {
+            // red-green gradient - black top-left
+            return vec4(util::screen_uv(in.position), 0.0, 1.0);
+        }
+        if grid.mode == 0x2u {
+            // White disc - stay circle on resize
+            let p = util::screen_centered(in.position);
+            return vec4(vec3(step(length(p), 0.5)), 1.0);
+        }
+        if grid.mode == 0x3u {
+            // per grid-cell gradient - pan to check for swimming
+            let p0 = util::mod_euclid(grid.phase, grid.spacing);
+            return vec4(fract((rel + p0) / grid.spacing), 0.0, 1.0);
+        }
+        if grid.mode == 0x4u {
+            // grey gradient (0..256 px per cell)
+            let ppc = grid.spacing / max(max(drel.x, drel.y), 1e-20);
+            return vec4(vec3(ppc / 256.0), 1.0);
+        }
+        if grid.mode == 0x5u {
+            // camera-relative offset divided by 1k
+            return vec4(abs(rel) / 1000.0, 0.0, 1.0);
+        }
     }
-    if grid.mode == 0x2u {
-        // White disc - stay circle on resize
-        let p = util::screen_centered(in.position);
-        return vec4(vec3(step(length(p), 0.5)), 1.0);
-    }
-    if grid.mode == 0x3u {
-        // per grid-cell gradient - pan to check for swimming
-        let p0 = util::mod_euclid(grid.phase, grid.spacing);
-        return vec4(fract((rel + p0) / grid.spacing), 0.0, 1.0);
-    }
-    if grid.mode == 0x4u {
-        // grey gradient (0..256 px per cell)
-        let ppc = grid.spacing / max(max(drel.x, drel.y), 1e-20);
-        return vec4(vec3(ppc / 256.0), 1.0);
-    }
-    if grid.mode == 0x5u {
-        // camera-relative offset divided by 1k
-        return vec4(abs(rel) / 1000.0, 0.0, 1.0);
-    }
-#endif
 
     var color = vec4(0.0, 0.0, 0.0, 1.0);
 

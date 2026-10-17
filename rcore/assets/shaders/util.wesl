@@ -1,38 +1,28 @@
-#import bevy_sprite::{
-    mesh2d_vertex_output::VertexOutput,
-    mesh2d_view_bindings::view,
-}
-
-#import bevy_render::view::{
-    frag_coord_to_uv,
-    frag_coord_to_ndc,
-    direction_clip_to_world,
-    position_ndc_to_world,
-}
+import bevy_sprite_render::mesh2d::view_bindings::view;
+import bevy_render::view::{
+     frag_coord_to_uv,
+     frag_coord_to_ndc,
+     direction_clip_to_world,
+     position_ndc_to_world,
+};
 
 // Defs via mesh2d pipeline based off the camera. Details: Material2dPipeline::specialize.
-#ifdef TONEMAP_IN_SHADER
-#import bevy_core_pipeline::tonemapping
-#endif
-#ifdef SRGB_OUTPUT
-#import bevy_render::color_operations::linear_to_srgb
-#endif
-#ifdef OKLAB_OUTPUT
-#import bevy_render::color_operations::linear_rgb_to_oklab
-#endif
+@if(TONEMAP_IN_SHADER)
+import bevy_core_pipeline::tonemapping;
+@if(SRGB_OUTPUT)
+import bevy_render::color_operations::linear_to_srgb;
+@if(OKLAB_OUTPUT)
+import bevy_render::color_operations::linear_rgb_to_oklab;
 
-// Source: color_material.wgsl (in bevy)
+// Source: color_material.wesl (in bevy)
 fn adjust_color(color: vec4<f32>) -> vec4<f32> {
     var adjusted = color;
-#ifdef TONEMAP_IN_SHADER
+    @if(TONEMAP_IN_SHADER)
     adjusted = tonemapping::tone_mapping(adjusted, view.color_grading);
-#endif
-#ifdef SRGB_OUTPUT
+    @if(SRGB_OUTPUT)
     adjusted = vec4(linear_to_srgb(adjusted.rgb), adjusted.a);
-#endif
-#ifdef OKLAB_OUTPUT
+    @if(OKLAB_OUTPUT)
     adjusted = vec4(linear_rgb_to_oklab(adjusted.rgb), adjusted.a);
-#endif
     return adjusted;
 }
 
@@ -48,7 +38,7 @@ fn is_orthographic() -> bool {
 }
 
 // NOTE: coordinate functions for all of the "background shader bits"
-// details: https://github.com/bevyengine/bevy/blob/release-0.19.0/crates/bevy_render/src/view/view.wgsl
+// details: https://github.com/bevyengine/bevy/blob/release-0.20.0/crates/bevy_render/src/view.wesl
 //
 // Requoting:
 //   NDC   -1..1, (-1,-1) is BOTTOM-LEFT, (1,1) is TOP-RIGHT   -> y is UP

@@ -3,13 +3,12 @@ use bevy_prototype_lyon::prelude::ShapeBuilder;
 use bevy_prototype_lyon::prelude::ShapePath;
 use bevy_prototype_lyon::prelude::Stroke;
 
-use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
-use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
-use bevy::dev_tools::fps_overlay::FrameTimeGraphConfig;
+use bevy::diagnostic::DiagnosticsStore;
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::Screenshot;
 use bevy::render::view::screenshot::save_to_disk;
-use bevy::text::FontSmoothing;
+use bevy::time::common_conditions::on_timer;
 use bevy_prototype_lyon::plugin::BuildShapes;
 use bevy_prototype_lyon::prelude::Shape;
 use bevy_prototype_lyon::prelude::ShapePlugin;
@@ -38,31 +37,11 @@ impl Plugin for RenderPlugin {
         // Graphics (lyon)
         app.add_plugins(ShapePlugin)
             // FPS
-            .add_plugins(FpsOverlayPlugin {
-                config: FpsOverlayConfig {
-                    text_config: TextFont {
-                        // Here we define size of our overlay
-                        font_size: FontSize::Px(18.0),
-                        // If we want, we can use a custom font
-                        font: default(),
-                        // We could also disable font smoothing,
-                        font_smoothing: FontSmoothing::default(),
-                        ..default()
-                    },
-                    // We can also change color of the overlay
-                    text_color: Color::srgb(1.0, 0.0, 0.0),
-                    // We can also set the refresh interval for the FPS counter
-                    refresh_interval: core::time::Duration::from_millis(100),
-                    enabled: true,
-                    frame_time_graph_config: FrameTimeGraphConfig {
-                        enabled: false,
-                        // The minimum acceptable fps
-                        min_fps: 30.0,
-                        // The target fps
-                        target_fps: 60.0,
-                    },
-                },
-            })
+            .add_plugins(FrameTimeDiagnosticsPlugin::default())
+            .add_systems(
+                Update,
+                render_fps.run_if(on_timer(core::time::Duration::from_millis(100))),
+            )
             // Grid systems
             .add_plugins(grid::GridPlugin { debug: true })
             // Startup setup
@@ -71,6 +50,7 @@ impl Plugin for RenderPlugin {
                 (
                     arena_compass_setup,
                     arena_axis_setup,
+                    fps_ui.spawn(),
                     time_control_ui.spawn(),
                 ),
             )
@@ -184,6 +164,34 @@ fn render_time_control(
         "Running"
     };
     text.0 = format!("{exp} - {pause}");
+}
+
+#[derive(Component, Default, Clone)]
+struct FpsMarker;
+
+fn fps_ui() -> impl Scene {
+    bsn! {
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(5.),
+            top: Val::Px(5.),
+        }
+        Children [
+            FpsMarker
+            Text::new("FPS: --")
+            TextFont { font_size: FontSize::Px(18.) }
+            TextColor(Color::srgb(1.0, 0.0, 0.0))
+        ]
+    }
+}
+
+fn render_fps(diagnostics: Res<DiagnosticsStore>, mut text: Single<&mut Text, With<FpsMarker>>) {
+    if let Some(fps) = diagnostics
+        .get(&FrameTimeDiagnosticsPlugin::FPS)
+        .and_then(|d| d.smoothed())
+    {
+        text.0 = format!("FPS: {fps:.0}");
+    }
 }
 
 fn apply_ship_shape(query: Query<(Entity, &Ship), Without<Shape>>, mut commands: Commands) {

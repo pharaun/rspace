@@ -21,7 +21,6 @@ render = [
     "avian2d/debug-plugin",
 
     # Bevy functionality:
-    "bevy/bevy_animation",     # Provides animation functionality
     "bevy/bevy_color",         # Provides shared color types and operations
     "bevy/bevy_core_pipeline", # Common rendering abstractions
     "bevy/bevy_gizmos",        # Support drawing debug lines and shapes
@@ -29,17 +28,17 @@ render = [
     "bevy/bevy_material",      # Materials
     "bevy/bevy_render",        # Rendering framework core
     "bevy/bevy_scene",         # Scenes management
-    "bevy/bevy_sprite",        # 2D (sprites) rendering
+    "bevy/bevy_sprite",        # 2D sprites
+    "bevy/bevy_sprite_render", # Rendering for sprites
     "bevy/bevy_shader",        # Shaders
     "bevy/bevy_text",          # Text/font rendering
     "bevy/bevy_ui",            # UI toolkit
-    "bevy/bevy_ui_render",     # UI GPU rendering (TransparentUi phase) — required by FpsOverlay
+    "bevy/bevy_ui_render",     # UI GPU rendering (TransparentUi phase) - Text ui
     "bevy/bevy_winit",         # Window management (cross-platform Winit backend)
-    "bevy/bevy_window",        # Winit dep
     "bevy/default_font",       # Embed a minimal default font for text/UI
     "bevy/png",                # Screenshot feature to save a png to disk
-
-    "bevy/bevy_dev_tools",     # Fps
+    "bevy/keyboard",
+    "bevy/mouse",
 
     "bevy/x11",                # winit wants a linux backend, x11 dlopen only so builds on headless linux
 ]
@@ -53,26 +52,28 @@ ron = "0.12.2"
 dyn-clone = "1.0.20"
 
 [dependencies.avian2d]
-version = "0.7"
+version = "0.8.0-dev"
 default-features = false
 features = [
     "2d",
-    "f32",
     "parry-f32",
     "parallel",
 ]
+git = "https://github.com/andriyDev/avian"
+branch = "bevy-0.20"
 
 [dependencies.bevy_prototype_lyon]
-version = "0.17"
+version = "0.18"
 optional = true
+path = "../../bevy_prototype_lyon"
 
 [dependencies.bevy]
-version = "0.19"
+version = "0.20"
 default-features = false
 features = [
+    "bevy_log",           # Enable logging output
     "bevy_state",         # Enable built in global state machines
     "bevy_asset",         # Asset management
-    "asset_processor",
     "file_watcher",       # Asset file watcher
 
     "std",
