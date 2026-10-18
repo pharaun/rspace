@@ -2,6 +2,12 @@ use bevy::prelude::*;
 
 use avian2d::prelude::*;
 
+use serde::Deserialize;
+
+use crate::assets::ship::Class;
+use crate::assets::ship::Mount;
+use crate::assets::ship::ShipClass;
+
 use crate::attach::AttachOffset;
 use crate::attach::AttachedTo;
 use crate::math::AbsRot;
@@ -81,7 +87,7 @@ use crate::environ::Environ;
 // - Ship energy (fuel for engine? and heat production)
 // - Ship construction (each ship can build a ship same size or smaller than itself?
 #[derive(Component)]
-pub struct Ship(pub ShipClass);
+pub struct Ship(pub ShipType);
 
 // There are several classes of ship:
 // 1. cruiser - large
@@ -96,8 +102,8 @@ pub struct Ship(pub ShipClass);
 //
 // This file would mostly serve a way to provide a render for the various
 // class of ship, and then we can feed it into the base mod to yield a 'ship'
-#[derive(Clone, Copy)]
-pub enum ShipClass {
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub enum ShipType {
     Large,
     Medium,
     Small,
@@ -377,7 +383,10 @@ impl DebugBuilder {
     }
 }
 
-pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
+// Hardcoded mount for radar till we have designed a more flexible ship module system.
+const RADAR_MOUNT: &str = "radar";
+
+pub fn add_ship(commands: &mut Commands, class: &Handle<ShipClass>, ship: StarterShip) -> Entity {
     let radar_heading = ship.radar.heading.0;
     let ship_heading = ship.rotation.heading.0;
     let ship_translation = ship.movement.position.0.extend(0.);
@@ -388,7 +397,8 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
     let mut spawned_ship = commands.spawn((transform,));
 
     spawned_ship
-        .insert(Ship(ShipClass::Medium))
+        .insert(Ship(ShipType::Medium))
+        .insert(Class(class.clone()))
         .insert(ship.script)
         // Motion components
         .insert(ship.movement)
@@ -430,15 +440,18 @@ pub fn add_ship(commands: &mut Commands, ship: StarterShip) -> Entity {
     let ship_id = spawned_ship.id();
 
     // Radar
-    let radar_offset = Vec2::new(0., -20.).extend(1.);
-    let mut radar_transform = Transform::from_translation(ship_translation + radar_offset);
+    // AttachOffpoint is sync'd when the asset is loaded.
+    // TODO: do we want to do an immediate load? here
+    let mut radar_transform = Transform::from_translation(ship_translation);
     radar_transform.rotate(radar_heading.to_quat());
 
     let mut ship_radar = commands.spawn((
         radar_transform,
         ship.radar,
         AttachedTo(ship_id),
-        AttachOffset(radar_offset),
+        AttachOffset(Vec3::ZERO),
+        // Mount is to allow the asset to update the offset
+        Mount(RADAR_MOUNT.to_owned()),
     ));
 
     if let Some(radar) = ship.debug.radar {

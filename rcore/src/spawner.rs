@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::FixedGameSystem;
+use crate::assets::ship::DefaultShipClass;
 use crate::ship::StarterShip;
 use crate::ship::add_ship;
 
@@ -32,9 +33,10 @@ pub struct SpawnMessage(pub StarterShip);
 
 pub fn process_spawn_message(
     mut commands: Commands,
+    class: Res<DefaultShipClass>,
     mut spawn_message: MessageReader<SpawnMessage>,
 ) {
     for SpawnMessage(ship) in spawn_message.read() {
-        add_ship(&mut commands, ship.clone());
+        add_ship(&mut commands, &class.0, ship.clone());
     }
 }

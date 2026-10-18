@@ -4,6 +4,7 @@ pub mod field;
 pub mod gate;
 pub mod map;
 pub mod ron;
+pub mod ship;
 
 pub use crate::assets::gate::AssetGatePlugin;
 use crate::assets::gate::GateAppExt as _;
@@ -20,9 +21,19 @@ use crate::assets::field::FieldSnapshot;
 use crate::assets::field::detect_field_sources;
 use crate::assets::field::update_snapshot;
 use crate::assets::field::validate_field_profiles;
+
 use crate::assets::map::MapGate;
 use crate::assets::map::detect_star_map;
 use crate::assets::map::sync_star_map;
+
+use crate::assets::ship::ShipClass;
+use crate::assets::ship::ShipGate;
+use crate::assets::ship::apply_new_mounts;
+use crate::assets::ship::cook_ship_class;
+use crate::assets::ship::detect_ship_class;
+
+use crate::spawner::process_spawn_message;
+use crate::FixedGameSystem;
 
 pub struct AssetsPlugin;
 impl Plugin for AssetsPlugin {
@@ -33,6 +44,7 @@ impl Plugin for AssetsPlugin {
             .add_plugins((
                 RonAssetPlugin::<MapData>::default(),
                 RonAssetPlugin::<FieldProfile>::default(),
+                RonAssetPlugin::<ShipClass>::default(),
             ))
             .add_gate(
                 MapGate,
@@ -47,6 +59,18 @@ impl Plugin for AssetsPlugin {
                     validate_field_profiles.run_if(resource_changed::<FieldSnapshot>),
                 )
                     .chain(),
+            )
+            .add_gate(
+                ShipGate,
+                detect_ship_class,
+                cook_ship_class
+            )
+            // TODO: i feel like this may be better over in the spawner module
+            .add_systems(
+                FixedUpdate,
+                apply_new_mounts
+                    .after(process_spawn_message)
+                    .in_set(FixedGameSystem::Spawn),
             );
     }
 }

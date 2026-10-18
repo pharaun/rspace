@@ -1,0 +1,34 @@
+(
+    class: Medium,
+    mounts: {
+        "radar": (pos: (0, -20)),
+    },
+    visual: (
+        hull: [
+            (
+                shape: Path([
+                    MoveTo((0.0, 200.0)),
+                    LineTo((100.0, -200.0)),
+                    LineTo((0.0, -100.0)),
+                    LineTo((-100.0, -200.0)),
+                    Close,
+                ]),
+                fill: Some(Rgba(0.0, 0.5, 0.0, 1.0)),
+                stroke: Some((paint: Rgba(0.0, 0.0, 0.0, 1.0), width: 20.0)),
+            ),
+        ],
+        mounts: {
+            "radar": [
+                (
+                    shape: Path([
+                        MoveTo((50.0, 0.0)),
+                        Arc(center: (0.0, 0.0), radii: (50.0, 45.0), sweep: -180.0),
+                        MoveTo((0.0, 20.0)),
+                        LineTo((0.0, -45.0)),
+                    ]),
+                    stroke: Some((paint: Rgba(0.5, 0.0, 0.0, 1.0), width: 15.0)),
+                ),
+            ],
+        },
+    ),
+)

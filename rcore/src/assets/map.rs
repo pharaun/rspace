@@ -13,6 +13,7 @@ use crate::assets::gate::AssetGate;
 use crate::assets::gate::AssetGateExt as _;
 use crate::assets::gate::GateKey;
 use crate::assets::gate::GateState;
+use crate::assets::ron::ResolveError;
 use crate::assets::ron::RonAsset;
 use crate::environ::Baseline;
 use crate::environ::Milli;
@@ -49,11 +50,12 @@ impl Asset for MapData {}
 impl RonAsset for MapData {
     const EXTENSIONS: &'static [&'static str] = &["map"];
 
-    fn resolve(&mut self, ctx: &mut LoadContext<'_>) {
+    fn resolve(&mut self, ctx: &mut LoadContext<'_>) -> Result<(), ResolveError> {
         for star in &mut self.stars {
             // Load the star-class profile data (same class stars shares handles)
             star.profile = ctx.load(star.class.clone());
         }
+        Ok(())
     }
 }
 

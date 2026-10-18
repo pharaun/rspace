@@ -16,15 +16,22 @@ pub trait RonAsset: Asset + for<'de> Deserialize<'de> {
     const EXTENSIONS: &'static [&'static str];
     // For ron files with nested dependencies, overload this
     // to force path fields into handles.
-    fn resolve(&mut self, _ctx: &mut LoadContext<'_>) {}
+    fn resolve(&mut self, _ctx: &mut LoadContext<'_>) -> Result<(), ResolveError> {
+        Ok(())
+    }
 }
+
+// TODO: is there a better error type to use here?
+pub type ResolveError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Debug, Error)]
 pub enum RonLoaderError {
     #[error("failed to read asset: {0}")]
     Io(#[from] std::io::Error),
-    #[error("failed to parse ron: {0}")]
+    #[error("failed to parse asset: {0}")]
     Ron(#[from] ron::de::SpannedError),
+    #[error("failed to resolve asset: {0}")]
+    Resolve(ResolveError),
 }
 
 #[derive(TypePath)]
@@ -51,7 +58,7 @@ impl<A: RonAsset> AssetLoader for RonAssetLoader<A> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
         let mut asset: A = ron::de::from_bytes(&bytes)?;
-        asset.resolve(ctx);
+        asset.resolve(ctx).map_err(RonLoaderError::Resolve)?;
         Ok(asset)
     }
 

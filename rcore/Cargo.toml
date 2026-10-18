@@ -14,8 +14,8 @@ shader-debug = []
 # To permit headless builds for testing core simulation logic
 default = ["render"]
 render = [
-    # Ship rendering
-    "dep:bevy_prototype_lyon",
+    # Ship shape tessellation
+    "dep:lyon_tessellation",
 
     # Debug gizmos
     "avian2d/debug-plugin",
@@ -62,10 +62,9 @@ features = [
 git = "https://github.com/andriyDev/avian"
 branch = "bevy-0.20"
 
-[dependencies.bevy_prototype_lyon]
-version = "0.18"
+[dependencies.lyon_tessellation]
+version = "1.0"
 optional = true
-path = "../../bevy_prototype_lyon"
 
 [dependencies.bevy]
 version = "0.20"

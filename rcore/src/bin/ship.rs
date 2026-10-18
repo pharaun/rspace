@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use rcore::ActiveMap;
 use rcore::SimulationPlugin;
+use rcore::assets::ship::DefaultShipClass;
 use rcore::math::AbsRot;
 use rcore::math::RelRot;
 use rcore::script::Script;
@@ -51,8 +52,8 @@ impl Plugin for SetupPlugin {
         }))
         .add_plugins(RenderPlugin)
         .add_plugins(CameraPlugin)
-        .add_systems(Startup, load_map)
-        .add_systems(Startup, add_ships.after(camera_setup));
+        .add_systems(Startup, load_asset)
+        .add_systems(Startup, add_ships.after(camera_setup).after(load_asset));
     }
 
     // Headless Setup
@@ -73,8 +74,8 @@ impl Plugin for SetupPlugin {
                     ..default()
                 }),
         )
-        .add_systems(Startup, load_map)
-        .add_systems(Startup, add_ships)
+        .add_systems(Startup, load_asset)
+        .add_systems(Startup, add_ships.after(load_asset))
         .add_systems(
             OnEnter(GamePhase::Run),
             (|mut writer: MessageWriter<TimeMsg>| {
@@ -254,9 +255,9 @@ fn ship_setup() -> Vec<StarterShip> {
 
 #[expect(clippy::explicit_iter_loop)]
 #[cfg(not(feature = "render"))]
-fn add_ships(ships: Res<StartShip>, mut commands: Commands) {
+fn add_ships(ships: Res<StartShip>, class: Res<DefaultShipClass>, mut commands: Commands) {
     for ship in ships.0.iter() {
-        add_ship(&mut commands, ship.clone());
+        add_ship(&mut commands, &class.0, ship.clone());
     }
 }
 
@@ -264,17 +265,19 @@ fn add_ships(ships: Res<StartShip>, mut commands: Commands) {
 #[cfg(feature = "render")]
 fn add_ships(
     ships: Res<StartShip>,
+    class: Res<DefaultShipClass>,
     mut camera: Single<&mut CameraRig, With<Camera2d>>,
     mut commands: Commands,
 ) {
     let mut ship_id = vec![];
     for ship in ships.0.iter() {
-        ship_id.push(add_ship(&mut commands, ship.clone()));
+        ship_id.push(add_ship(&mut commands, &class.0, ship.clone()));
     }
 
     camera.mode = CameraMode::Follow(ship_id[0]);
 }
 
-fn load_map(asset_server: Res<AssetServer>, mut commands: Commands) {
+fn load_asset(asset_server: Res<AssetServer>, mut commands: Commands) {
     commands.insert_resource(ActiveMap(asset_server.load("maps/level-0.map")));
+    commands.insert_resource(DefaultShipClass(asset_server.load("ships/frigate.shp")));
 }

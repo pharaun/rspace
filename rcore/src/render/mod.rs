@@ -1,31 +1,21 @@
-use bevy_prototype_lyon::geometry::ShapeBuilderBase as _;
-use bevy_prototype_lyon::prelude::ShapeBuilder;
-use bevy_prototype_lyon::prelude::ShapePath;
-use bevy_prototype_lyon::prelude::Stroke;
-
 use bevy::diagnostic::DiagnosticsStore;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::Screenshot;
 use bevy::render::view::screenshot::save_to_disk;
 use bevy::time::common_conditions::on_timer;
-use bevy_prototype_lyon::plugin::BuildShapes;
-use bevy_prototype_lyon::prelude::Shape;
-use bevy_prototype_lyon::prelude::ShapePlugin;
 
 pub mod camera;
 mod gizmo;
 pub mod grid;
-mod shape;
+pub mod shape;
 
-use shape::get_radar;
-use shape::get_ship;
-
-use crate::AbsRot;
 use crate::FieldProfile;
 use crate::FieldSource;
-use crate::radar::Radar;
-use crate::ship::Ship;
+use crate::assets::ship::Class;
+use crate::assets::ship::Mount;
+use crate::assets::ship::ShipClass;
+use crate::attach::AttachedTo;
 use crate::time::TimeMsg;
 use crate::weapon::RenderDebugWarhead;
 use crate::weapon::RenderDebugWeapon;
@@ -34,10 +24,8 @@ use crate::weapon::RenderDebugWeapon;
 pub struct RenderPlugin;
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut App) {
-        // Graphics (lyon)
-        app.add_plugins(ShapePlugin)
-            // FPS
-            .add_plugins(FrameTimeDiagnosticsPlugin::default())
+        // FPS
+        app.add_plugins(FrameTimeDiagnosticsPlugin::default())
             .add_systems(
                 Update,
                 render_fps.run_if(on_timer(core::time::Duration::from_millis(100))),
@@ -48,16 +36,19 @@ impl Plugin for RenderPlugin {
             .add_systems(
                 Startup,
                 (
-                    arena_compass_setup,
                     arena_axis_setup,
                     fps_ui.spawn(),
                     time_control_ui.spawn(),
                 ),
             )
-            // Handle assigning a lyon shape to entities
+            // Ship Class visuals
+            .init_resource::<ShipMaterial>()
             .add_systems(
-                PostUpdate,
-                (apply_ship_shape, apply_radar_shape).before(BuildShapes),
+                Update,
+                (
+                    sync_ship_visuals,
+                    sync_mount_visuals
+                )
             )
             // Gizmos
             .add_systems(
@@ -194,21 +185,85 @@ fn render_fps(diagnostics: Res<DiagnosticsStore>, mut text: Single<&mut Text, Wi
     }
 }
 
-fn apply_ship_shape(query: Query<(Entity, &Ship), Without<Shape>>, mut commands: Commands) {
-    for (entity, ship) in query.iter() {
-        commands.entity(entity).insert(get_ship(
-            ship.0,
-            bevy::color::palettes::css::GREEN,
-            bevy::color::palettes::css::BLACK,
-        ));
+// Initial attempt of making a Ship Material (for permitting different color for factions)
+#[derive(Resource)]
+struct ShipMaterial(Handle<ColorMaterial>);
+
+impl FromWorld for ShipMaterial {
+    fn from_world(world: &mut World) -> Self {
+        Self(world.add_asset(ColorMaterial::default()))
     }
 }
 
-fn apply_radar_shape(query: Query<(Entity, &Radar), Without<Shape>>, mut commands: Commands) {
-    for (entity, _) in query.iter() {
-        commands
-            .entity(entity)
-            .insert(get_radar(bevy::color::palettes::css::MAROON));
+// Resync the hull visuals when the class data/asset changes
+// (mostly updating the meshes)
+#[expect(clippy::type_complexity)]
+fn sync_ship_visuals(
+    ships: Query<(Entity, &Class), Or<(Changed<Class>, AssetChanged<Class>)>>,
+    ship_class: Res<Assets<ShipClass>>,
+    material: Res<ShipMaterial>,
+    mut commands: Commands,
+) {
+    for (entity, class) in &ships {
+        let Some(class) = ship_class.get(&class.0) else {
+            continue;
+        };
+        update_mesh(&mut commands, entity, class.meshes.hull.as_ref(), &material);
+    }
+}
+
+// Mounts are things like turret + radar, and parent holds this data.
+fn sync_mount_visuals(
+    mut events: MessageReader<AssetEvent<ShipClass>>,
+    added: Query<(Entity, &Mount, &AttachedTo), Added<Mount>>,
+    mounts: Query<(Entity, &Mount, &AttachedTo)>,
+    parents: Query<&Class>,
+    ship_class: Res<Assets<ShipClass>>,
+    material: Res<ShipMaterial>,
+    mut commands: Commands,
+) {
+    // TODO: find a better way than always having to drain the MessageReader all the time...
+    let changed = events.read().count() > 0;
+    let targets: Box<dyn Iterator<Item = _>> = if changed {
+        Box::new(mounts.iter())
+    } else {
+        Box::new(added.iter())
+    };
+
+    for (entity, mount, attached) in targets {
+        let Some(class) = parents
+            .get(attached.0)
+            .ok()
+            .and_then(|class| ship_class.get(&class.0))
+        else {
+            continue;
+        };
+        update_mesh(
+            &mut commands,
+            entity,
+            class.meshes.mounts.get(&mount.0),
+            &material,
+        );
+    }
+}
+
+fn update_mesh(
+    commands: &mut Commands,
+    entity: Entity,
+    mesh: Option<&Handle<Mesh>>,
+    material: &ShipMaterial,
+) {
+    match mesh {
+        Some(mesh) => {
+            commands
+                .entity(entity)
+                .insert((Mesh2d(mesh.clone()), MeshMaterial2d(material.0.clone())));
+        }
+        None => {
+            commands
+                .entity(entity)
+                .remove::<(Mesh2d, MeshMaterial2d<ColorMaterial>)>();
+        }
     }
 }
 
@@ -280,33 +335,6 @@ fn arena_axis_setup(mut commands: Commands) {
         Text2d::new("-Y"),
         Transform::from_xyz(0., -(display.y / 2.0 + 150.), -0.9).with_scale(Vec3::splat(10.)),
     ));
-}
-
-fn arena_compass_setup(mut commands: Commands) {
-    let compass = ShapePath::new()
-        .move_to(Vec2::new(-200., 0.))
-        .line_to(Vec2::new(200., 0.))
-        .move_to(Vec2::new(0.0, -200.))
-        .line_to(Vec2::new(0.0, 200.));
-
-    let base = Vec3::new(4250., 2250., -0.8);
-    commands
-        .spawn((
-            ShapeBuilder::with(&compass)
-                .stroke(Stroke::new(Color::srgb(0.80, 0.80, 0.80), 5.))
-                .build(),
-            Transform::from_translation(base),
-        ))
-        .with_children(|parent| {
-            for angle in [0, 64, 128, 192] {
-                let hdr = AbsRot(angle).to_quat().mul_vec3(Vec3::Y * 400.);
-
-                parent.spawn((
-                    Text2d::new(format!("{angle}")),
-                    Transform::from_translation(hdr).with_scale(Vec3::splat(10.)),
-                ));
-            }
-        });
 }
 
 // We re-sync the star visuals if:
