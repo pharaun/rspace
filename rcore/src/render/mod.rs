@@ -35,21 +35,11 @@ impl Plugin for RenderPlugin {
             // Startup setup
             .add_systems(
                 Startup,
-                (
-                    arena_axis_setup,
-                    fps_ui.spawn(),
-                    time_control_ui.spawn(),
-                ),
+                (arena_axis_setup, fps_ui.spawn(), time_control_ui.spawn()),
             )
             // Ship Class visuals
             .init_resource::<ShipMaterial>()
-            .add_systems(
-                Update,
-                (
-                    sync_ship_visuals,
-                    sync_mount_visuals
-                )
-            )
+            .add_systems(Update, (sync_ship_visuals, sync_mount_visuals))
             // Gizmos
             .add_systems(
                 Update,
@@ -176,6 +166,7 @@ fn fps_ui() -> impl Scene {
     }
 }
 
+#[expect(clippy::redundant_closure_for_method_calls)]
 fn render_fps(diagnostics: Res<DiagnosticsStore>, mut text: Single<&mut Text, With<FpsMarker>>) {
     if let Some(fps) = diagnostics
         .get(&FrameTimeDiagnosticsPlugin::FPS)

@@ -110,7 +110,8 @@ pub fn detect_ship_class(
 
     let mut dirty = false;
     for event in events.read() {
-        dirty |= matches!(event, AssetEvent::Modified { .. }) || (recovering && matches!(event, AssetEvent::Added { .. }));
+        dirty |= matches!(event, AssetEvent::Modified { .. })
+            || (recovering && matches!(event, AssetEvent::Added { .. }));
     }
 
     if dirty {

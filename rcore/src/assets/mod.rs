@@ -32,8 +32,8 @@ use crate::assets::ship::apply_new_mounts;
 use crate::assets::ship::cook_ship_class;
 use crate::assets::ship::detect_ship_class;
 
-use crate::spawner::process_spawn_message;
 use crate::FixedGameSystem;
+use crate::spawner::process_spawn_message;
 
 pub struct AssetsPlugin;
 impl Plugin for AssetsPlugin {
@@ -60,11 +60,7 @@ impl Plugin for AssetsPlugin {
                 )
                     .chain(),
             )
-            .add_gate(
-                ShipGate,
-                detect_ship_class,
-                cook_ship_class
-            )
+            .add_gate(ShipGate, detect_ship_class, cook_ship_class)
             // TODO: i feel like this may be better over in the spawner module
             .add_systems(
                 FixedUpdate,

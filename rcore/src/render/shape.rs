@@ -5,15 +5,13 @@ use bevy::mesh::Indices;
 use bevy::mesh::PrimitiveTopology;
 use bevy::prelude::*;
 
-use lyon_tessellation::{
-    BuffersBuilder, FillOptions, FillTessellator, FillVertex,
-    FillVertexConstructor, StrokeOptions, StrokeTessellator,
-    StrokeVertex, StrokeVertexConstructor, TessellationError,
-    VertexBuffers,
-};
 use lyon_tessellation::geom::{Angle, Box2D};
 use lyon_tessellation::math::{Point, point, vector};
 use lyon_tessellation::path::{Path, Polygon, Winding};
+use lyon_tessellation::{
+    BuffersBuilder, FillOptions, FillTessellator, FillVertex, FillVertexConstructor, StrokeOptions,
+    StrokeTessellator, StrokeVertex, StrokeVertexConstructor, TessellationError, VertexBuffers,
+};
 
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -46,7 +44,10 @@ impl ShipVisual {
         let mut mounts = BTreeMap::new();
         for (name, layers) in &self.mounts {
             if let Some(mesh) = tessellate(name, layers)? {
-                mounts.insert(name.clone(), ctx.add_labeled_asset(format!("mount/{name}"), mesh));
+                mounts.insert(
+                    name.clone(),
+                    ctx.add_labeled_asset(format!("mount/{name}"), mesh),
+                );
             }
         }
         Ok(ShipMeshes { hull, mounts })
@@ -85,18 +86,24 @@ impl Shape {
 
                 for cmd in cmds {
                     match *cmd {
-                        PathCmd::MoveTo(to) => { path.move_to(to.to_point()); },
-                        PathCmd::LineTo(to) => { path.line_to(to.to_point()); },
-                        PathCmd::QuadTo { ctrl, to } => { path.quadratic_bezier_to(
-                            ctrl.to_point(),
-                            to.to_point()
-                        ); },
-                        PathCmd::CubicTo { ctrl1, ctrl2, to } => { path.cubic_bezier_to(
-                            ctrl1.to_point(),
-                            ctrl2.to_point(),
-                            to.to_point()
-                        ); },
-                        PathCmd::Arc { center, radii, sweep, rotation } => path.arc(
+                        PathCmd::MoveTo(to) => {
+                            path.move_to(to.to_point());
+                        }
+                        PathCmd::LineTo(to) => {
+                            path.line_to(to.to_point());
+                        }
+                        PathCmd::QuadTo { ctrl, to } => {
+                            path.quadratic_bezier_to(ctrl.to_point(), to.to_point());
+                        }
+                        PathCmd::CubicTo { ctrl1, ctrl2, to } => {
+                            path.cubic_bezier_to(ctrl1.to_point(), ctrl2.to_point(), to.to_point());
+                        }
+                        PathCmd::Arc {
+                            center,
+                            radii,
+                            sweep,
+                            rotation,
+                        } => path.arc(
                             center.to_point(),
                             vector(radii.x, radii.y),
                             Angle::degrees(sweep),
@@ -106,23 +113,29 @@ impl Shape {
                     }
                 }
                 path.build()
-            },
+            }
             Self::Polygon(points) => {
                 let points: Vec<Point> = points.iter().copied().map(|p| p.to_point()).collect();
                 let mut path = Path::builder();
-                path.add_polygon(Polygon { points: &points, closed: true });
+                path.add_polygon(Polygon {
+                    points: &points,
+                    closed: true,
+                });
                 path.build()
-            },
+            }
             Self::Circle { center, radius } => {
                 let mut path = Path::builder();
                 path.add_circle(center.to_point(), *radius, Winding::Positive);
                 path.build()
-            },
+            }
             Self::Rect { min, max } => {
                 let mut path = Path::builder();
-                path.add_rectangle(&Box2D::new(min.to_point(), max.to_point()), Winding::Positive);
+                path.add_rectangle(
+                    &Box2D::new(min.to_point(), max.to_point()),
+                    Winding::Positive,
+                );
                 path.build()
-            },
+            }
         }
     }
 }
@@ -235,18 +248,33 @@ fn tessellate(part: &str, layers: &[Layer]) -> Result<Option<Mesh>, ShapeError> 
         let path = layer.shape.to_path();
 
         if let Some(paint) = layer.fill {
-            fill_tess.tessellate_path(
-                &path,
-                &FillOptions::default(),
-                &mut BuffersBuilder::new(&mut buffers, PaintVertex(paint.to_vertex_color())),
-            ).map_err(|e| ShapeError { part: part.to_owned(), layer: index, source: e })?;
+            fill_tess
+                .tessellate_path(
+                    &path,
+                    &FillOptions::default(),
+                    &mut BuffersBuilder::new(&mut buffers, PaintVertex(paint.to_vertex_color())),
+                )
+                .map_err(|e| ShapeError {
+                    part: part.to_owned(),
+                    layer: index,
+                    source: e,
+                })?;
         }
         if let Some(stroke) = layer.stroke {
-            stroke_tess.tessellate_path(
-                &path,
-                &StrokeOptions::default().with_line_width(stroke.width),
-                &mut BuffersBuilder::new(&mut buffers, PaintVertex(stroke.paint.to_vertex_color())),
-            ).map_err(|e| ShapeError { part: part.to_owned(), layer: index, source: e })?;
+            stroke_tess
+                .tessellate_path(
+                    &path,
+                    &StrokeOptions::default().with_line_width(stroke.width),
+                    &mut BuffersBuilder::new(
+                        &mut buffers,
+                        PaintVertex(stroke.paint.to_vertex_color()),
+                    ),
+                )
+                .map_err(|e| ShapeError {
+                    part: part.to_owned(),
+                    layer: index,
+                    source: e,
+                })?;
         }
     }
 
