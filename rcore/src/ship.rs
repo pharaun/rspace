@@ -390,7 +390,7 @@ pub fn add_ship(commands: &mut Commands, class: &Handle<ShipClass>, ship: Starte
     let radar_heading = ship.radar.heading.0;
     let ship_heading = ship.rotation.heading.0;
     let ship_translation = ship.movement.position.0.extend(0.);
-    let mut transform = Transform::from_translation(ship_translation);
+    let mut transform = Transform::from_translation(ship_translation.as_vec3());
     transform.rotate(ship_heading.to_quat());
 
     // Probs worth restructuring
@@ -442,7 +442,7 @@ pub fn add_ship(commands: &mut Commands, class: &Handle<ShipClass>, ship: Starte
     // Radar
     // AttachOffpoint is sync'd when the asset is loaded.
     // TODO: do we want to do an immediate load? here
-    let mut radar_transform = Transform::from_translation(ship_translation);
+    let mut radar_transform = Transform::from_translation(ship_translation.as_vec3());
     radar_transform.rotate(radar_heading.to_quat());
 
     let mut ship_radar = commands.spawn((

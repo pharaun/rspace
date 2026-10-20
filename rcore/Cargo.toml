@@ -47,24 +47,20 @@ render = [
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
 ron = "0.12.2"
+lyon_tessellation = { version = "1.0", optional = true }
 
 # To permit ship dyn object to be cloned (so that they all have their own memory region for data)
 dyn-clone = "1.0.20"
 
 [dependencies.avian2d]
-version = "0.8.0-dev"
+version = "0.8.0"
 default-features = false
 features = [
     "2d",
-    "parry-f32",
+    "f64",
+    "parry-f64",
     "parallel",
 ]
-git = "https://github.com/andriyDev/avian"
-branch = "bevy-0.20"
-
-[dependencies.lyon_tessellation]
-version = "1.0"
-optional = true
 
 [dependencies.bevy]
 version = "0.20"

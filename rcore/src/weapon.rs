@@ -298,7 +298,7 @@ pub fn process_fire_debug_warhead_message(
                     continue;
                 }
 
-                if base_position.0.distance_squared(target_position.0) < DISTANCE_SQUARED as f32 {
+                if base_position.0.distance_squared(target_position.0) < DISTANCE_SQUARED as f64 {
                     commands.trigger(DamageEvent {
                         target: target_ship,
                         pos: base_position.0.as_ivec2(),

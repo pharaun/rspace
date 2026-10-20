@@ -1,6 +1,7 @@
 use avian2d::prelude::*;
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
+use bevy::math::DVec2;
 use bevy::prelude::*;
 
 use serde::Deserialize;
@@ -219,7 +220,7 @@ impl<T> PerField<T> {
 pub struct Environ {
     raw: EnvironField,
     // TODO: Nearest entity?
-    pub nearest_source: f32,
+    pub nearest_source: f64,
 }
 
 fn on_environ_add(mut world: DeferredWorld, context: HookContext) {
@@ -243,17 +244,20 @@ fn on_environ_add(mut world: DeferredWorld, context: HookContext) {
     *environ = new_environ;
 }
 
-fn compose(sources: &[(Vec2, FieldProfile)], consts: &MapConsts, p: Vec2) -> Environ {
+// Vec2 (for now cuz stars are probs going to be close to origin?)
+// DVec2 for ships
+fn compose(sources: &[(Vec2, FieldProfile)], consts: &MapConsts, p: DVec2) -> Environ {
     let mut raw = consts.baseline;
-    let mut nearest_source = f32::INFINITY;
+    let mut nearest_source = f64::INFINITY;
 
     for (pos, profile) in sources {
-        let r = pos.distance(p);
-        nearest_source = nearest_source.min(r - profile.body_radius);
+        let r = pos.as_dvec2().distance(p);
+        nearest_source = nearest_source.min(r - profile.body_radius as f64);
 
         // Iterate through all of the fields for each source
         for field in Field::ALL {
-            let v = profile.tables[field].sample(r);
+            // TODO: fix this to accept f64 for distance
+            let v = profile.tables[field].sample(r as f32);
             raw[field] = raw[field].saturating_add(v);
         }
     }

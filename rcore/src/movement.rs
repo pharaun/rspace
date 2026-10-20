@@ -35,13 +35,13 @@ impl MovementBundle {
                 acceleration,
                 velocity_limit,
             },
-            position: Position(position.as_vec2()),
+            position: Position(position.as_dvec2()),
             interpolation: TranslationInterpolation,
         }
     }
 
     pub fn position(&mut self, x: i32, y: i32) {
-        self.position.0 = IVec2::new(x, y).as_vec2();
+        self.position.0 = IVec2::new(x, y).as_dvec2();
     }
 }
 
