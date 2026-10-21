@@ -1,3 +1,4 @@
+use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
 use avian2d::prelude::*;
@@ -165,7 +166,7 @@ impl ShipBuilder {
         // TODO: setup so that most of these components have default() or something so that
         // they can be more self-contained without having to build them up here in the builder
         Self {
-            movement: MovementBundle::new(IVec2::new(0, 0), IVec2::new(0, 0), 100, 0),
+            movement: MovementBundle::new(I64Vec2::ZERO, IVec2::ZERO, 100, 0),
             rotation: RotationBundle::new(AbsRot(0), AbsRot(0), 16),
             radar: RadarBundle::new(AbsRot(0), AbsRot(0), 32, 32),
             health: Health {
@@ -180,8 +181,8 @@ impl ShipBuilder {
     }
 
     // Settings
-    pub fn position(mut self, x: i32, y: i32) -> Self {
-        self.movement.position(x, y);
+    pub fn position(mut self, position: I64Vec2) -> Self {
+        self.movement.position(position);
         self
     }
 
@@ -387,22 +388,12 @@ impl DebugBuilder {
 const RADAR_MOUNT: &str = "radar";
 
 pub fn add_ship(commands: &mut Commands, class: &Handle<ShipClass>, ship: StarterShip) -> Entity {
-    let radar_heading = ship.radar.heading.0;
-    let ship_heading = ship.rotation.heading.0;
-    let ship_translation = ship.movement.position.0.extend(0.);
-    let mut transform = Transform::from_translation(ship_translation.as_vec3());
-    transform.rotate(ship_heading.to_quat());
-
-    // Probs worth restructuring
-    let mut spawned_ship = commands.spawn((transform,));
+    let mut spawned_ship = commands.spawn((ship.movement, ship.rotation));
 
     spawned_ship
         .insert(Ship(ShipType::Medium))
         .insert(Class(class.clone()))
         .insert(ship.script)
-        // Motion components
-        .insert(ship.movement)
-        .insert(ship.rotation)
         // Health
         .insert(ship.health)
         // TODO: probs want collision groups (ie ship vs missile vs other ships)
@@ -442,11 +433,7 @@ pub fn add_ship(commands: &mut Commands, class: &Handle<ShipClass>, ship: Starte
     // Radar
     // AttachOffpoint is sync'd when the asset is loaded.
     // TODO: do we want to do an immediate load? here
-    let mut radar_transform = Transform::from_translation(ship_translation.as_vec3());
-    radar_transform.rotate(radar_heading.to_quat());
-
     let mut ship_radar = commands.spawn((
-        radar_transform,
         ship.radar,
         AttachedTo(ship_id),
         AttachOffset(Vec3::ZERO),

@@ -273,8 +273,8 @@ fn render_debug_weapon(
 
         // TODO: render the beam thicker
         gizmos.line_2d(
-            render.origin,
-            render.target,
+            render.origin.as_vec2(),
+            render.target.as_vec2(),
             bevy::color::palettes::css::RED,
         );
 
@@ -298,7 +298,7 @@ fn render_debug_warhead(
 
         // TODO: render the beam thicker
         gizmos.circle_2d(
-            Isometry2d::from_translation(render.origin),
+            Isometry2d::from_translation(render.origin.as_vec2()),
             crate::weapon::DISTANCE as f32,
             bevy::color::palettes::css::RED,
         );

@@ -1,4 +1,5 @@
 use avian2d::prelude::*;
+use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
 use dyn_clone::DynClone;
@@ -20,6 +21,7 @@ use crate::weapon::FireDebugWeaponMessage;
 use crate::FixedGameSystem;
 use crate::math::AbsRot;
 use crate::math::RelRot;
+use crate::math::sim_pos;
 
 // TODO: Design
 //
@@ -59,7 +61,7 @@ use crate::math::RelRot;
 
 // This is the ship status object that gives the current status of the ship
 pub struct ShipStatus {
-    pub position: IVec2,
+    pub position: I64Vec2,
     pub velocity: IVec2,
     pub acceleration: i32,
     pub heading: AbsRot,
@@ -115,7 +117,7 @@ pub trait ShipScript: DynClone + Send + Sync + 'static {
     fn on_update(&mut self, status: &ShipStatus) -> ShipAction;
 
     // TODO: add ship status to these as well
-    fn on_contact(&mut self, target_pos: IVec2, target_entity: Entity);
+    fn on_contact(&mut self, target_pos: I64Vec2, target_entity: Entity);
     fn on_collision(&mut self);
 }
 dyn_clone::clone_trait_object!(ShipScript);
@@ -189,7 +191,7 @@ fn process_on_contact(
         if let Ok([(_, _, mut e1_script), (e2_entity, e2_pos, _)]) = query.get_many_mut([*e1, *e2])
         {
             // E1 knows where e2 is
-            e1_script.script.on_contact(e2_pos.0.as_ivec2(), e2_entity);
+            e1_script.script.on_contact(sim_pos(e2_pos), e2_entity);
         } else {
             println!("ERROR - SCRIPT - {contact_message:?}");
         }
@@ -243,7 +245,7 @@ fn process_on_update(
             let ship = ship_query.get(entity).expect("ship");
 
             let ship_status = ShipStatus {
-                position: ship.2.0.as_ivec2(),
+                position: sim_pos(ship.2),
                 velocity: ship.0.0.as_ivec2(),
                 acceleration: ship.1.acceleration,
                 heading: ship.4.0,

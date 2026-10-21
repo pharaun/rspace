@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::math::AbsRot;
+use crate::math::sim_pos;
 
 use crate::movement::MovDebug;
 use crate::movement::Thrust;
@@ -22,8 +23,9 @@ use crate::radar::ArcDebug;
 use crate::radar::ArcWidth;
 use crate::radar::RadarContact;
 use crate::radar::RadarDebug;
-
 use crate::radar::within_radar;
+
+use crate::ship::Ship;
 
 // Primitive bar-graph in gizmo form
 fn render_bar_gizmos(
@@ -151,7 +153,7 @@ pub(super) fn arc(
 pub(super) fn radar(
     mut gizmos: Gizmos,
     query: Query<(&Heading, &ArcWidth, &AttachedTo), With<RadarDebug>>,
-    parent_query: Query<(&Transform, &Position)>,
+    parent_query: Query<(&Transform, &Position), With<Ship>>,
 ) {
     for (heading, arc, attached_to) in query.iter() {
         // Need the ship translation to position the radar gizmo right
@@ -176,8 +178,8 @@ pub(super) fn radar(
 
             // Find out if its a contact, if so color the lines
             let color = match within_radar(
-                base_pos.0.as_ivec2(),
-                target_pos.0.as_ivec2(),
+                sim_pos(base_pos),
+                sim_pos(target_pos),
                 heading.0,
                 arc.current,
                 crate::radar::DISTANCE_SQUARED,

@@ -1,5 +1,6 @@
 use avian2d::interpolation::TranslationInterpolation;
 use avian2d::prelude::*;
+use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
 use crate::FixedGameSystem;
@@ -27,7 +28,7 @@ pub struct MovementBundle {
 }
 
 impl MovementBundle {
-    pub fn new(position: IVec2, velocity: IVec2, velocity_limit: u32, acceleration: i32) -> Self {
+    pub fn new(position: I64Vec2, velocity: IVec2, velocity_limit: u32, acceleration: i32) -> Self {
         Self {
             rigid_body: RigidBody::Kinematic,
             velocity: LinearVelocity(velocity.as_vec2()),
@@ -40,8 +41,8 @@ impl MovementBundle {
         }
     }
 
-    pub fn position(&mut self, x: i32, y: i32) {
-        self.position.0 = IVec2::new(x, y).as_dvec2();
+    pub fn position(&mut self, position: I64Vec2) {
+        self.position.0 = position.as_dvec2();
     }
 }
 

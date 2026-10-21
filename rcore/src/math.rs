@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 use std::ops::Add;
 use std::ops::AddAssign;
 
+use avian2d::prelude::Position;
 use avian2d::prelude::Rotation;
 use bevy::math::I64Vec2;
 use bevy::prelude::EulerRot;
@@ -33,6 +34,27 @@ const QUARTER_SIN_FP: [i32; 65] = [
     32138, 32286, 32413, 32522, 32610, 32679, 32729, 32758,
     32768,
 ];
+
+// Bit size bound of `from_i64vec2_angle`
+const ANGLE_SAFE_BITS: u32 = 47;
+
+// Standardize rounding/conversion of DVec2 to I64Vec2 for sim purposes
+pub fn sim_pos(pos: &Position) -> I64Vec2 {
+    pos.0.floor().as_i64vec2()
+}
+
+pub fn distance_squared(a: I64Vec2, b: I64Vec2) -> i128 {
+    let d = b.saturating_sub(a);
+    i128::from(d.x).pow(2) + i128::from(d.y).pow(2)
+}
+
+// Trim trim a huge delta down so that its safely within angle search bounds. This only
+// trims the low bits
+fn fit_angle_delta(d: I64Vec2) -> I64Vec2 {
+    let max = d.x.unsigned_abs().max(d.y.unsigned_abs());
+    let shift = max.bit_width().saturating_sub(ANGLE_SAFE_BITS);
+    I64Vec2::new(d.x >> shift, d.y >> shift)
+}
 
 fn sin_fp(step: u8) -> i32 {
     let i = usize::from(step);
@@ -148,14 +170,14 @@ impl AbsRot {
         Rotation::from_sin_cos(-heading.x, heading.y)
     }
 
-    // TODO: look into having a Vec2 version to avoid Position truncations
-    pub fn from_vec2_angle(base: IVec2, target: IVec2) -> Option<Self> {
-        let delta = target.as_i64vec2() - base.as_i64vec2();
+    // TODO: look into having a DVec2 version to avoid Position truncations
+    pub fn from_vec2_angle(base: I64Vec2, target: I64Vec2) -> Option<Self> {
+        let delta = target.saturating_sub(base);
         if delta == I64Vec2::ZERO {
             None
         } else {
-            // IVec2(X, Y) (+Y = 0, +X = 64, -Y = 128, -X = 192)
-            Some(from_i64vec2_angle(delta))
+            // I64Vec2(X, Y) (+Y = 0, +X = 64, -Y = 128, -X = 192)
+            Some(from_i64vec2_angle(fit_angle_delta(delta)))
         }
     }
 
@@ -388,7 +410,7 @@ fn test_from_vec2_angle_roundtrip() {
     for i in 0..=u8::MAX {
         let heading = AbsRot(i).to_heading_fp();
         assert_eq!(
-            AbsRot::from_vec2_angle(IVec2::ZERO, heading),
+            AbsRot::from_vec2_angle(I64Vec2::ZERO, heading.as_i64vec2()),
             Some(AbsRot(i)),
             "step {i}"
         );
@@ -408,7 +430,7 @@ fn test_from_vec2_angle_matches_atan2() {
             let delta = IVec2::new(x, y);
             let float_ref = AbsRot::from_angle(Vec2::Y.angle_to(delta.as_vec2()));
             assert_eq!(
-                AbsRot::from_vec2_angle(IVec2::ZERO, delta),
+                AbsRot::from_vec2_angle(I64Vec2::ZERO, delta.as_i64vec2()),
                 Some(float_ref),
                 "delta {delta}"
             );
@@ -431,16 +453,38 @@ fn test_add_rel_to_abs() {
 #[rustfmt::skip]
 #[test]
 fn test_from_vec2_angle() {
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, 0)), None);
+    assert_eq!(AbsRot::from_vec2_angle(I64Vec2::new(0, 0), I64Vec2::new(0, 0)), None);
 
-    // IVec2(X, Y) (+Y = 0, +X = 64, -Y = 128, -X = 192)
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, 1)), Some(AbsRot(0)));
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(1, 0)), Some(AbsRot(64)));
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(0, -1)), Some(AbsRot(128)));
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(-1, 0)), Some(AbsRot(192)));
+    // I64Vec2(X, Y) (+Y = 0, +X = 64, -Y = 128, -X = 192)
+    assert_eq!(AbsRot::from_vec2_angle(I64Vec2::new(0, 0), I64Vec2::new(0, 1)), Some(AbsRot(0)));
+    assert_eq!(AbsRot::from_vec2_angle(I64Vec2::new(0, 0), I64Vec2::new(1, 0)), Some(AbsRot(64)));
+    assert_eq!(AbsRot::from_vec2_angle(I64Vec2::new(0, 0), I64Vec2::new(0, -1)), Some(AbsRot(128)));
+    assert_eq!(AbsRot::from_vec2_angle(I64Vec2::new(0, 0), I64Vec2::new(-1, 0)), Some(AbsRot(192)));
 
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(1, 1)), Some(AbsRot(32)));
-    assert_eq!(AbsRot::from_vec2_angle(IVec2::new(0, 0), IVec2::new(-1, -1)), Some(AbsRot(160)));
+    assert_eq!(AbsRot::from_vec2_angle(I64Vec2::new(0, 0), I64Vec2::new(1, 1)), Some(AbsRot(32)));
+    assert_eq!(AbsRot::from_vec2_angle(I64Vec2::new(0, 0), I64Vec2::new(-1, -1)), Some(AbsRot(160)));
+}
+
+#[test]
+fn test_from_vec2_angle_huge_delta() {
+    // Make sure that even if the headings delta are bigger than 2^47 we still end up on same
+    // heading in the calculations
+    for i in 0..=u8::MAX {
+        let heading = AbsRot(i).to_heading_fp().as_i64vec2() * (1 << 47);
+        assert_eq!(
+            AbsRot::from_vec2_angle(I64Vec2::ZERO, heading),
+            Some(AbsRot(i)),
+            "step {i}"
+        );
+    }
+    assert_eq!(
+        AbsRot::from_vec2_angle(I64Vec2::MIN, I64Vec2::MAX),
+        Some(AbsRot(32))
+    );
+    assert_eq!(
+        AbsRot::from_vec2_angle(I64Vec2::MAX, I64Vec2::MIN),
+        Some(AbsRot(160))
+    );
 }
 
 #[rustfmt::skip]

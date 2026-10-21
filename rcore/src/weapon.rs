@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use bevy::math::DVec2;
+use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
 use crate::FixedGameSystem;
@@ -8,12 +10,15 @@ use avian2d::prelude::Position;
 
 use crate::attach::Attachments;
 use crate::math::FP_SCALE;
+use crate::math::distance_squared;
+use crate::math::sim_pos;
 use crate::radar::ArcCheck;
 use crate::radar::ArcWidth;
 use crate::radar::within_arc;
 use crate::rotation::Heading;
 use crate::rotation::TargetHeading;
 use crate::script::Script;
+use crate::ship::Ship;
 use crate::ship::ShipBuilder;
 use crate::spawner::SpawnMessage;
 
@@ -68,7 +73,7 @@ pub struct HealthDebug;
 pub struct DamageEvent {
     #[event_target]
     pub target: Entity,
-    pub pos: IVec2,
+    pub pos: I64Vec2,
     pub dmg: u16,
 }
 
@@ -112,8 +117,8 @@ pub struct DebugWarhead {
 // New entity + component for rendering the weapon then it fades away
 #[derive(Component)]
 pub struct RenderDebugWeapon {
-    pub origin: Vec2,
-    pub target: Vec2,
+    pub origin: DVec2,
+    pub target: DVec2,
 
     // Persist for this amount of time
     pub fade: Timer,
@@ -122,7 +127,7 @@ pub struct RenderDebugWeapon {
 // New entity + component for rendering the weapon then it fades away
 #[derive(Component)]
 pub struct RenderDebugWarhead {
-    pub origin: Vec2,
+    pub origin: DVec2,
 
     // Persist for this amount of time
     pub fade: Timer,
@@ -175,7 +180,7 @@ pub fn process_damage_event(
 
                 // Check if the damage source is covered by the shield arc
                 match within_arc(
-                    ship_pos.0.as_ivec2(),
+                    sim_pos(ship_pos),
                     trigger.event().pos,
                     heading.0,
                     arc.current,
@@ -240,16 +245,16 @@ pub(crate) fn apply_debug_missile_cooldown(mut query: Query<&mut DebugMissile>) 
 pub fn process_fire_debug_weapon_message(
     mut commands: Commands,
     mut fire_debug_weapon_message: MessageReader<FireDebugWeaponMessage>,
-    mut query: Query<(&mut DebugWeapon, &Position)>,
-    position: Query<&Transform>,
+    mut query: Query<&mut DebugWeapon>,
+    position: Query<&Position>,
 ) {
     for FireDebugWeaponMessage(ship, target) in fire_debug_weapon_message.read() {
-        if let Ok((mut weapon, ship_pos)) = query.get_mut(*ship)
+        if let Ok(mut weapon) = query.get_mut(*ship)
             && weapon.current == 0
         {
             // Fetch the ship & target position
             // Target can be despawned by a earlier weapon system. So double check
-            let Ok([ship_tran, target_tran]) = position.get_many([*ship, *target]) else {
+            let Ok([ship_pos, target_pos]) = position.get_many([*ship, *target]) else {
                 continue;
             };
 
@@ -257,15 +262,15 @@ pub fn process_fire_debug_weapon_message(
 
             // Setup the weapon render
             commands.spawn(RenderDebugWeapon {
-                origin: ship_tran.translation.truncate(),
-                target: target_tran.translation.truncate(),
+                origin: ship_pos.0,
+                target: target_pos.0,
                 fade: Timer::new(Duration::from_secs_f32(5.), TimerMode::Once),
             });
 
             // emit damage event to the target
             commands.trigger(DamageEvent {
                 target: *target,
-                pos: ship_pos.0.as_ivec2(),
+                pos: sim_pos(ship_pos),
                 dmg: weapon.damage,
             });
         }
@@ -276,32 +281,31 @@ pub fn process_fire_debug_warhead_message(
     mut commands: Commands,
     mut fire_debug_warhead_message: MessageReader<FireDebugWarheadMessage>,
     have_warhead: Query<&DebugWarhead>,
-    render_position: Query<&Transform>,
-    position: Query<(Entity, &Position)>,
+    position: Query<(Entity, &Position), With<Ship>>,
 ) {
     for FireDebugWarheadMessage(ship) in fire_debug_warhead_message.read() {
         // does this ship (self) have a warhead component?
         if let Ok(warhead) = have_warhead.get(*ship) {
             // Fetch the ship position
-            let ship_tran = render_position.get(*ship).expect("position");
+            let (base_ship, base_position) = position.get(*ship).expect("position");
+            let base = sim_pos(base_position);
 
             // Setup the weapon render
             commands.spawn(RenderDebugWarhead {
-                origin: ship_tran.translation.truncate(),
+                origin: base_position.0,
                 fade: Timer::new(Duration::from_secs_f32(1.), TimerMode::Once),
             });
 
             // Find target in radius and then emit damage to each target within radius
-            let (base_ship, base_position) = position.get(*ship).expect("postion");
             for (target_ship, target_position) in position.iter() {
                 if base_ship == target_ship {
                     continue;
                 }
 
-                if base_position.0.distance_squared(target_position.0) < DISTANCE_SQUARED as f64 {
+                if distance_squared(base, sim_pos(target_position)) < i128::from(DISTANCE_SQUARED) {
                     commands.trigger(DamageEvent {
                         target: target_ship,
-                        pos: base_position.0.as_ivec2(),
+                        pos: base,
                         dmg: warhead.damage,
                     });
                 }
@@ -333,12 +337,11 @@ pub fn process_fire_debug_missile_message(
             let (pos, rot, parent_script) = parent_ship.get(*ship).expect("parent");
 
             // Calculate the position of the future missile
-            let offset =
-                pos.0.as_ivec2() + (rot.0.to_heading_fp().as_i64vec2() * 400 / FP_SCALE).as_ivec2();
+            let offset = sim_pos(pos) + rot.0.to_heading_fp().as_i64vec2() * 400 / FP_SCALE;
 
             // 4. send it on its merry way
             let missile = ShipBuilder::new(parent_script.clone())
-                .position(offset.x, offset.y)
+                .position(offset)
                 .rotation(rot.0)
                 .velocity(0, 0)
                 .radar_arc(32)

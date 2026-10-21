@@ -1,5 +1,6 @@
 use bevy::ecs::schedule::LogLevel;
 use bevy::ecs::schedule::ScheduleBuildSettings;
+use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
 use rcore::ActiveMap;
@@ -94,8 +95,8 @@ struct SimpleShip {
     dec: i32,
     rot: i8,
     collision: bool,
-    target_x: i32,
-    target_y: i32,
+    target_x: i64,
+    target_y: i64,
     target_e: Option<Entity>,
 }
 
@@ -151,7 +152,7 @@ impl ShipScript for SimpleShip {
         }
     }
 
-    fn on_contact(&mut self, target_pos: IVec2, target_entity: Entity) {
+    fn on_contact(&mut self, target_pos: I64Vec2, target_entity: Entity) {
         if self.target_e != Some(target_entity) {
             println!(
                 "on_contact - target.x: {:?}, target.y: {:?}",
@@ -178,7 +179,7 @@ impl ShipScript for DummyShip {
     fn on_update(&mut self, _status: &ShipStatus) -> ShipAction {
         ShipAction::new()
     }
-    fn on_contact(&mut self, _target_pos: IVec2, _target_entity: Entity) {}
+    fn on_contact(&mut self, _target_pos: I64Vec2, _target_entity: Entity) {}
     fn on_collision(&mut self) {}
 }
 
@@ -192,7 +193,7 @@ fn ship_setup() -> Vec<StarterShip> {
         ShipBuilder::new(Script {
             script: Box::new(SimpleShip::new()),
         })
-        .position(0, 0)
+        .position(I64Vec2::new(0, 0))
         .velocity(0, 0)
         .velocity_limit(100)
         .rotation(AbsRot(0))
@@ -214,7 +215,7 @@ fn ship_setup() -> Vec<StarterShip> {
         ShipBuilder::new(Script {
             script: Box::new(DummyShip),
         })
-        .position(3500, 0)
+        .position(I64Vec2::new(3500, 0))
         .velocity(0, 0)
         .radar_arc(1)
         .shield(AbsRot(192))
@@ -230,7 +231,7 @@ fn ship_setup() -> Vec<StarterShip> {
         ShipBuilder::new(Script {
             script: Box::new(DummyShip),
         })
-        .position(-3500, 0)
+        .position(I64Vec2::new(-3500, 0))
         .velocity(0, 0)
         .radar_arc(1)
         .shield(AbsRot(0))
@@ -246,7 +247,7 @@ fn ship_setup() -> Vec<StarterShip> {
         ShipBuilder::new(Script {
             script: Box::new(DummyShip),
         })
-        .position(-4500, -2500)
+        .position(I64Vec2::new(-4500, -2500))
         .velocity(0, 0)
         .radar_arc(1)
         .build(),

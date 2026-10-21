@@ -1,13 +1,17 @@
 use avian2d::interpolation::RotationInterpolation;
 use avian2d::interpolation::TranslationInterpolation;
 use avian2d::prelude::Position;
+use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
 use crate::attach::AttachedTo;
 use crate::math::AbsRot;
+use crate::math::distance_squared;
+use crate::math::sim_pos;
 use crate::rotation::Heading;
 use crate::rotation::TargetHeading;
 use crate::rotation::apply_rotation;
+use crate::ship::Ship;
 
 use crate::FixedGameSystem;
 
@@ -148,18 +152,18 @@ pub(crate) fn apply_arc_width(mut query: Query<&mut ArcWidth>) {
 pub(crate) fn apply_radar(
     mut message: MessageWriter<ContactMessage>,
     query: Query<(&Heading, &ArcWidth, &AttachedTo), With<Radar>>,
-    ship_query: Query<(Entity, &Position)>,
+    ship_query: Query<(Entity, &Position), With<Ship>>,
 ) {
     for (heading, arc, attached_to) in query.iter() {
         // Scan through all target on field, and calculate their distance and angle,
         // if within the arc store it in a list till we know the closest contact
-        let mut best_target: Option<(Entity, IVec2)> = None;
+        let mut best_target: Option<(Entity, I64Vec2)> = None;
 
         // Tolerate a missing parent; module-stripping damage is a todo
         let Ok((base_ship, base_position)) = ship_query.get(attached_to.0) else {
             continue;
         };
-        let base = base_position.0.as_ivec2();
+        let base = sim_pos(base_position);
 
         // TODO: abstract this logic to a helper class (gizmo debug wants this too and we will have
         // other radar types)
@@ -167,7 +171,7 @@ pub(crate) fn apply_radar(
             if base_ship == target_ship {
                 continue;
             }
-            let target = target_position.0.as_ivec2();
+            let target = sim_pos(target_position);
 
             if matches!(
                 within_radar(base, target, heading.0, arc.current, DISTANCE_SQUARED),
@@ -176,10 +180,8 @@ pub(crate) fn apply_radar(
                 // Is this contact better than current winner?
                 // Tiebreaks based off entity to preserve replay orders
                 if let Some((best_ship, best_position)) = best_target {
-                    let target_distance = base.as_i64vec2().distance_squared(target.as_i64vec2());
-                    let best_distance = base
-                        .as_i64vec2()
-                        .distance_squared(best_position.as_i64vec2());
+                    let target_distance = distance_squared(base, target);
+                    let best_distance = distance_squared(base, best_position);
                     if (target_distance, target_ship) < (best_distance, best_ship) {
                         best_target = Some((target_ship, target));
                     }
@@ -197,14 +199,13 @@ pub(crate) fn apply_radar(
 }
 
 pub fn within_radar(
-    base: IVec2,
-    target: IVec2,
+    base: I64Vec2,
+    target: I64Vec2,
     radar_heading: AbsRot,
     radar_arc: u8,
-    distance_squared: i64,
+    radar_distance_squared: i64,
 ) -> RadarContact {
-    // Widen to prevent overflow
-    if base.as_i64vec2().distance_squared(target.as_i64vec2()) > distance_squared {
+    if distance_squared(base, target) > i128::from(radar_distance_squared) {
         return RadarContact::TooFar;
     }
     match within_arc(base, target, radar_heading, radar_arc) {
@@ -214,7 +215,7 @@ pub fn within_radar(
     }
 }
 
-pub fn within_arc(base: IVec2, target: IVec2, heading: AbsRot, arc: u8) -> ArcCheck {
+pub fn within_arc(base: I64Vec2, target: I64Vec2, heading: AbsRot, arc: u8) -> ArcCheck {
     match AbsRot::from_vec2_angle(base, target) {
         Some(rot) => {
             if heading.within(arc, rot) {
