@@ -41,7 +41,7 @@ impl RonAsset for FieldProfile {
 
 // ApplyPosToTransform is required to get Avian to writeback to a transform
 #[derive(Component)]
-#[require(Position, Rotation, ApplyPosToTransform, Transform)]
+#[require(Position, Rotation, ApplyPosToTransform)]
 pub struct FieldSource(pub Handle<FieldProfile>);
 
 // This lets us use AssetChanged<FieldSource>

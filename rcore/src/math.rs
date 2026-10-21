@@ -558,3 +558,20 @@ fn test_render_edges() {
     assert_eq!(AbsRot(0).ccw_edge(1), AbsRot(255));
     assert_eq!(AbsRot(64).ccw_edge(32), AbsRot(32));
 }
+
+#[test]
+fn test_sim_pos_floor() {
+    use bevy::math::DVec2;
+
+    // Floor, since truncation makes origin a 2-unit wide cell, floor makes it uniformly 1-wide
+    assert_eq!(
+        sim_pos(&Position(DVec2::new(0.9, -0.1))),
+        I64Vec2::new(0, -1)
+    );
+    assert_eq!(
+        sim_pos(&Position(DVec2::new(-0.9, 1.9))),
+        I64Vec2::new(-1, 1)
+    );
+
+    assert_eq!(sim_pos(&Position(DVec2::splat(f64::MAX))), I64Vec2::MAX);
+}

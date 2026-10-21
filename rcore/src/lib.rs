@@ -150,10 +150,7 @@ mod avian_config {
 
         let ship = app
             .world_mut()
-            .spawn((
-                RigidBody::Kinematic,
-                Position(pos),
-            ))
+            .spawn((RigidBody::Kinematic, Position(pos)))
             .id();
 
         for _ in 0..8 {
