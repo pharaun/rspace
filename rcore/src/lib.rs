@@ -1,3 +1,4 @@
+use avian2d::physics_transform::PhysicsTransformConfig;
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
@@ -73,11 +74,21 @@ pub enum GamePhase {
     Run,
 }
 
+// Make sure that Avian does not take a Transform from bevy. The sim strictly uses Position(f64)
+// where the render uses Transform(f32).
+const SIM_TRANSFORM_CONFIG: PhysicsTransformConfig = PhysicsTransformConfig {
+    propagate_before_physics: false,
+    transform_to_position: false,
+    position_to_transform: true,
+    transform_to_collider_scale: false,
+};
+
 pub struct SimulationPlugin;
 impl Plugin for SimulationPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
             // Physics
+            .insert_resource(SIM_TRANSFORM_CONFIG)
             .add_plugins(PhysicsPlugins::default())
             .insert_resource(Gravity(Vec2::ZERO))
             .configure_sets(
@@ -113,5 +124,47 @@ impl Plugin for SimulationPlugin {
                     .chain()
                     .run_if(in_state(GamePhase::Run)),
             );
+    }
+}
+
+#[cfg(test)]
+mod avian_config {
+    use super::*;
+
+    use bevy::math::DVec2;
+    use bevy::time::TimeUpdateStrategy;
+    use std::time::Duration;
+
+    fn step_position(pos: DVec2, config: PhysicsTransformConfig) -> DVec2 {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, TransformPlugin))
+            .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(
+                1.0 / f64::from(TICK_HZ),
+            )))
+            .insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
+            .insert_resource(config)
+            .add_plugins(PhysicsPlugins::default())
+            .insert_resource(Gravity(Vec2::ZERO));
+        app.finish();
+        app.cleanup();
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                RigidBody::Kinematic,
+                Position(pos),
+            ))
+            .id();
+
+        for _ in 0..8 {
+            app.update();
+        }
+        app.world().get::<Position>(ship).expect("position").0
+    }
+
+    #[test]
+    fn test_position_survives_transform_sync() {
+        let pos = DVec2::new(1_000_000.3, -0.7);
+        assert_eq!(step_position(pos, SIM_TRANSFORM_CONFIG), pos);
     }
 }
