@@ -14,6 +14,7 @@ pub mod spawner;
 pub mod time;
 pub mod weapon;
 
+#[expect(clippy::disallowed_types, reason = "Transform")]
 #[cfg(feature = "render")]
 pub mod render;
 

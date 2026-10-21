@@ -1,0 +1,5 @@
+disallowed-types = [
+    # Sim uses Avian `Position` (f64), and Bevy `Transform` (f32) is a render-only
+    { path = "bevy::transform::components::Transform", reason = "render-only: sim uses avian Position/Rotation" },
+    { path = "bevy::transform::components::GlobalTransform", reason = "render-only: sim uses avian Position/Rotation" },
+]

@@ -14,20 +14,21 @@ pub(super) struct TransformSyncPlugin;
 impl Plugin for TransformSyncPlugin {
     fn build(&self, app: &mut App) {
         // Run after Avian writes back the transform + before interpolation of transform
-        app.add_systems(
-            FixedPostUpdate,
-            (
-                propagate_heading_transform,
-                propagate_attachment_translation,
+        app.register_required_components::<AttachOffset, Transform>()
+            .add_systems(
+                FixedPostUpdate,
+                (
+                    propagate_heading_transform,
+                    propagate_attachment_translation,
+                )
+                    .after(PhysicsSystems::Writeback),
             )
-                .after(PhysicsSystems::Writeback),
-        )
-        .add_systems(
-            PostUpdate,
-            (init_body_transform, init_attachment_transform)
-                .chain()
-                .before(TransformSystems::Propagate),
-        );
+            .add_systems(
+                PostUpdate,
+                (init_body_transform, init_attachment_transform)
+                    .chain()
+                    .before(TransformSystems::Propagate),
+            );
     }
 }
 

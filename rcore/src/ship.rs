@@ -105,7 +105,6 @@ pub struct Attachments(Vec<Entity>);
 
 // Render only component (handling offset from ship center)
 #[derive(Component, Clone, Copy)]
-#[require(Transform)]
 pub struct AttachOffset(pub Vec3);
 
 // There are several classes of ship:
