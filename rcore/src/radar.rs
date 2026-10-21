@@ -4,13 +4,13 @@ use avian2d::prelude::Position;
 use bevy::math::I64Vec2;
 use bevy::prelude::*;
 
-use crate::attach::AttachedTo;
 use crate::math::AbsRot;
 use crate::math::distance_squared;
 use crate::math::sim_pos;
 use crate::rotation::Heading;
 use crate::rotation::TargetHeading;
 use crate::rotation::apply_rotation;
+use crate::ship::AttachedTo;
 use crate::ship::Ship;
 
 use crate::FixedGameSystem;

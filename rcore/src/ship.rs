@@ -9,8 +9,6 @@ use crate::assets::ship::Class;
 use crate::assets::ship::Mount;
 use crate::assets::ship::ShipClass;
 
-use crate::attach::AttachOffset;
-use crate::attach::AttachedTo;
 use crate::math::AbsRot;
 use crate::script::Script;
 
@@ -89,6 +87,26 @@ use crate::environ::Environ;
 // - Ship construction (each ship can build a ship same size or smaller than itself?
 #[derive(Component)]
 pub struct Ship(pub ShipType);
+
+// Ship Attachments
+// - This is for rotation-less "transform hierarchy"
+// - Aka things like turrets, radar, shield that wants to attach to a ship but preserve
+//   their own rotation.
+// - The sim reads the parent `Position` directly, the render handles the Transform side of it
+//   (see `render::transform`)
+#[derive(Component)]
+#[relationship(relationship_target = Attachments)]
+pub struct AttachedTo(pub Entity);
+
+// Despawn attachments when the parent entity despawns
+#[derive(Component)]
+#[relationship_target(relationship = AttachedTo, linked_spawn)]
+pub struct Attachments(Vec<Entity>);
+
+// Render only component (handling offset from ship center)
+#[derive(Component, Clone, Copy)]
+#[require(Transform)]
+pub struct AttachOffset(pub Vec3);
 
 // There are several classes of ship:
 // 1. cruiser - large

@@ -13,9 +13,7 @@ impl Plugin for RotationPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedUpdate,
-            (apply_rotation, propagate_heading_transform)
-                .chain()
-                .in_set(FixedGameSystem::GameLogic),
+            apply_rotation.in_set(FixedGameSystem::GameLogic),
         );
     }
 }
@@ -106,16 +104,5 @@ pub(crate) fn apply_rotation(
         if let Some(mut rotation) = opt_rotation {
             *rotation = heading.0.to_rotation();
         }
-    }
-}
-
-// Arc modules (radar/shield) don't have Avian Rotation, Update render transform
-// directly for these. (The others are handled by Avian).
-#[expect(clippy::type_complexity)]
-pub(crate) fn propagate_heading_transform(
-    mut query: Query<(&Heading, &mut Transform), (Changed<Heading>, Without<Rotation>)>,
-) {
-    for (heading, mut transform) in query.iter_mut() {
-        transform.rotation = heading.0.to_quat();
     }
 }

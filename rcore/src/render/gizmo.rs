@@ -1,3 +1,5 @@
+use avian2d::prelude::LinearVelocity;
+use avian2d::prelude::Position;
 use bevy::prelude::*;
 
 use crate::math::AbsRot;
@@ -5,10 +7,6 @@ use crate::math::sim_pos;
 
 use crate::movement::MovDebug;
 use crate::movement::Thrust;
-use avian2d::prelude::LinearVelocity;
-use avian2d::prelude::Position;
-
-use crate::attach::AttachedTo;
 
 use crate::rotation::Heading;
 use crate::rotation::RotDebug;
@@ -25,6 +23,7 @@ use crate::radar::RadarContact;
 use crate::radar::RadarDebug;
 use crate::radar::within_radar;
 
+use crate::ship::AttachedTo;
 use crate::ship::Ship;
 
 // Primitive bar-graph in gizmo form

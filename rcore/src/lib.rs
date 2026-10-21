@@ -3,7 +3,6 @@ use avian2d::prelude::*;
 use bevy::prelude::*;
 
 pub mod assets;
-pub mod attach;
 pub mod environ;
 pub mod math;
 pub mod movement;
@@ -22,7 +21,6 @@ use crate::math::AbsRot;
 
 use crate::assets::AssetGatePlugin;
 use crate::assets::AssetsPlugin;
-use crate::attach::AttachPlugin;
 use crate::environ::EnvironPlugin;
 use crate::movement::MovementPlugin;
 use crate::radar::RadarPlugin;
@@ -101,7 +99,6 @@ impl Plugin for SimulationPlugin {
             .add_plugins(AssetGatePlugin)
             // Simulation Support
             .add_plugins(AssetsPlugin)
-            .add_plugins(AttachPlugin)
             .add_plugins(TimeControlPlugin)
             // Game Bits
             .add_plugins(EnvironPlugin)

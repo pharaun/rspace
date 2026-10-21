@@ -8,7 +8,6 @@ use crate::FixedGameSystem;
 
 use avian2d::prelude::Position;
 
-use crate::attach::Attachments;
 use crate::math::FP_SCALE;
 use crate::math::distance_squared;
 use crate::math::sim_pos;
@@ -18,6 +17,7 @@ use crate::radar::within_arc;
 use crate::rotation::Heading;
 use crate::rotation::TargetHeading;
 use crate::script::Script;
+use crate::ship::Attachments;
 use crate::ship::Ship;
 use crate::ship::ShipBuilder;
 use crate::spawner::SpawnMessage;

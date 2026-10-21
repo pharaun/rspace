@@ -1,3 +1,4 @@
+use avian2d::prelude::Position;
 use avian2d::prelude::*;
 use bevy::math::I64Vec2;
 use bevy::prelude::*;
@@ -6,11 +7,10 @@ use dyn_clone::DynClone;
 
 use std::fmt;
 
-use crate::attach::Attachments;
 use crate::movement::Thrust;
 use crate::rotation::Heading;
 use crate::rotation::TargetHeading;
-use avian2d::prelude::Position;
+use crate::ship::Attachments;
 
 use crate::radar::ContactMessage;
 use crate::radar::Radar;

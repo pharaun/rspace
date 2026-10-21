@@ -12,8 +12,8 @@ use crate::assets::gate::GateKey;
 use crate::assets::gate::GateState;
 use crate::assets::ron::ResolveError;
 use crate::assets::ron::RonAsset;
-use crate::attach::AttachOffset;
-use crate::attach::AttachedTo;
+use crate::ship::AttachOffset;
+use crate::ship::AttachedTo;
 use crate::ship::ShipType;
 
 #[cfg(feature = "render")]

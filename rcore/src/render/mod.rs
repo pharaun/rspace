@@ -9,13 +9,15 @@ pub mod camera;
 mod gizmo;
 pub mod grid;
 pub mod shape;
+mod transform;
 
 use crate::FieldProfile;
 use crate::FieldSource;
 use crate::assets::ship::Class;
 use crate::assets::ship::Mount;
 use crate::assets::ship::ShipClass;
-use crate::attach::AttachedTo;
+use crate::render::transform::TransformSyncPlugin;
+use crate::ship::AttachedTo;
 use crate::time::TimeMsg;
 use crate::weapon::RenderDebugWarhead;
 use crate::weapon::RenderDebugWeapon;
@@ -27,8 +29,10 @@ use crate::weapon::RenderDebugWeapon;
 pub struct RenderPlugin;
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut App) {
-        // FPS
-        app.add_plugins(FrameTimeDiagnosticsPlugin::default())
+        // Sync Sim Position to Render Transform
+        app.add_plugins(TransformSyncPlugin)
+            // FPS
+            .add_plugins(FrameTimeDiagnosticsPlugin::default())
             .add_systems(
                 Update,
                 render_fps.run_if(on_timer(core::time::Duration::from_millis(100))),
