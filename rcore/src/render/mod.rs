@@ -21,6 +21,9 @@ use crate::weapon::RenderDebugWarhead;
 use crate::weapon::RenderDebugWeapon;
 
 // Render plugin to make it easy to keep render segmented off
+// TODO: may want to double check/have some system handle the Z axis of transform since sim is on
+// position, so the Z axis will be zero, and we want to be able to use Z axis to layer assets, but
+// that can probs be handled in render
 pub struct RenderPlugin;
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut App) {

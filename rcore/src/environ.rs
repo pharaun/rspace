@@ -244,19 +244,18 @@ fn on_environ_add(mut world: DeferredWorld, context: HookContext) {
     *environ = new_environ;
 }
 
-// Vec2 (for now cuz stars are probs going to be close to origin?)
-// DVec2 for ships
-fn compose(sources: &[(Vec2, FieldProfile)], consts: &MapConsts, p: DVec2) -> Environ {
+fn compose(sources: &[(DVec2, FieldProfile)], consts: &MapConsts, p: DVec2) -> Environ {
     let mut raw = consts.baseline;
     let mut nearest_source = f64::INFINITY;
 
     for (pos, profile) in sources {
-        let r = pos.as_dvec2().distance(p);
-        nearest_source = nearest_source.min(r - profile.body_radius as f64);
+        let r = pos.distance(p);
+        nearest_source = nearest_source.min(r - f64::from(profile.body_radius));
 
         // Iterate through all of the fields for each source
         for field in Field::ALL {
-            // TODO: fix this to accept f64 for distance
+            // f32 is fine for sampling, curves flatten out or zeros out far from source.
+            #[expect(clippy::cast_possible_truncation)]
             let v = profile.tables[field].sample(r as f32);
             raw[field] = raw[field].saturating_add(v);
         }

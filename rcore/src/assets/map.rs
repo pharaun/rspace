@@ -1,7 +1,9 @@
+use avian2d::prelude::Position;
 use bevy::asset::LoadContext;
 use bevy::asset::LoadState;
 use bevy::asset::UntypedAssetId;
 use bevy::asset::VisitAssetDependencies;
+use bevy::math::DVec2;
 use bevy::prelude::*;
 
 use serde::Deserialize;
@@ -61,7 +63,7 @@ impl RonAsset for MapData {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct StarData {
-    pub pos: Vec2,
+    pub pos: DVec2,
     // Path to the FieldProfile asset
     class: String,
     // `MapData::resolve` lets MapData resolve the handle into this struct
@@ -167,7 +169,7 @@ pub fn sync_star_map(
     for star in &map.stars {
         commands.spawn((
             StarMarker,
-            Transform::from_translation(star.pos.extend(0.)),
+            Position(star.pos),
             FieldSource(star.profile().clone()),
         ));
     }
