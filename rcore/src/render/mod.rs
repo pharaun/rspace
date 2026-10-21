@@ -9,10 +9,9 @@ pub mod camera;
 mod gizmo;
 pub mod grid;
 pub mod shape;
+mod star;
 mod transform;
 
-use crate::FieldProfile;
-use crate::FieldSource;
 use crate::assets::ship::Class;
 use crate::assets::ship::Mount;
 use crate::assets::ship::ShipClass;
@@ -39,6 +38,8 @@ impl Plugin for RenderPlugin {
             )
             // Grid systems
             .add_plugins(grid::GridPlugin { debug: true })
+            // Star systems
+            .add_plugins(star::StarPlugin)
             // Startup setup
             .add_systems(
                 Startup,
@@ -60,8 +61,6 @@ impl Plugin for RenderPlugin {
                     render_time_control,
                 ),
             )
-            // Add stars
-            .add_systems(Update, sync_star_visuals)
             // Time controls
             .add_systems(PreUpdate, (manage_time_control, manage_screenshots))
             // Temporary weapon render via gizmos
@@ -333,26 +332,4 @@ fn arena_axis_setup(mut commands: Commands) {
         Text2d::new("-Y"),
         Transform::from_xyz(0., -(display.y / 2.0 + 150.), -0.9).with_scale(Vec3::splat(10.)),
     ));
-}
-
-// We re-sync the star visuals if:
-//  - Changed<FieldSource> - the star got respawned
-//  - AssetChanged<FieldSource> - the prf was reloaded (update the visual to match new prf)
-#[expect(clippy::type_complexity)]
-fn sync_star_visuals(
-    stars: Query<(Entity, &FieldSource), Or<(Changed<FieldSource>, AssetChanged<FieldSource>)>>,
-    profiles: Res<Assets<FieldProfile>>,
-    mut commands: Commands,
-) {
-    for (entity, field_source) in &stars {
-        let Some(prof) = profiles.get(&field_source.0) else {
-            continue;
-        };
-
-        // Insert will replace the Sprite already on the star with a new one if it already had one
-        commands.entity(entity).insert(Sprite::from_color(
-            prof.color,
-            Vec2::splat(prof.body_radius * 2.0),
-        ));
-    }
 }
