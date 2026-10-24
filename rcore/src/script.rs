@@ -23,6 +23,64 @@ use crate::math::AbsRot;
 use crate::math::RelRot;
 use crate::math::sim_pos;
 
+// Agent coordination/fleet coordination.
+// credit: Athena (Fox Den) - Inspired by Nebulous Fleet Command
+//
+// Have 2 tier, maybe even 3 tier of chain of command for the AI scripts. There is broadly 2 common
+// paradigm in use today:
+// 1. one script per ship (ai fleet, AT-Robot, etc...)
+// 2. one global script (screeps)
+//
+// They suggested this concept, where:
+// 1. one admiral tier-script for managing the whole fleet
+// 2. per ship captain tier-script for managing the ship itself
+// 3. this provides a blend of the 2 paradign (one per ship, and 1 global manager script)
+//
+// Then the admiral would get messages from captains (ie sensor update, information, etc) and then
+// the admin sends back orders like 'go attack this' and possibly swap in different captain script.
+//
+// Each captain would be responsible for their own ships, possibly also missiles/fighters if any.
+// They would decide how to move the ship, what weapons to fire, what kind of modules and things
+// they want to do.
+//
+// They would also share back what they are doing + sensor + information back up to the admiral.
+//
+// Now the benefit of this approach:
+// 1. don't need to setup some sort of swarm-ai which would be difficult, its handled for you
+// 2. it lets you have a map in which you write the admiral only, another for captains only, etc
+//    for gradual concept introduction.
+// 3. it let you have options between just using captains and coordinate there, or have admin
+//    handle the high level tasks/target/figuring out "what do we want to do"
+// 4. As a challenge multiplier/lever you could have a limit on size of message sent to/from the
+//    admiral for eg on a map with 256 bytes to a map on 1 kilobytes or whatever. This would also
+//    allow for additional challenge on the pulsar (neutron star) map in which the beam would also
+//    scramble communication as well.
+//
+// TODO:
+// - Figure out how to do the coordination, i presume the captain each would get to send 1 'block'
+// of info every so often, and admiral would get a list of block of info and manage its information
+// there
+// - Figure out if we want to allow captain to captain communication or only captain 2 admiral?
+// - figure out what to do with missiles/fighters for low level stuff ie can captain manage them or
+// are they on their own and self-contained once they have launched off?
+// - Figure out how to manage the script laoding/asset, ie do we provide 1 script with one function
+// to invoke for admiral, 1 function for captain, 1 function for whatever, and then let the player
+// manage it?
+// - Do we want to instead have several captain scripts, and let the admiral select which one a
+// ship is running? that could make it easier to have attack script vs defensive script kinda thing
+// or do we want to have one captain script and have the behavor be defined by the order the
+// admiral can send to the captain?
+//
+// Intro?
+// - one level with 2-3 ships vs 2-3 ship captain scripts only (small battle) for initial
+// programing learning howto
+// - one level with pre-provided captain script, admiral needs to be written for managing the fleet
+// to provide learning howto on admiral stuff
+// - one level with like a platform that launches missiles/fighter and the player needs to write
+// those script for self-reliance ships for limited roles
+// - Then after that the normal game opens up and the player is like "here you go, have fun"
+
+
 // TODO: Design
 //
 // I'm not sure bout the precise design right now but I think some sort of system that has this
